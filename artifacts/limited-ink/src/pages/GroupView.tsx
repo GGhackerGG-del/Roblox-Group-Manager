@@ -11,9 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Loader2, Users, Coins, Shield, UploadCloud, Image as ImageIcon,
-  Search, Copy, TrendingUp, UserPlus, Trash2, Download, BarChart3, Clock, RefreshCw,
-  Hourglass, ShoppingCart, Settings, X, ChevronRight, LayoutGrid, DollarSign
+  Loader2, Users, Shield, Image as ImageIcon,
+  Search, Copy, UserPlus, Trash2, Download, RefreshCw,
+  Hourglass, ChevronRight, DollarSign
 } from "lucide-react";
 import { motion } from "framer-motion";
 import PnL from "./PnL";
@@ -64,12 +64,6 @@ interface AltAccount {
   avatarUrl: string | null;
 }
 
-interface SalesData {
-  pendingRobux: number;
-  todayRevenue: number;
-  weekRevenue: number;
-  recentSales: Array<{ id: string; created: string; revenue: number; description: string }>;
-}
 
 interface FullStats {
   id: number;
@@ -87,87 +81,6 @@ interface FullStats {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StatCard({ icon, label, value, accent = false }: { icon: React.ReactNode; label: string; value: string; accent?: boolean }) {
-  return (
-    <Card className={`rounded-2xl border-none shadow-lg shadow-black/5 ${accent ? "bg-black text-white" : "bg-gradient-to-br from-card to-secondary/30"}`}>
-      <CardContent className="p-5 flex items-center gap-4">
-        <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${accent ? "bg-white/15" : "bg-black text-white"}`}>
-          {icon}
-        </div>
-        <div>
-          <p className={`text-xs font-semibold uppercase tracking-wider ${accent ? "text-white/60" : "text-muted-foreground"}`}>{label}</p>
-          <p className={`text-2xl font-bold leading-tight ${accent ? "text-white" : ""}`}>{value}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Overview Tab ─────────────────────────────────────────────────────────────
-
-function OverviewTab({ stats }: { stats: FullStats }) {
-  const groupId = String(stats.id);
-  const { toast } = useToast();
-
-  const handleAnalyze = async () => {
-    try {
-      const resp = await fetch(`${BASE}/api/roblox/groups/${groupId}/analyze`, {
-        credentials: "include",
-        headers: getAuthHeaders(),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: "Failed to generate report" })) as { error?: string };
-        toast({ variant: "destructive", title: "Error", description: err.error || "Failed to generate report" });
-        return;
-      }
-      const blob = await resp.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `analysis_${stats.name.replace(/\s+/g, "_")}_${Date.now()}.txt`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to download report" });
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <StatCard icon={<Users className="w-5 h-5" />} label="Members" value={stats.memberCount.toLocaleString()} />
-        <StatCard icon={<Coins className="w-5 h-5" />} label="Balance" value={`${stats.funds.toLocaleString()} R$`} />
-        <StatCard icon={<Hourglass className="w-5 h-5" />} label="Pending R$" value={`${(stats.pendingRobux ?? 0).toLocaleString()} R$`} />
-        <StatCard icon={<ShoppingCart className="w-5 h-5" />} label="Sales 24h" value={`${(stats.salesRevenue24h ?? 0).toLocaleString()} R$`} />
-        <StatCard icon={<Shield className="w-5 h-5" />} label="Join Policy" value={stats.joinPolicy} />
-      </div>
-
-      {stats.description && (
-        <Card className="rounded-2xl border border-border shadow-sm">
-          <CardContent className="p-5">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Description</p>
-            <p className="text-sm text-muted-foreground leading-relaxed">{stats.description}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card className="rounded-2xl border border-border shadow-md">
-        <CardContent className="p-5 flex items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <BarChart3 className="w-5 h-5 text-foreground" />
-              <p className="font-bold text-base">Group Analysis</p>
-            </div>
-            <p className="text-sm text-muted-foreground">Download a full report with improvement recommendations as a TXT file.</p>
-          </div>
-          <Button onClick={handleAnalyze} className="rounded-xl shrink-0 gap-2 shadow-md shadow-black/10">
-            <Download className="w-4 h-4" /> Download Report
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
 // ─── Copy Clothing Tab ─────────────────────────────────────────────────────────
 
@@ -570,103 +483,6 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   );
 }
 
-// ─── Sales Tab ────────────────────────────────────────────────────────────────
-
-function SalesTab({ groupId }: { groupId: number }) {
-  const [data, setData] = useState<SalesData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-
-  const fetchSales = useCallback(async () => {
-    try {
-      const d = await apiFetch<SalesData>(`/api/roblox/groups/${groupId}/sales`);
-      setData(d);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [groupId]);
-
-  useEffect(() => {
-    fetchSales();
-  }, [fetchSales]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(fetchSales, 30_000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, fetchSales]);
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-4">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}
-        </div>
-        <Skeleton className="h-64 rounded-2xl" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h3 className="font-bold text-lg">Sales Monitor</h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setAutoRefresh(p => !p)}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${autoRefresh ? "bg-green-500/15 text-green-600 border-green-500/30" : "border-border text-muted-foreground hover:text-foreground"}`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            {autoRefresh ? "Auto (30s)" : "Auto-refresh"}
-          </button>
-          <Button size="sm" variant="outline" onClick={fetchSales} className="rounded-lg gap-1.5 text-xs">
-            <RefreshCw className="w-3.5 h-3.5" /> Refresh
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Today's Revenue" value={`${(data?.todayRevenue ?? 0).toLocaleString()} R$`} accent />
-        <StatCard icon={<Hourglass className="w-5 h-5" />} label="Pending Robux" value={`${(data?.pendingRobux ?? 0).toLocaleString()} R$`} />
-        <StatCard icon={<ShoppingCart className="w-5 h-5" />} label="Transactions" value={(data?.recentSales.length ?? 0).toLocaleString()} />
-      </div>
-
-      <Card className="rounded-2xl border border-border shadow-sm">
-        <CardHeader className="pb-2 p-5">
-          <CardTitle className="text-base font-bold">Recent Sales</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {!data?.recentSales || data.recentSales.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <ShoppingCart className="w-10 h-10 mx-auto mb-3 opacity-30" strokeWidth={1} />
-              <p className="text-sm">No sales data available</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {data.recentSales.map((sale, i) => (
-                <div key={`${sale.id}-${i}`} className="flex items-center justify-between px-5 py-3 hover:bg-secondary/40 transition-colors">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 bg-green-500/15 rounded-full flex items-center justify-center shrink-0">
-                      <ShoppingCart className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{sale.description}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(sale.created).toLocaleString("en-US")}</p>
-                    </div>
-                  </div>
-                  <span className="text-sm font-bold text-green-600 ml-4 shrink-0">+{sale.revenue} R$</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 // ─── Alt Accounts Tab ─────────────────────────────────────────────────────────
 
 function AltAccountsTab() {
@@ -797,7 +613,7 @@ export default function GroupView({ id }: { id: string }) {
   const [isError, setIsError] = useState(false);
 
   const [activeTab, setActiveTab] = useState(() => {
-    return localStorage.getItem(`limitedink_tab_${id}`) || "overview";
+    return localStorage.getItem(`limitedink_tab_${id}`) || "pnl";
   });
 
   const handleTabChange = (tab: string) => {
@@ -817,8 +633,9 @@ export default function GroupView({ id }: { id: string }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(`limitedink_tab_${id}`);
-    if (saved) setActiveTab(saved);
-    else setActiveTab("overview");
+    const validTabs = ["pnl", "copy", "catalog", "alts"];
+    if (saved && validTabs.includes(saved)) setActiveTab(saved);
+    else setActiveTab("pnl");
   }, [id]);
 
   if (isLoading || (!stats && !isError)) {
@@ -867,10 +684,10 @@ export default function GroupView({ id }: { id: string }) {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+      <Tabs value={["pnl", "copy", "catalog", "alts"].includes(activeTab) ? activeTab : "pnl"} onValueChange={handleTabChange} className="w-full">
         <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto flex-wrap gap-1 w-full">
-          <TabsTrigger value="overview" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
-            <LayoutGrid className="w-3.5 h-3.5" /> Overview
+          <TabsTrigger value="pnl" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
+            <DollarSign className="w-3.5 h-3.5" /> P&L
           </TabsTrigger>
           <TabsTrigger value="copy" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
             <Copy className="w-3.5 h-3.5" /> Copy Clothing
@@ -878,20 +695,14 @@ export default function GroupView({ id }: { id: string }) {
           <TabsTrigger value="catalog" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
             <Search className="w-3.5 h-3.5" /> Catalog
           </TabsTrigger>
-          <TabsTrigger value="sales" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5" /> Sales
-          </TabsTrigger>
           <TabsTrigger value="alts" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5" /> Alt Accounts
-          </TabsTrigger>
-          <TabsTrigger value="pnl" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5" /> P&L
           </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
-          <TabsContent value="overview" className="mt-0">
-            <OverviewTab stats={stats} />
+          <TabsContent value="pnl" className="mt-0">
+            <PnL groupId={String(stats.id)} />
           </TabsContent>
           <TabsContent value="copy" className="mt-0">
             <CopyClothingTab groupId={stats.id} />
@@ -899,14 +710,8 @@ export default function GroupView({ id }: { id: string }) {
           <TabsContent value="catalog" className="mt-0">
             <CatalogSearchTab groupId={stats.id} />
           </TabsContent>
-          <TabsContent value="sales" className="mt-0">
-            <SalesTab groupId={stats.id} />
-          </TabsContent>
           <TabsContent value="alts" className="mt-0">
             <AltAccountsTab />
-          </TabsContent>
-          <TabsContent value="pnl" className="mt-0">
-            <PnL groupId={String(stats.id)} />
           </TabsContent>
         </div>
       </Tabs>

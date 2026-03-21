@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, Users, ShoppingBag, DollarSign, Calendar,
-  TrendingUp, Crown, Globe, Loader2, AlertCircle
+  TrendingUp, Crown, Loader2, AlertCircle, Heart, Shirt
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -27,7 +27,10 @@ interface CompetitorData {
   clothing: {
     totalCount: number;
     averagePrice: number;
-    topItems: Array<{ id: number; name: string; price: number | null }>;
+    shirts: number;
+    pants: number;
+    tshirts: number;
+    topItems: Array<{ id: number; name: string; price: number | null; favorites: number; type: string }>;
   };
 }
 
@@ -84,7 +87,7 @@ export default function Competitors() {
         <CardContent className="pt-6">
           <div className="flex gap-3">
             <Input
-              placeholder="Enter competitor Group ID"
+              placeholder="Enter competitor Group ID (e.g. 114200141)"
               value={groupId}
               onChange={(e) => setGroupId(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && analyze()}
@@ -173,6 +176,32 @@ export default function Competitors() {
             </Card>
           </div>
 
+          {(data.clothing.shirts > 0 || data.clothing.pants > 0 || data.clothing.tshirts > 0) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Shirt className="w-4 h-4" /> Clothing Breakdown
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
+                    <p className="text-lg font-bold text-blue-600">{data.clothing.shirts}</p>
+                    <p className="text-xs text-muted-foreground">Shirts</p>
+                  </div>
+                  <div className="text-center p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
+                    <p className="text-lg font-bold text-purple-600">{data.clothing.pants}</p>
+                    <p className="text-xs text-muted-foreground">Pants</p>
+                  </div>
+                  <div className="text-center p-3 rounded-xl bg-green-500/5 border border-green-500/20">
+                    <p className="text-lg font-bold text-green-600">{data.clothing.tshirts}</p>
+                    <p className="text-xs text-muted-foreground">T-Shirts</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {data.clothing.topItems.length > 0 && (
             <Card>
               <CardHeader>
@@ -183,15 +212,33 @@ export default function Competitors() {
               <CardContent>
                 <div className="space-y-2">
                   {data.clothing.topItems.map((item, i) => (
-                    <div key={item.id} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                    <a
+                      key={item.id}
+                      href={`https://www.roblox.com/catalog/${item.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between py-2.5 px-3 border border-border/30 rounded-xl hover:bg-secondary/30 transition-colors"
+                    >
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-muted-foreground font-mono w-5">{i + 1}.</span>
-                        <span className="text-sm font-medium">{item.name}</span>
+                        <div>
+                          <span className="text-sm font-medium">{item.name}</span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant="outline" className="text-[10px] h-4">
+                              {item.type}
+                            </Badge>
+                            {item.favorites > 0 && (
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                <Heart className="w-2.5 h-2.5" /> {item.favorites.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs shrink-0">
                         {item.price != null ? `${item.price} R$` : "Off-sale"}
                       </Badge>
-                    </div>
+                    </a>
                   ))}
                 </div>
               </CardContent>

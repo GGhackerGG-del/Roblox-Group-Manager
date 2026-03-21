@@ -6,24 +6,19 @@ const ROBLOX_GROUPS_API = "https://groups.roblox.com";
 const ROBLOX_CATALOG_API = "https://catalog.roblox.com";
 const ROBLOX_THUMBNAILS_API = "https://thumbnails.roblox.com";
 
-async function fetchRoblox(url: string, cookie: string): Promise<Response> {
-  return fetch(url, {
-    redirect: "follow",
-    headers: {
-      Cookie: `.ROBLOSECURITY=${cookie}`,
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      Accept: "application/json",
-    },
-  });
+interface CatalogItem {
+  id: number;
+  name: string;
+  description: string;
+  price: number | null;
+  lowestPrice: number | null;
+  favoriteCount: number;
+  assetType: number;
+  creatorName: string;
+  itemType: string;
 }
 
 router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
-  const cookie = req.session.robloxCookie;
-  if (!cookie) {
-    res.status(401).json({ error: "No active Roblox session." });
-    return;
-  }
-
   const rawId = Array.isArray(req.params.groupId) ? req.params.groupId[0] : req.params.groupId;
   const groupId = parseInt(rawId, 10);
   if (isNaN(groupId)) {
@@ -33,8 +28,12 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
 
   try {
     const [groupResp, thumbResp] = await Promise.allSettled([
-      fetch(`${ROBLOX_GROUPS_API}/v1/groups/${groupId}`),
-      fetch(`${ROBLOX_THUMBNAILS_API}/v1/groups/icons?groupIds=${groupId}&size=150x150&format=Png&isCircular=false`),
+      fetch(`${ROBLOX_GROUPS_API}/v1/groups/${groupId}`, {
+        headers: { Accept: "application/json" },
+      }),
+      fetch(`${ROBLOX_THUMBNAILS_API}/v1/groups/icons?groupIds=${groupId}&size=150x150&format=Png&isCircular=false`, {
+        headers: { Accept: "application/json" },
+      }),
     ]);
 
     if (groupResp.status !== "fulfilled" || !groupResp.value.ok) {
@@ -54,32 +53,59 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
       thumbnailUrl = d.data?.[0]?.imageUrl || null;
     }
 
-    const clothingResp = await fetchRoblox(
-      `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=2&creatorTargetId=${groupId}&limit=60&sortType=3`,
-      cookie
-    );
+    const allItems: CatalogItem[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
 
-    let totalClothing = 0;
-    let avgPrice = 0;
-    let topItems: Array<{ id: number; name: string; price: number | null }> = [];
+    while (pages < 3) {
+      const url = new URL(`${ROBLOX_CATALOG_API}/v1/search/items/details`);
+      url.searchParams.set("Category", "3");
+      url.searchParams.set("CreatorType", "Group");
+      url.searchParams.set("CreatorTargetId", String(groupId));
+      url.searchParams.set("Limit", "30");
+      url.searchParams.set("SortType", "3");
+      if (cursor) url.searchParams.set("Cursor", cursor);
 
-    if (clothingResp.ok) {
-      const data = await clothingResp.json() as {
-        data: Array<{ id: number; name: string; price: number | null; favoriteCount?: number }>;
+      const catalogResp = await fetch(url.toString(), {
+        headers: { Accept: "application/json" },
+      });
+
+      if (!catalogResp.ok) break;
+
+      const catalogData = await catalogResp.json() as {
+        nextPageCursor: string | null;
+        data: CatalogItem[];
       };
-      const items = data.data || [];
-      totalClothing = items.length;
 
-      const priced = items.filter(i => i.price != null && i.price > 0);
-      avgPrice = priced.length > 0
-        ? Math.round(priced.reduce((s, i) => s + (i.price || 0), 0) / priced.length)
-        : 0;
+      if (catalogData.data) {
+        allItems.push(...catalogData.data);
+      }
 
-      topItems = items
-        .sort((a, b) => (b.favoriteCount || 0) - (a.favoriteCount || 0))
-        .slice(0, 10)
-        .map(i => ({ id: i.id, name: i.name, price: i.price }));
+      cursor = catalogData.nextPageCursor;
+      if (!cursor) break;
+      pages++;
     }
+
+    const totalClothing = allItems.length;
+    const priced = allItems.filter(i => (i.price ?? i.lowestPrice ?? 0) > 0);
+    const avgPrice = priced.length > 0
+      ? Math.round(priced.reduce((s, i) => s + (i.price ?? i.lowestPrice ?? 0), 0) / priced.length)
+      : 0;
+
+    const topItems = allItems
+      .sort((a, b) => (b.favoriteCount || 0) - (a.favoriteCount || 0))
+      .slice(0, 15)
+      .map(i => ({
+        id: i.id,
+        name: i.name,
+        price: i.price ?? i.lowestPrice,
+        favorites: i.favoriteCount || 0,
+        type: i.assetType === 11 ? "Shirt" : i.assetType === 12 ? "Pants" : i.assetType === 2 ? "T-Shirt" : "Other",
+      }));
+
+    const shirts = allItems.filter(i => i.assetType === 11).length;
+    const pants = allItems.filter(i => i.assetType === 12).length;
+    const tshirts = allItems.filter(i => i.assetType === 2).length;
 
     res.json({
       group: {
@@ -95,6 +121,9 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
       clothing: {
         totalCount: totalClothing,
         averagePrice: avgPrice,
+        shirts,
+        pants,
+        tshirts,
         topItems,
       },
     });

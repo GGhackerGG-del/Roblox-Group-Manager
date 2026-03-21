@@ -17,7 +17,7 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `RobloxLogin.tsx` — Roblox cookie entry (sessionStorage only, never persisted in DB)
 - `DashboardLayout.tsx` — Sidebar with owner groups list, user profile, license info, Tools section (AI Assistant, Competitors, Limited Sniper), Community & Settings links
 - `Home.tsx` — Empty state when no group selected
-- `GroupView.tsx` — 6-tab view: Overview, Copy Clothing, Catalog, Sales, Alt Accounts, P&L. Tab state persisted per group in localStorage. BanShield pre-upload check on clothing items.
+- `GroupView.tsx` — 4-tab view: P&L, Copy Clothing, Catalog, Alt Accounts. Tab state persisted per group in localStorage. BanShield pre-upload check on clothing items. Default tab is P&L.
 - `Community.tsx` — Social hub: Feed (posts/likes/comments), Discover (find developers, view profiles/groups), Friends (requests, chat), Chat (DM conversations)
 - `Settings.tsx` — Profile bio, Theme (light/dark/system), Notifications, Privacy (with Cookie Security info), Data export, License info, About. Side-nav layout.
 - `Assistant.tsx` — AI chat assistant for Roblox development help (Lua scripts, moderation policies, clothing strategies, Discord posts). Uses SSE streaming.

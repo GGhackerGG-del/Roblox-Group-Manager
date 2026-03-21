@@ -2,38 +2,21 @@ import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
 
-const ROLIMONS_API = "https://www.rolimons.com/api";
+const ROBLOX_CATALOG_API = "https://catalog.roblox.com";
+const ROBLOX_ECONOMY_API = "https://economy.roblox.com";
 
 interface LimitedItem {
   id: number;
   name: string;
-  acronym: string;
-  rap: number;
-  value: number;
-  demand: number;
-  trend: string;
-  projected: number;
-  hyped: number;
-  rare: number;
+  price: number | null;
+  lowestResalePrice: number | null;
+  favoriteCount: number;
+  creatorName: string;
+  collectibleItemId: string | null;
+  assetType: number;
+  premium?: number;
+  potentialProfit?: number;
 }
-
-const demandLabels: Record<number, string> = {
-  [-1]: "Unassigned",
-  0: "Terrible",
-  1: "Low",
-  2: "Normal",
-  3: "High",
-  4: "Amazing",
-};
-
-const trendLabels: Record<number, string> = {
-  [-1]: "Unassigned",
-  0: "Lowering",
-  1: "Unstable",
-  2: "Stable",
-  3: "Raising",
-  4: "Fluctuating",
-};
 
 let cachedItems: LimitedItem[] | null = null;
 let cacheTime = 0;
@@ -44,50 +27,88 @@ async function fetchLimitedItems(): Promise<LimitedItem[]> {
     return cachedItems;
   }
 
-  const resp = await fetch(`${ROLIMONS_API}/items`, {
-    headers: { "User-Agent": "LimitedInk/1.0" },
-  });
+  const allItems: LimitedItem[] = [];
+  let cursor: string | null = null;
+  let pages = 0;
 
-  if (!resp.ok) {
-    throw new Error(`Rolimons API returned ${resp.status}`);
-  }
+  while (pages < 5) {
+    const url = new URL(`${ROBLOX_CATALOG_API}/v1/search/items/details`);
+    url.searchParams.set("Category", "2");
+    url.searchParams.set("Subcategory", "2");
+    url.searchParams.set("SortType", "2");
+    url.searchParams.set("SortAggregation", "5");
+    url.searchParams.set("Limit", "30");
+    if (cursor) url.searchParams.set("Cursor", cursor);
 
-  const data = await resp.json() as {
-    items: Record<string, [string, string, number, number, number, number, number, number, number]>;
-  };
-
-  const items: LimitedItem[] = [];
-  for (const [id, values] of Object.entries(data.items)) {
-    const [name, acronym, rap, value, demand, trend, projected, hyped, rare] = values;
-    items.push({
-      id: parseInt(id, 10),
-      name,
-      acronym,
-      rap,
-      value: value || rap,
-      demand,
-      trend: trendLabels[trend] || "Unknown",
-      projected,
-      hyped,
-      rare,
+    const resp = await fetch(url.toString(), {
+      headers: { Accept: "application/json" },
     });
+
+    if (!resp.ok) {
+      if (resp.status === 429) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      break;
+    }
+
+    const data = await resp.json() as {
+      nextPageCursor: string | null;
+      data: Array<{
+        id: number;
+        name: string;
+        price: number | null;
+        lowestPrice: number | null;
+        lowestResalePrice: number | null;
+        favoriteCount: number;
+        creatorName: string;
+        creatorType: string;
+        collectibleItemId: string | null;
+        assetType: number;
+        totalQuantity: number;
+        unitsAvailableForConsumption: number;
+      }>;
+    };
+
+    if (data.data) {
+      for (const item of data.data) {
+        allItems.push({
+          id: item.id,
+          name: item.name,
+          price: item.price ?? item.lowestPrice,
+          lowestResalePrice: item.lowestResalePrice,
+          favoriteCount: item.favoriteCount || 0,
+          creatorName: item.creatorName || "Unknown",
+          collectibleItemId: item.collectibleItemId,
+          assetType: item.assetType,
+        });
+      }
+    }
+
+    cursor = data.nextPageCursor;
+    if (!cursor) break;
+    pages++;
+    await new Promise(r => setTimeout(r, 500));
   }
 
-  cachedItems = items;
-  cacheTime = Date.now();
-  return items;
+  if (allItems.length > 0) {
+    cachedItems = allItems;
+    cacheTime = Date.now();
+  }
+
+  return allItems;
 }
 
 router.get("/sniper/items", async (_req, res): Promise<void> => {
   try {
     const allItems = await fetchLimitedItems();
 
-    const topItems = allItems
-      .filter(i => i.rap > 0 && i.value > 0)
-      .sort((a, b) => b.rap - a.rap)
+    const items = allItems
+      .filter(i => (i.price ?? 0) > 0 || (i.lowestResalePrice ?? 0) > 0)
+      .sort((a, b) => (b.favoriteCount || 0) - (a.favoriteCount || 0))
       .slice(0, 200);
 
-    res.json({ items: topItems, total: allItems.length });
+    res.json({ items, total: allItems.length });
   } catch (err) {
     console.error("[Sniper] Fetch error:", err);
     res.status(502).json({ error: "Failed to fetch limited items data." });
@@ -97,24 +118,38 @@ router.get("/sniper/items", async (_req, res): Promise<void> => {
 router.get("/sniper/deals", async (req, res): Promise<void> => {
   try {
     const allItems = await fetchLimitedItems();
-    const minPremium = parseFloat(String(req.query.minPremium || "10"));
-    const minRap = parseInt(String(req.query.minRap || "1000"), 10);
-    const minDemand = parseInt(String(req.query.minDemand || "2"), 10);
+    const maxPrice = parseInt(String(req.query.maxPrice || "50000"), 10);
+    const minFavorites = parseInt(String(req.query.minFavorites || "0"), 10);
 
     const deals = allItems
       .filter(i => {
-        if (i.rap < minRap || i.value <= 0 || i.rap <= 0) return false;
-        if (i.demand < minDemand) return false;
-        const premiumPct = ((i.value / i.rap) - 1) * 100;
-        return premiumPct >= minPremium;
+        const price = i.price ?? i.lowestResalePrice ?? 0;
+        if (price <= 0 || price > maxPrice) return false;
+        if (i.favoriteCount < minFavorites) return false;
+        if (i.lowestResalePrice && i.price && i.lowestResalePrice < i.price) {
+          return true;
+        }
+        return i.favoriteCount > 100;
       })
-      .sort((a, b) => (b.value / b.rap) - (a.value / a.rap))
+      .sort((a, b) => {
+        const aResale = a.lowestResalePrice ?? a.price ?? 0;
+        const aPrice = a.price ?? 0;
+        const bResale = b.lowestResalePrice ?? b.price ?? 0;
+        const bPrice = b.price ?? 0;
+        const aDiscount = aPrice > 0 && aResale > 0 ? (aPrice - aResale) / aPrice : 0;
+        const bDiscount = bPrice > 0 && bResale > 0 ? (bPrice - bResale) / bPrice : 0;
+        return bDiscount - aDiscount;
+      })
       .slice(0, 50)
-      .map(i => ({
-        ...i,
-        premium: Math.round((i.value / i.rap - 1) * 100),
-        potentialProfit: i.value - i.rap,
-      }));
+      .map(i => {
+        const resale = i.lowestResalePrice ?? i.price ?? 0;
+        const price = i.price ?? 0;
+        return {
+          ...i,
+          discount: price > 0 && resale > 0 && resale < price ? Math.round((1 - resale / price) * 100) : 0,
+          resalePrice: resale,
+        };
+      });
 
     res.json({ deals, total: deals.length });
   } catch (err) {
