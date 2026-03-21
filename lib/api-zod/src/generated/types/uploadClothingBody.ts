@@ -17,4 +17,6 @@ export interface UploadClothingBody {
   imageData: string;
   /** Type of clothing - "Shirt" or "Pants" */
   clothingType: string;
+  /** Price in Robux (0 = free, min paid = 5) */
+  price?: number;
 }

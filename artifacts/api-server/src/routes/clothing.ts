@@ -436,13 +436,48 @@ async function uploadViaOpenCloud(
   return { assetId: null, error: errorMessage };
 }
 
+async function setClothingPrice(
+  cookie: string,
+  assetId: number,
+  price: number
+): Promise<void> {
+  if (price <= 0) return;
+
+  const csrfToken = await getRobloxCsrf(cookie);
+  if (!csrfToken) {
+    console.log(`[Upload] Could not get CSRF to set price for asset ${assetId}`);
+    return;
+  }
+
+  try {
+    const resp = await fetch(`https://itemconfiguration.roblox.com/v1/assets/${assetId}/update-price`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "X-CSRF-TOKEN": csrfToken,
+      },
+      body: JSON.stringify({ priceConfiguration: { priceInRobux: price } }),
+    });
+    if (resp.ok) {
+      console.log(`[Upload] Price set to ${price} R$ for asset ${assetId}`);
+    } else {
+      const text = await resp.text();
+      console.log(`[Upload] Failed to set price for asset ${assetId}: ${resp.status} ${text}`);
+    }
+  } catch (err) {
+    console.log(`[Upload] Error setting price for asset ${assetId}:`, err);
+  }
+}
+
 async function uploadViaCookie(
   cookie: string,
   groupId: number,
   name: string,
   description: string,
   imageBuffer: Buffer,
-  clothingType: string
+  clothingType: string,
+  price?: number
 ): Promise<{ assetId: number | null; error?: string }> {
   const csrfToken = await getRobloxCsrf(cookie);
   if (!csrfToken) {
@@ -450,7 +485,8 @@ async function uploadViaCookie(
   }
 
   const assetType = clothingType === "Pants" ? "Pants" : "Shirt";
-  console.log(`[Upload] Cookie upload via user-auth API: type=${assetType} group=${groupId} name="${name}"`);
+  const expectedPrice = Math.max(10, price || 10);
+  console.log(`[Upload] Cookie upload via user-auth API: type=${assetType} group=${groupId} name="${name}" price=${price ?? "default"}`);
 
   const requestData = JSON.stringify({
     displayName: name,
@@ -458,7 +494,7 @@ async function uploadViaCookie(
     assetType: assetType,
     creationContext: {
       creator: { groupId: groupId },
-      expectedPrice: 10,
+      expectedPrice: expectedPrice,
     },
   });
 
@@ -600,14 +636,20 @@ async function uploadSingleClothing(
   description: string,
   imageData: string,
   clothingType: string,
-  openCloudApiKey?: string
+  openCloudApiKey?: string,
+  price?: number
 ): Promise<{ assetId: number | null; error?: string }> {
   const imageBuffer = Buffer.from(imageData, "base64");
 
   if (cookie) {
     console.log("[Upload] Using cookie-based upload (user-auth API)...");
-    const result = await uploadViaCookie(cookie, groupId, name, description, imageBuffer, clothingType);
-    if (result.assetId) return result;
+    const result = await uploadViaCookie(cookie, groupId, name, description, imageBuffer, clothingType, price);
+    if (result.assetId) {
+      if (price && price > 0) {
+        await setClothingPrice(cookie, result.assetId, price);
+      }
+      return result;
+    }
     console.log(`[Upload] Cookie upload failed: ${result.error}`);
     if (openCloudApiKey) {
       console.log("[Upload] Falling back to Open Cloud API...");
@@ -668,10 +710,11 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
       }
 
       try {
+        const itemPrice = typeof item.price === "number" ? item.price : undefined;
         const result = await uploadSingleClothing(
           cookie || "", csrfToken, itemGroupId, String(item.name || "Clothing").trim(),
           String(item.description || ""), item.imageData, item.clothingType,
-          openCloudApiKey
+          openCloudApiKey, itemPrice
         );
         results.push({
           name: item.name || `Item ${idx}`,
@@ -708,9 +751,9 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     return;
   }
 
-  const { groupId, name, description, imageData, clothingType } = parsed.data;
+  const { groupId, name, description, imageData, clothingType, price } = parsed.data;
 
-  const result = await uploadSingleClothing(cookie || "", csrfToken, groupId, name, description || "", imageData, clothingType, openCloudApiKey);
+  const result = await uploadSingleClothing(cookie || "", csrfToken, groupId, name, description || "", imageData, clothingType, openCloudApiKey, price);
 
   if (result.assetId) {
     res.json({

@@ -591,6 +591,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
   const [sharedName, setSharedName] = useState("");
   const [description, setDescription] = useState("");
   const [clothingType, setClothingType] = useState<"Shirt" | "Pants">("Shirt");
+  const [price, setPrice] = useState<number>(5);
   const [uploading, setUploading] = useState(false);
   const [altIndex, setAltIndex] = useState<number | null>(null);
   const [alts, setAlts] = useState<AltAccount[]>([]);
@@ -681,6 +682,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
           description: description.trim() || "Uploaded via Limited.Ink",
           imageData: finalImage,
           clothingType,
+          price: price > 0 ? price : undefined,
         };
         if (altIndex !== null) body.altIndex = altIndex;
 
@@ -805,9 +807,9 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
             <Input value={sharedName} onChange={e => setSharedName(e.target.value)} placeholder="Same name for all clothing" className="rounded-xl" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">Description (all items)</Label>
+              <Label className="text-sm font-semibold">Description</Label>
               <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" className="rounded-xl" />
             </div>
             <div className="space-y-2">
@@ -820,6 +822,19 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
                 <option value="Shirt">Shirt</option>
                 <option value="Pants">Pants</option>
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Price (Robux)</Label>
+              <Input
+                type="number"
+                value={price}
+                onChange={e => setPrice(Math.max(0, parseInt(e.target.value) || 0))}
+                min={0}
+                max={1000000}
+                placeholder="5"
+                className="rounded-xl"
+              />
+              <p className="text-[10px] text-muted-foreground">0 = free, min paid = 5 R$</p>
             </div>
           </div>
 

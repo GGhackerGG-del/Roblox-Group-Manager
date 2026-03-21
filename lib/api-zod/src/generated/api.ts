@@ -183,6 +183,7 @@ export const UploadClothingBody = zod.object({
   clothingType: zod
     .string()
     .describe('Type of clothing - \"Shirt\" or \"Pants\"'),
+  price: zod.number().optional().describe("Price in Robux (0 = free, min paid = 5)"),
 });
 
 export const UploadClothingResponse = zod.object({
