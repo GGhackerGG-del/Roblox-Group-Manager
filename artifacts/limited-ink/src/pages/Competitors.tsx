@@ -10,7 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, Users, ShoppingBag, DollarSign, Calendar,
   TrendingUp, Crown, Loader2, AlertCircle, Heart, Shirt,
-  ChevronDown, ChevronUp, Image as ImageIcon
+  ChevronDown, ChevronUp, Image as ImageIcon, BarChart3,
+  Target, Percent, Award
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -23,6 +24,15 @@ interface ClothingItem {
   favorites: number;
   type: string;
   thumbnailUrl: string | null;
+}
+
+interface PriceRanges {
+  free: number;
+  under10: number;
+  r10to50: number;
+  r51to100: number;
+  r101to500: number;
+  over500: number;
 }
 
 interface CompetitorData {
@@ -39,11 +49,21 @@ interface CompetitorData {
   clothing: {
     totalCount: number;
     averagePrice: number;
+    medianPrice: number;
+    minPrice: number;
+    maxPrice: number;
     shirts: number;
     pants: number;
     tshirts: number;
+    paidCount: number;
+    freeCount: number;
+    totalFavorites: number;
+    avgFavorites: number;
+    priceRanges: PriceRanges;
     topItems: ClothingItem[];
     allItems: ClothingItem[];
+    truncated?: boolean;
+    pagesFetched?: number;
   };
 }
 
@@ -57,6 +77,8 @@ export default function Competitors() {
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [visibleCount, setVisibleCount] = useState(50);
+  const [sortBy, setSortBy] = useState<"favorites" | "price_high" | "price_low">("favorites");
+  const [filterType, setFilterType] = useState<"all" | "Shirt" | "Pants" | "T-Shirt">("all");
 
   useEffect(() => {
     if (data && groupId) {
@@ -101,7 +123,13 @@ export default function Competitors() {
   }
 
   const allItems = data?.clothing.allItems || [];
-  const displayItems = showAll ? allItems.slice(0, visibleCount) : (data?.clothing.topItems || []);
+  const filteredItems = filterType === "all" ? allItems : allItems.filter(i => i.type === filterType);
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    if (sortBy === "favorites") return (b.favorites || 0) - (a.favorites || 0);
+    if (sortBy === "price_high") return ((b.price ?? 0) - (a.price ?? 0));
+    return ((a.price ?? 0) - (b.price ?? 0));
+  });
+  const displayItems = showAll ? sortedItems.slice(0, visibleCount) : sortedItems.slice(0, 15);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -203,34 +231,166 @@ export default function Competitors() {
             </Card>
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
-                <Calendar className="w-5 h-5 mx-auto mb-1 text-muted-foreground" />
-                <p className="text-2xl font-bold">{new Date(data.group.created).toLocaleDateString("ru-RU", { month: "short", year: "numeric" })}</p>
-                <p className="text-xs text-muted-foreground">Created</p>
+                <Heart className="w-5 h-5 mx-auto mb-1 text-muted-foreground" />
+                <p className="text-2xl font-bold">{data.clothing.totalFavorites.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Total Favorites</p>
               </CardContent>
             </Card>
           </div>
 
-          {(data.clothing.shirts > 0 || data.clothing.pants > 0 || data.clothing.tshirts > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(data.clothing.shirts > 0 || data.clothing.pants > 0 || data.clothing.tshirts > 0) && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Shirt className="w-4 h-4" /> Clothing Breakdown
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
+                      <p className="text-lg font-bold text-blue-600">{data.clothing.shirts}</p>
+                      <p className="text-xs text-muted-foreground">Shirts</p>
+                    </div>
+                    <div className="text-center p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
+                      <p className="text-lg font-bold text-purple-600">{data.clothing.pants}</p>
+                      <p className="text-xs text-muted-foreground">Pants</p>
+                    </div>
+                    <div className="text-center p-3 rounded-xl bg-green-500/5 border border-green-500/20">
+                      <p className="text-lg font-bold text-green-600">{data.clothing.tshirts}</p>
+                      <p className="text-xs text-muted-foreground">T-Shirts</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Shirt className="w-4 h-4" /> Clothing Breakdown
+                  <BarChart3 className="w-4 h-4" /> Price Analytics
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
-                    <p className="text-lg font-bold text-blue-600">{data.clothing.shirts}</p>
-                    <p className="text-xs text-muted-foreground">Shirts</p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Avg Price</span>
+                    <span className="font-semibold">{data.clothing.averagePrice} R$</span>
                   </div>
-                  <div className="text-center p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                    <p className="text-lg font-bold text-purple-600">{data.clothing.pants}</p>
-                    <p className="text-xs text-muted-foreground">Pants</p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Median Price</span>
+                    <span className="font-semibold">{data.clothing.medianPrice} R$</span>
                   </div>
-                  <div className="text-center p-3 rounded-xl bg-green-500/5 border border-green-500/20">
-                    <p className="text-lg font-bold text-green-600">{data.clothing.tshirts}</p>
-                    <p className="text-xs text-muted-foreground">T-Shirts</p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Min Price</span>
+                    <span className="font-semibold">{data.clothing.minPrice} R$</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Max Price</span>
+                    <span className="font-semibold">{data.clothing.maxPrice} R$</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Avg Favorites</span>
+                    <span className="font-semibold">{data.clothing.avgFavorites}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Created</span>
+                    <span className="font-semibold">{new Date(data.group.created).toLocaleDateString("ru-RU", { month: "short", year: "numeric" })}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Percent className="w-4 h-4" /> Free vs Paid
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Paid</span>
+                        <span className="font-semibold">{data.clothing.paidCount} ({data.clothing.totalCount > 0 ? Math.round(data.clothing.paidCount / data.clothing.totalCount * 100) : 0}%)</span>
+                      </div>
+                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                        <div className="h-full bg-green-500 rounded-full" style={{ width: `${data.clothing.totalCount > 0 ? (data.clothing.paidCount / data.clothing.totalCount * 100) : 0}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Free / Off-sale</span>
+                        <span className="font-semibold">{data.clothing.freeCount} ({data.clothing.totalCount > 0 ? Math.round(data.clothing.freeCount / data.clothing.totalCount * 100) : 0}%)</span>
+                      </div>
+                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                        <div className="h-full bg-gray-400 rounded-full" style={{ width: `${data.clothing.totalCount > 0 ? (data.clothing.freeCount / data.clothing.totalCount * 100) : 0}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Target className="w-4 h-4" /> Price Distribution
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1.5">
+                  {[
+                    { label: "Free", count: data.clothing.priceRanges.free, color: "bg-gray-400" },
+                    { label: "< 10 R$", count: data.clothing.priceRanges.under10, color: "bg-blue-400" },
+                    { label: "10–50 R$", count: data.clothing.priceRanges.r10to50, color: "bg-green-400" },
+                    { label: "51–100 R$", count: data.clothing.priceRanges.r51to100, color: "bg-yellow-500" },
+                    { label: "101–500 R$", count: data.clothing.priceRanges.r101to500, color: "bg-orange-500" },
+                    { label: "> 500 R$", count: data.clothing.priceRanges.over500, color: "bg-red-500" },
+                  ].map(({ label, count, color }) => {
+                    const pct = data.clothing.totalCount > 0 ? (count / data.clothing.totalCount * 100) : 0;
+                    return (
+                      <div key={label} className="flex items-center gap-2 text-xs">
+                        <span className="w-20 text-muted-foreground shrink-0">{label}</span>
+                        <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                          <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="w-8 text-right font-mono">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {allItems.length > 0 && allItems[0].favorites > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Award className="w-4 h-4" /> Top 5 Most Popular
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-5 gap-2">
+                  {allItems.slice(0, 5).map((item, i) => (
+                    <a key={item.id} href={`https://www.roblox.com/catalog/${item.id}`} target="_blank" rel="noreferrer" className="text-center group">
+                      {item.thumbnailUrl ? (
+                        <img src={item.thumbnailUrl} alt="" className="w-full aspect-square rounded-lg object-cover border border-border/50 group-hover:border-foreground/30 transition-colors" />
+                      ) : (
+                        <div className="w-full aspect-square rounded-lg bg-secondary flex items-center justify-center">
+                          <ImageIcon className="w-5 h-5 text-muted-foreground/40" />
+                        </div>
+                      )}
+                      <p className="text-[10px] font-semibold mt-1 truncate">{i + 1}. {item.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{item.favorites.toLocaleString()} fav</p>
+                    </a>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -238,23 +398,58 @@ export default function Competitors() {
 
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <TrendingUp className="w-4 h-4" />
-                  {showAll ? `All Clothing (${allItems.length})` : "Top Clothing Items"}
+                  {showAll ? `All Clothing (${filteredItems.length})` : `Top Clothing Items`}
+                  {data.clothing.truncated && (
+                    <Badge variant="outline" className="text-[10px]">truncated</Badge>
+                  )}
                 </CardTitle>
-                {allItems.length > 15 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg text-xs gap-1.5"
-                    onClick={() => { playTabSwitch(); setShowAll(!showAll); setVisibleCount(50); }}
-                  >
-                    {showAll ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    {showAll ? "Show Top 15" : `Show All (${allItems.length})`}
-                  </Button>
-                )}
+                <div className="flex gap-2 items-center">
+                  {allItems.length > 15 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg text-xs gap-1.5"
+                      onClick={() => { playTabSwitch(); setShowAll(!showAll); setVisibleCount(50); }}
+                    >
+                      {showAll ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      {showAll ? "Show Top 15" : `Show All (${allItems.length})`}
+                    </Button>
+                  )}
+                </div>
               </div>
+              {showAll && (
+                <div className="flex gap-2 flex-wrap mt-2">
+                  <div className="flex gap-1">
+                    {(["all", "Shirt", "Pants", "T-Shirt"] as const).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => { playClick(); setFilterType(t); setVisibleCount(50); }}
+                        className={`px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${filterType === t ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      >
+                        {t === "all" ? "All" : t}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-1 ml-auto">
+                    {([
+                      { key: "favorites", label: "By Favorites" },
+                      { key: "price_high", label: "Price ↓" },
+                      { key: "price_low", label: "Price ↑" },
+                    ] as const).map(s => (
+                      <button
+                        key={s.key}
+                        onClick={() => { playClick(); setSortBy(s.key); }}
+                        className={`px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${sortBy === s.key ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar">
@@ -290,18 +485,21 @@ export default function Competitors() {
                       </div>
                     </div>
                     <Badge variant="outline" className="text-xs shrink-0">
-                      {item.price != null ? `${item.price} R$` : "Off-sale"}
+                      {item.price != null && item.price > 0 ? `${item.price} R$` : "Off-sale"}
                     </Badge>
                   </a>
                 ))}
+                {displayItems.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-6">No items found</p>
+                )}
               </div>
-              {showAll && visibleCount < allItems.length && (
+              {showAll && visibleCount < sortedItems.length && (
                 <Button
                   variant="outline"
                   className="w-full mt-3 rounded-xl text-xs"
                   onClick={() => { playClick(); setVisibleCount(v => v + 50); }}
                 >
-                  Load more ({allItems.length - visibleCount} remaining)
+                  Load more ({sortedItems.length - visibleCount} remaining)
                 </Button>
               )}
             </CardContent>

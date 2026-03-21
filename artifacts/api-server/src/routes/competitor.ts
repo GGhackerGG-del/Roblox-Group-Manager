@@ -76,9 +76,9 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
     const allItems: CatalogItem[] = [];
     let cursor: string | null = null;
     let pages = 0;
-    const MAX_PAGES = 10;
+    const MAX_PAGES = 50;
     let retryCount = 0;
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 5;
 
     while (pages < MAX_PAGES) {
       const url = new URL(`${ROBLOX_CATALOG_API}/v1/search/items`);
@@ -121,15 +121,39 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
       await new Promise(r => setTimeout(r, 300));
     }
 
+    console.log(`[Competitor] Group ${groupId}: ${allItems.length} items across ${pages + 1} pages`);
+
     const totalClothing = allItems.length;
-    const priced = allItems.filter(i => (i.price ?? i.lowestPrice ?? 0) > 0);
-    const avgPrice = priced.length > 0
-      ? Math.round(priced.reduce((s, i) => s + (i.price ?? i.lowestPrice ?? 0), 0) / priced.length)
+    const prices = allItems.map(i => i.price ?? i.lowestPrice ?? 0);
+    const pricedItems = allItems.filter(i => (i.price ?? i.lowestPrice ?? 0) > 0);
+    const freeItems = allItems.filter(i => (i.price ?? i.lowestPrice ?? 0) === 0);
+
+    const avgPrice = pricedItems.length > 0
+      ? Math.round(pricedItems.reduce((s, i) => s + (i.price ?? i.lowestPrice ?? 0), 0) / pricedItems.length)
       : 0;
+
+    const sortedPrices = prices.filter(p => p > 0).sort((a, b) => a - b);
+    const medianPrice = sortedPrices.length > 0
+      ? sortedPrices[Math.floor(sortedPrices.length / 2)]
+      : 0;
+    const minPrice = sortedPrices.length > 0 ? sortedPrices[0] : 0;
+    const maxPrice = sortedPrices.length > 0 ? sortedPrices[sortedPrices.length - 1] : 0;
 
     const shirts = allItems.filter(i => i.assetType === 11).length;
     const pants = allItems.filter(i => i.assetType === 12).length;
     const tshirts = allItems.filter(i => i.assetType === 2).length;
+
+    const totalFavorites = allItems.reduce((s, i) => s + (i.favoriteCount || 0), 0);
+    const avgFavorites = totalClothing > 0 ? Math.round(totalFavorites / totalClothing) : 0;
+
+    const priceRanges = {
+      free: freeItems.length,
+      under10: pricedItems.filter(i => (i.price ?? i.lowestPrice ?? 0) < 10).length,
+      r10to50: pricedItems.filter(i => { const p = i.price ?? i.lowestPrice ?? 0; return p >= 10 && p <= 50; }).length,
+      r51to100: pricedItems.filter(i => { const p = i.price ?? i.lowestPrice ?? 0; return p > 50 && p <= 100; }).length,
+      r101to500: pricedItems.filter(i => { const p = i.price ?? i.lowestPrice ?? 0; return p > 100 && p <= 500; }).length,
+      over500: pricedItems.filter(i => (i.price ?? i.lowestPrice ?? 0) > 500).length,
+    };
 
     const thumbIds = allItems.map(i => i.id);
     const thumbMap = await batchFetchThumbnails(thumbIds);
@@ -145,7 +169,7 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
         thumbnailUrl: thumbMap[i.id] || null,
       }));
 
-    const topItems = clothingItems.slice(0, 15);
+    const truncated = pages >= MAX_PAGES - 1 && cursor !== null;
 
     res.json({
       group: {
@@ -161,11 +185,21 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
       clothing: {
         totalCount: totalClothing,
         averagePrice: avgPrice,
+        medianPrice,
+        minPrice,
+        maxPrice,
         shirts,
         pants,
         tshirts,
-        topItems,
+        paidCount: pricedItems.length,
+        freeCount: freeItems.length,
+        totalFavorites,
+        avgFavorites,
+        priceRanges,
+        topItems: clothingItems.slice(0, 15),
         allItems: clothingItems,
+        truncated,
+        pagesFetched: pages + 1,
       },
     });
   } catch (err) {
