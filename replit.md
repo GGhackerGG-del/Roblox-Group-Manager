@@ -37,8 +37,8 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `POST /api/assistant/chat` — AI assistant chat with SSE streaming (uses OpenAI via Replit AI Integrations)
 - `POST /api/banshield/analyze` — Content moderation pre-check for clothing names/descriptions
 - `GET /api/sniper/items?search=` — Browse limited items from Rolimons (3-min cache) with RAP/value/demand/trend data and thumbnails (batch fetch)
-- `GET /api/sniper/deals` — Find limited items from Rolimons deals API with thumbnails, listed price vs RAP comparison
-- `GET /api/pnl/group/:groupId` — Group P&L: balance, revenue, transactions (up to 10 pages), top items
+- `GET /api/sniper/deals` — Find limited items from Rolimons deals API with thumbnails, Best Price vs RAP comparison (deal % = (rap - bestPrice) / rap)
+- `GET /api/pnl/group/:groupId` — Group P&L: balance, revenue, transactions (up to 10 pages) with item thumbnails, top items
 - `GET /api/forum/topics?category=` — List forum topics by category (suggestions/offtopic/qa)
 - `GET /api/forum/topics/:topicId` — Get topic details with replies
 - `POST /api/forum/topics` — Create new forum topic

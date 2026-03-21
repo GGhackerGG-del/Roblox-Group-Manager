@@ -81,13 +81,13 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
     const MAX_RETRIES = 3;
 
     while (pages < MAX_PAGES) {
-      const url = new URL(`${ROBLOX_CATALOG_API}/v1/search/items/details`);
-      url.searchParams.set("Category", "3");
-      url.searchParams.set("CreatorType", "Group");
-      url.searchParams.set("CreatorTargetId", String(groupId));
-      url.searchParams.set("Limit", "30");
-      url.searchParams.set("SortType", "3");
-      if (cursor) url.searchParams.set("Cursor", cursor);
+      const url = new URL(`${ROBLOX_CATALOG_API}/v1/search/items`);
+      url.searchParams.set("category", "3");
+      url.searchParams.set("creatorType", "2");
+      url.searchParams.set("creatorTargetId", String(groupId));
+      url.searchParams.set("limit", "30");
+      url.searchParams.set("sortType", "3");
+      if (cursor) url.searchParams.set("cursor", cursor);
 
       const catalogResp = await fetch(url.toString(), {
         headers: { Accept: "application/json" },
@@ -109,7 +109,10 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
       };
 
       if (catalogData.data) {
-        allItems.push(...catalogData.data);
+        const items = catalogData.data.filter(i =>
+          !i.assetType || i.assetType === 2 || i.assetType === 11 || i.assetType === 12
+        );
+        allItems.push(...items);
       }
 
       cursor = catalogData.nextPageCursor;

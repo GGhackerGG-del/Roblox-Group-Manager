@@ -588,6 +588,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
   const { toast } = useToast();
   const [queue, setQueue] = useState<QueuedFile[]>([]);
   const [templateImage, setTemplateImage] = useState<string | null>(null);
+  const [sharedName, setSharedName] = useState("");
   const [description, setDescription] = useState("");
   const [clothingType, setClothingType] = useState<"Shirt" | "Pants">("Shirt");
   const [uploading, setUploading] = useState(false);
@@ -673,9 +674,10 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
 
       try {
         const finalImage = await compositeWithTemplate(item.imageData);
+        const uploadName = sharedName.trim() || item.name.trim() || "Clothing";
         const body: Record<string, unknown> = {
           groupId,
-          name: item.name.trim() || "Clothing",
+          name: uploadName,
           description: description.trim() || "Uploaded via Limited.Ink",
           imageData: finalImage,
           clothingType,
@@ -797,6 +799,11 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
               )}
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">Name (all items)</Label>
+            <Input value={sharedName} onChange={e => setSharedName(e.target.value)} placeholder="Same name for all clothing" className="rounded-xl" />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">

@@ -211,7 +211,7 @@ export default function Sniper() {
                 <Filter className="w-4 h-4" /> Deal Finder
               </CardTitle>
               <CardDescription className="text-xs">
-                Find limiteds selling below their RAP. Shows listed price vs RAP with deal percentage.
+                Find limiteds selling below their RAP. Compares Best Price on Roblox vs RAP.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -230,8 +230,8 @@ export default function Sniper() {
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground font-semibold">{deals.length} deals found</p>
               {deals.map((item, i) => {
-                const sellPrice = item.listedPrice ?? item.value;
-                const dealPercent = item.rap > 0 ? Math.round(((item.rap - sellPrice) / item.rap) * 100) : 0;
+                const bestPrice = item.listedPrice ?? 0;
+                const dealPercent = item.rap > 0 && bestPrice > 0 ? Math.round(((item.rap - bestPrice) / item.rap) * 100) : 0;
 
                 return (
                   <motion.div key={item.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(i * 0.02, 1) }}>
@@ -259,10 +259,14 @@ export default function Sniper() {
                             </p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
                               <span className="font-mono">RAP: <span className="text-foreground font-semibold">{item.rap.toLocaleString()} R$</span></span>
-                              <span className="text-muted-foreground">→</span>
-                              <span className="font-mono text-green-600 font-semibold">
-                                {sellPrice.toLocaleString()} R$
-                              </span>
+                              {bestPrice > 0 && (
+                                <>
+                                  <span className="text-muted-foreground">→</span>
+                                  <span className="font-mono text-green-600 font-semibold">
+                                    Best Price: {bestPrice.toLocaleString()} R$
+                                  </span>
+                                </>
+                              )}
                               <DemandBadge demand={item.demand} label={item.demandLabel} />
                             </div>
                           </div>
@@ -290,7 +294,7 @@ export default function Sniper() {
             <Card className="border-dashed">
               <CardContent className="py-12 text-center text-muted-foreground">
                 <Crosshair className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Click "Scan for Deals" to find limiteds selling below their RAP</p>
+                <p className="text-sm">Click "Scan for Deals" to find limiteds with Best Price below RAP</p>
               </CardContent>
             </Card>
           )}

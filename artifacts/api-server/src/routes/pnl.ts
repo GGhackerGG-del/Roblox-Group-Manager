@@ -3,6 +3,7 @@ import { Router, type IRouter } from "express";
 const router: IRouter = Router();
 
 const ROBLOX_ECONOMY_API = "https://economy.roblox.com";
+const ROBLOX_THUMBNAILS_API = "https://thumbnails.roblox.com";
 
 async function fetchRoblox(url: string, cookie: string): Promise<Response> {
   return fetch(url, {
@@ -58,6 +59,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       revenue: number;
       agentName: string;
       description: string;
+      assetId: number | null;
     }> = [];
 
     let txCursor: string | null = null;
@@ -97,6 +99,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
           revenue: Math.abs(tx.currency?.amount ?? 0),
           agentName: tx.agent?.name ?? "Unknown",
           description: tx.details?.name ?? "Sale",
+          assetId: (tx.details as any)?.id ?? null,
         });
       }
 
@@ -140,6 +143,35 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 20);
 
+    const recentTx = transactions.slice(0, 50);
+
+    const txAssetIds = recentTx
+      .map(t => t.assetId)
+      .filter((id): id is number => id !== null && id > 0);
+    const uniqueAssetIds = [...new Set(txAssetIds)];
+
+    const thumbMap: Record<number, string | null> = {};
+    for (let i = 0; i < uniqueAssetIds.length; i += 100) {
+      const batch = uniqueAssetIds.slice(i, i + 100);
+      try {
+        const thumbResp = await fetch(
+          `${ROBLOX_THUMBNAILS_API}/v1/assets?assetIds=${batch.join(",")}&size=150x150&format=Png&isCircular=false`
+        );
+        if (thumbResp.ok) {
+          const td = await thumbResp.json() as { data: Array<{ targetId: number; imageUrl: string }> };
+          for (const t of td.data || []) {
+            thumbMap[t.targetId] = t.imageUrl || null;
+          }
+        }
+      } catch {}
+      if (i + 100 < uniqueAssetIds.length) await new Promise(r => setTimeout(r, 200));
+    }
+
+    const recentWithThumbs = recentTx.map(tx => ({
+      ...tx,
+      thumbnailUrl: tx.assetId ? (thumbMap[tx.assetId] || null) : null,
+    }));
+
     res.json({
       balance: funds,
       pendingRobux,
@@ -153,7 +185,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       totalSales: transactions.length,
       todaySales: todayTx.length,
       topItems,
-      recentTransactions: transactions.slice(0, 50),
+      recentTransactions: recentWithThumbs,
     });
   } catch (err) {
     console.error("[P&L] Error:", err);

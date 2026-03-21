@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DollarSign, TrendingUp, TrendingDown, Loader2, RefreshCw,
-  Wallet, Clock, BarChart3, ArrowUpRight, Coins, PiggyBank
+  Wallet, Clock, BarChart3, ArrowUpRight, Coins, PiggyBank,
+  Image as ImageIcon
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -27,7 +28,7 @@ interface PnLData {
   totalSales: number;
   todaySales: number;
   topItems: Array<{ name: string; revenue: number; count: number }>;
-  recentTransactions: Array<{ id: string; created: string; revenue: number; agentName: string; description: string }>;
+  recentTransactions: Array<{ id: string; created: string; revenue: number; agentName: string; description: string; thumbnailUrl?: string | null; assetId?: number | null }>;
 }
 
 export default function PnL({ groupId }: { groupId: string }) {
@@ -209,7 +210,14 @@ export default function PnL({ groupId }: { groupId: string }) {
           <CardContent>
             <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
               {data.recentTransactions.map((tx) => (
-                <div key={tx.id} className="flex items-center justify-between py-2 border-b border-border/20 last:border-0">
+                <div key={tx.id} className="flex items-center gap-3 py-2 border-b border-border/20 last:border-0">
+                  {tx.thumbnailUrl ? (
+                    <img src={tx.thumbnailUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-border/50 shrink-0" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                      <ImageIcon className="w-4 h-4 text-muted-foreground/30" />
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{tx.description}</p>
                     <p className="text-xs text-muted-foreground">{tx.agentName} &middot; {new Date(tx.created).toLocaleDateString("ru-RU")}</p>

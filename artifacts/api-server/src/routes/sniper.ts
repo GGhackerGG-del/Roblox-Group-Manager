@@ -237,9 +237,9 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
           const name = fullItem?.name || `Item #${itemId}`;
           const acronym = fullItem?.acronym || "";
 
-          if (value <= 0 || rap <= 0) continue;
+          if (rap <= 0 || listedPrice <= 0) continue;
 
-          const discount = Math.round(((value - listedPrice) / value) * 100);
+          const discount = Math.round(((rap - listedPrice) / rap) * 100);
 
           dealsFromApi.push({
             id: itemId,
@@ -261,54 +261,13 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
           });
         }
 
+        dealsFromApi = dealsFromApi.filter(d => d.discount > 0);
         dealsFromApi.sort((a, b) => b.discount - a.discount);
       }
     }
 
     if (dealsFromApi.length === 0) {
-      console.log("[Sniper] Rolimons deals API returned no results, falling back to itemdetails filter");
-      const maxRap = parseInt(String(req.query.maxRap || "1000000"), 10);
-      const minDemand = parseInt(String(req.query.minDemand || "-1"), 10);
-      const maxPricePercent = parseInt(String(req.query.maxPricePercent || "100"), 10);
-
-      const allItems = await fetchRolimonsItems();
-      const filtered = allItems
-        .filter(i => {
-          if (i.value <= 0 || i.rap <= 0) return false;
-          if (i.rap > maxRap) return false;
-          if (i.demand < minDemand) return false;
-          if (i.value >= i.rap) return false;
-          const valuePercent = Math.round((i.value / i.rap) * 100);
-          if (valuePercent > maxPricePercent) return false;
-          return true;
-        })
-        .sort((a, b) => {
-          const aDiff = (a.rap - a.value) / a.rap;
-          const bDiff = (b.rap - b.value) / b.rap;
-          return bDiff - aDiff;
-        })
-        .slice(0, 100);
-
-      const ids = filtered.map(i => i.id);
-      const thumbMap = await batchFetchThumbnails(ids);
-
-      dealsFromApi = filtered.map(i => ({
-        id: i.id,
-        name: i.name,
-        acronym: i.acronym,
-        rap: i.rap,
-        value: i.value,
-        demand: i.demand,
-        demandLabel: getDemandLabel(i.demand),
-        trend: i.trend,
-        trendLabel: getTrendLabel(i.trend),
-        projected: i.projected === 1,
-        hyped: i.hyped === 1,
-        rare: i.rare === 1,
-        discount: Math.round(((i.rap - i.value) / i.rap) * 100),
-        priceDiff: Math.round(((i.value - i.rap) / i.rap) * 100),
-        thumbnailUrl: thumbMap[i.id] || null,
-      }));
+      console.log("[Sniper] Rolimons deals API returned no results");
     }
 
     const source = dealsFromApi.length > 0 && dealsFromApi[0].listedPrice != null ? "rolimons_deals" : "value_filter";

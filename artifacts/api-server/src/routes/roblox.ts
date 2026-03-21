@@ -557,7 +557,9 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
 
     try {
       const data = await clothingResp.json() as PagedResult;
-      const items = (data.data || []).filter(i => i.assetType === 11 || i.assetType === 12);
+      const items = (data.data || []).filter(i =>
+        !i.assetType || i.assetType === 2 || i.assetType === 11 || i.assetType === 12
+      );
       allCatalogItems.push(...items);
       cursor = data.nextPageCursor || null;
       if (!cursor) break;
@@ -778,7 +780,7 @@ router.get("/roblox/catalog/search", async (req, res): Promise<void> => {
       const data = JSON.parse(raw) as { data: CatalogSearchItem[] };
       const all = data.data || [];
       console.log(`[CatalogSearch] parsed ${all.length} items`);
-      items = all.filter(i => i.assetType === 11 || i.assetType === 12);
+      items = all.filter(i => !i.assetType || i.assetType === 2 || i.assetType === 11 || i.assetType === 12);
     } catch (e) {
       console.error(`[CatalogSearch] parse error:`, e);
     }
