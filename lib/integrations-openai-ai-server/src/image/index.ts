@@ -1,1 +1,1 @@
-export { openai, generateImageBuffer, editImages, editImageBuffers } from "./client";
+export { generateImageBuffer, editImages, editImageBuffers } from "./client";
