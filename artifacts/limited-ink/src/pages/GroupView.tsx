@@ -13,9 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, Users, Coins, Shield, UploadCloud, Image as ImageIcon,
   Search, Copy, TrendingUp, UserPlus, Trash2, Download, BarChart3, Clock, RefreshCw,
-  Hourglass, ShoppingCart, Settings, X, ChevronRight, LayoutGrid
+  Hourglass, ShoppingCart, Settings, X, ChevronRight, LayoutGrid, DollarSign
 } from "lucide-react";
 import { motion } from "framer-motion";
+import PnL from "./PnL";
+import BanShield from "@/components/features/BanShield";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -361,6 +363,7 @@ function CopyClothingTab({ groupId }: { groupId: number }) {
                       </Button>
                     </div>
                   </div>
+                  <BanShield name={item.name} clothingType={item.assetType} />
                 </CardContent>
               </Card>
             </motion.div>
@@ -881,6 +884,9 @@ export default function GroupView({ id }: { id: string }) {
           <TabsTrigger value="alts" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5" /> Alt Accounts
           </TabsTrigger>
+          <TabsTrigger value="pnl" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
+            <DollarSign className="w-3.5 h-3.5" /> P&L
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -898,6 +904,9 @@ export default function GroupView({ id }: { id: string }) {
           </TabsContent>
           <TabsContent value="alts" className="mt-0">
             <AltAccountsTab />
+          </TabsContent>
+          <TabsContent value="pnl" className="mt-0">
+            <PnL groupId={String(stats.id)} />
           </TabsContent>
         </div>
       </Tabs>
