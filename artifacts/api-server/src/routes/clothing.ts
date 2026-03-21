@@ -436,37 +436,89 @@ async function uploadViaOpenCloud(
   return { assetId: null, error: errorMessage };
 }
 
-async function setClothingPrice(
+async function releaseAndPriceClothing(
   cookie: string,
   assetId: number,
   price: number
 ): Promise<void> {
-  if (price <= 0) return;
-
   const csrfToken = await getRobloxCsrf(cookie);
   if (!csrfToken) {
-    console.log(`[Upload] Could not get CSRF to set price for asset ${assetId}`);
+    console.log(`[Upload] Could not get CSRF to release asset ${assetId}`);
     return;
   }
 
   try {
-    const resp = await fetch(`https://itemconfiguration.roblox.com/v1/assets/${assetId}/update-price`, {
+    const releaseResp = await fetch(`https://itemconfiguration.roblox.com/v1/assets/${assetId}/release`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Cookie": `.ROBLOSECURITY=${cookie}`,
         "X-CSRF-TOKEN": csrfToken,
       },
-      body: JSON.stringify({ priceConfiguration: { priceInRobux: price } }),
+      body: JSON.stringify({
+        saleStatus: "OnSale",
+        priceConfiguration: { priceInRobux: price > 0 ? price : 0 },
+      }),
     });
-    if (resp.ok) {
-      console.log(`[Upload] Price set to ${price} R$ for asset ${assetId}`);
-    } else {
-      const text = await resp.text();
-      console.log(`[Upload] Failed to set price for asset ${assetId}: ${resp.status} ${text}`);
+    if (releaseResp.ok) {
+      console.log(`[Upload] Released asset ${assetId} on sale at ${price} R$`);
+      return;
     }
+    const releaseText = await releaseResp.text();
+    console.log(`[Upload] Release via itemconfiguration failed (${releaseResp.status}): ${releaseText}`);
   } catch (err) {
-    console.log(`[Upload] Error setting price for asset ${assetId}:`, err);
+    console.log(`[Upload] Error releasing asset ${assetId} via itemconfiguration:`, err);
+  }
+
+  try {
+    const csrf2 = await getRobloxCsrf(cookie);
+    if (!csrf2) return;
+
+    const saleResp = await fetch(`https://apis.roblox.com/marketplace-sales/v1/item/${assetId}/release`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "X-CSRF-TOKEN": csrf2,
+      },
+      body: JSON.stringify({
+        saleStatus: "OnSale",
+        price: price > 0 ? price : 0,
+      }),
+    });
+    if (saleResp.ok) {
+      console.log(`[Upload] Released asset ${assetId} via marketplace-sales at ${price} R$`);
+      return;
+    }
+    const saleText = await saleResp.text();
+    console.log(`[Upload] Release via marketplace-sales failed (${saleResp.status}): ${saleText}`);
+  } catch (err) {
+    console.log(`[Upload] Error releasing asset ${assetId} via marketplace-sales:`, err);
+  }
+
+  if (price > 0) {
+    try {
+      const csrf3 = await getRobloxCsrf(cookie);
+      if (!csrf3) return;
+
+      const priceResp = await fetch(`https://itemconfiguration.roblox.com/v1/assets/${assetId}/update-price`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": `.ROBLOSECURITY=${cookie}`,
+          "X-CSRF-TOKEN": csrf3,
+        },
+        body: JSON.stringify({ priceConfiguration: { priceInRobux: price } }),
+      });
+      if (priceResp.ok) {
+        console.log(`[Upload] Price set to ${price} R$ for asset ${assetId} via update-price`);
+      } else {
+        const priceText = await priceResp.text();
+        console.log(`[Upload] update-price failed (${priceResp.status}): ${priceText}`);
+      }
+    } catch (err) {
+      console.log(`[Upload] Error setting price for asset ${assetId}:`, err);
+    }
   }
 }
 
@@ -645,9 +697,7 @@ async function uploadSingleClothing(
     console.log("[Upload] Using cookie-based upload (user-auth API)...");
     const result = await uploadViaCookie(cookie, groupId, name, description, imageBuffer, clothingType, price);
     if (result.assetId) {
-      if (price && price > 0) {
-        await setClothingPrice(cookie, result.assetId, price);
-      }
+      await releaseAndPriceClothing(cookie, result.assetId, price ?? 5);
       return result;
     }
     console.log(`[Upload] Cookie upload failed: ${result.error}`);
