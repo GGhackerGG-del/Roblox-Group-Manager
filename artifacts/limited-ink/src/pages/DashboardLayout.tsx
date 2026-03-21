@@ -1,0 +1,160 @@
+import { ReactNode } from "react";
+import { Link, useLocation } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
+import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { useGetRobloxGroups } from "@workspace/api-client-react";
+import { motion } from "framer-motion";
+
+export default function DashboardLayout({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
+  const { profile, logoutRoblox, logoutLicense, licenseDetails } = useAuth();
+
+  const { data: groupsData, isLoading: isLoadingGroups } = useGetRobloxGroups();
+
+  const isProfileActive = location === "/profile";
+  const isCommunityActive = location === "/community";
+  const isSettingsActive = location === "/settings";
+
+  return (
+    <div className="flex h-screen w-full bg-secondary/30 overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-72 bg-card border-r border-border/60 flex flex-col shadow-2xl shadow-black/5 z-20">
+
+        {/* Branding */}
+        <div className="p-5 border-b border-border/50">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-9 h-9 bg-black text-white rounded-xl flex items-center justify-center shadow-md shadow-black/10 group-hover:scale-105 transition-transform duration-300">
+              <Sparkles className="w-4.5 h-4.5" />
+            </div>
+            <span className="font-display font-bold text-xl tracking-tight">Limited.Ink</span>
+          </Link>
+        </div>
+
+        {/* Nav */}
+        <div className="px-4 pt-4 space-y-1">
+          <Link href="/profile">
+            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isProfileActive ? "bg-black text-white shadow-md shadow-black/10 font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground font-medium"}`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isProfileActive ? "bg-white/15" : "bg-secondary/70 border border-border"}`}>
+                <UserCircle className="w-4 h-4" />
+              </div>
+              <span className="text-sm">My Profile</span>
+            </div>
+          </Link>
+
+          <Link href="/community">
+            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isCommunityActive ? "bg-black text-white shadow-md shadow-black/10 font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground font-medium"}`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isCommunityActive ? "bg-white/15" : "bg-secondary/70 border border-border"}`}>
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <span className="text-sm">Community</span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Groups List */}
+        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 custom-scrollbar">
+          <h3 className="px-2 text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 mt-3 flex items-center gap-2">
+            <Users className="w-3.5 h-3.5" /> Your Groups
+          </h3>
+
+          {isLoadingGroups ? (
+            <div className="px-2 py-4 flex justify-center">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : groupsData?.groups && groupsData.groups.length > 0 ? (
+            <ul className="space-y-1">
+              {groupsData.groups.map(group => {
+                const isActive = location === `/group/${group.id}`;
+                return (
+                  <li key={group.id}>
+                    <Link href={`/group/${group.id}`}>
+                      <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isActive ? "bg-black text-white shadow-md shadow-black/10 font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground font-medium"}`}>
+                        <div className={`w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 ${!isActive ? "bg-background border border-border" : "bg-white/10"}`}>
+                          {group.thumbnailUrl ? (
+                            <img src={group.thumbnailUrl} alt={group.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-muted text-xs font-bold">
+                              {group.name.substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="truncate text-sm block">{group.name}</span>
+                          <span className={`text-[10px] ${isActive ? "text-white/60" : "text-muted-foreground/70"}`}>
+                            {group.memberCount.toLocaleString()} members
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="px-2 text-sm text-muted-foreground py-2">No owned groups found.</p>
+          )}
+        </div>
+
+        {/* Bottom area */}
+        <div className="p-4 border-t border-border/50 bg-card space-y-3">
+          {/* Settings link */}
+          <Link href="/settings">
+            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isSettingsActive ? "bg-black text-white" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isSettingsActive ? "bg-white/15" : "bg-secondary/70 border border-border"}`}>
+                <Settings className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-sm font-medium">Settings</span>
+            </div>
+          </Link>
+
+          {/* Profile */}
+          <div className="flex items-center gap-3 px-2">
+            <Avatar className="w-10 h-10 border border-border shadow-sm">
+              <AvatarImage src={profile?.avatarUrl || undefined} />
+              <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                {profile?.displayName?.charAt(0) || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-foreground truncate">{profile?.displayName}</p>
+              <p className="text-xs text-muted-foreground truncate">@{profile?.name}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="px-2 py-2 rounded-lg bg-secondary/50 border border-border/50 flex justify-between items-center">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5" /> License
+              </span>
+              <span className="text-xs font-bold uppercase">{licenseDetails?.plan}</span>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={logoutRoblox} className="flex-1 text-xs font-semibold rounded-lg shadow-none">
+                <LogOut className="w-3.5 h-3.5 mr-1.5" /> Disconnect
+              </Button>
+              <Button variant="ghost" size="sm" onClick={logoutLicense} className="flex-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg">
+                Revoke
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <main className="flex-1 relative overflow-hidden bg-background">
+        <motion.div
+          key={location}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="w-full h-full overflow-y-auto custom-scrollbar"
+        >
+          {children}
+        </motion.div>
+      </main>
+    </div>
+  );
+}

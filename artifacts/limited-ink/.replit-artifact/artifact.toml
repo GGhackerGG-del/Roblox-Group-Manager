@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Limited.Ink"
+version = "1.0.0"
+id = "artifacts/limited-ink"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 26249
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/limited-ink run dev"
+
+[services.env]
+PORT = "26249"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/limited-ink", "run", "build"]
+publicDir = "artifacts/limited-ink/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

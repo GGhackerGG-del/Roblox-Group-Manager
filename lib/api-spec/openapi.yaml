@@ -1,0 +1,649 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Limited.Ink API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: license
+    description: License activation and validation
+  - name: roblox
+    description: Roblox account and group operations
+  - name: clothing
+    description: AI clothing generation and upload
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /license/verify:
+    post:
+      operationId: verifyLicense
+      tags: [license]
+      summary: Verify a license code
+      description: Validates a license code against the server, binds it to the device fingerprint, and returns a signed token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyLicenseBody"
+      responses:
+        "200":
+          description: License is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseVerifyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid or expired license code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: License already activated on a different device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /license/status:
+    get:
+      operationId: getLicenseStatus
+      tags: [license]
+      summary: Validate an existing token via headers
+      description: Validates the device-bound JWT token using Authorization and X-Device-Fingerprint headers
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: "Bearer <token>"
+        - in: header
+          name: X-Device-Fingerprint
+          required: true
+          schema:
+            type: string
+          description: Raw device fingerprint computed client-side
+      responses:
+        "200":
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseStatusResponse"
+        "401":
+          description: Token invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Missing required header
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: checkLicenseStatus
+      tags: [license]
+      summary: Validate an existing session token
+      description: Validates the device-bound JWT token and returns its status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckLicenseStatusBody"
+      responses:
+        "200":
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseStatusResponse"
+        "401":
+          description: Token invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /roblox/auth:
+    post:
+      operationId: robloxAuth
+      tags: [roblox]
+      summary: Authenticate with Roblox cookie
+      description: Validates the .ROBLOSECURITY cookie, stores it in the server session, and returns the user profile. The cookie is never returned to the client after this call.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RobloxAuthBody"
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobloxProfile"
+        "401":
+          description: Invalid or expired cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /roblox/session:
+    delete:
+      operationId: robloxSessionLogout
+      tags: [roblox]
+      summary: Logout Roblox session
+      description: Destroys the server-side Roblox session, clearing the stored cookie
+      responses:
+        "200":
+          description: Session cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /featured-groups:
+    get:
+      operationId: getFeaturedGroups
+      tags: [roblox]
+      summary: Get featured groups
+      description: Returns recently active Roblox groups on the platform. Public endpoint, no authentication required.
+      responses:
+        "200":
+          description: List of featured groups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeaturedGroupsResponse"
+
+  /roblox/groups:
+    get:
+      operationId: getRobloxGroups
+      tags: [roblox]
+      summary: Get owner groups
+      description: Returns Roblox groups where the authenticated user is an Owner. Uses the server-side session cookie.
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobloxGroupsResponse"
+        "401":
+          description: No active Roblox session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /roblox/groups/{groupId}/stats:
+    get:
+      operationId: getRobloxGroupStats
+      tags: [roblox]
+      summary: Get group statistics
+      description: Returns detailed statistics for a specific Roblox group. Uses the server-side session cookie.
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobloxGroupStats"
+        "401":
+          description: No active Roblox session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clothing/generate:
+    post:
+      operationId: generateClothing
+      tags: [clothing]
+      summary: Generate clothing image with AI
+      description: Generates a clothing image using AI based on the provided text prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateClothingBody"
+      responses:
+        "200":
+          description: Generated image data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateClothingResponse"
+        "400":
+          description: Invalid prompt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Generation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clothing/upload:
+    post:
+      operationId: uploadClothing
+      tags: [clothing]
+      summary: Upload clothing to Roblox
+      description: Uploads a generated clothing item to a Roblox group. Uses the server-side session cookie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadClothingBody"
+      responses:
+        "200":
+          description: Upload successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadClothingResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /license/admin/create:
+    post:
+      operationId: createLicense
+      tags: [license]
+      summary: Create a new license code (admin)
+      description: Creates a new license code for a given plan type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLicenseBody"
+      responses:
+        "201":
+          description: License created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseCode"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    VerifyLicenseBody:
+      type: object
+      properties:
+        code:
+          type: string
+          description: The license activation code
+        deviceFingerprint:
+          type: string
+          description: A hash uniquely identifying the user's device/browser
+      required:
+        - code
+        - deviceFingerprint
+
+    CheckLicenseStatusBody:
+      type: object
+      properties:
+        token:
+          type: string
+          description: The JWT session token to validate
+        deviceFingerprint:
+          type: string
+          description: The device fingerprint to match against the token
+      required:
+        - token
+        - deviceFingerprint
+
+    LicenseVerifyResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Signed JWT session token
+        plan:
+          type: string
+          description: The plan type (week, month, lifetime)
+        expiresAt:
+          type: ["string", "null"]
+          description: ISO timestamp when the license expires (null for lifetime)
+      required:
+        - token
+        - plan
+        - expiresAt
+
+    LicenseStatusResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        plan:
+          type: string
+        expiresAt:
+          type: ["string", "null"]
+      required:
+        - valid
+        - plan
+        - expiresAt
+
+    CreateLicenseBody:
+      type: object
+      properties:
+        plan:
+          type: string
+          description: Plan type - week, month, or lifetime
+        adminSecret:
+          type: string
+          description: Admin secret key
+      required:
+        - plan
+        - adminSecret
+
+    LicenseCode:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        plan:
+          type: string
+        expiresAt:
+          type: ["string", "null"]
+        activated:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - code
+        - plan
+        - expiresAt
+        - activated
+        - createdAt
+
+    RobloxAuthBody:
+      type: object
+      properties:
+        cookie:
+          type: string
+          description: The .ROBLOSECURITY cookie value
+      required:
+        - cookie
+
+    RobloxProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+      required:
+        - id
+        - name
+        - displayName
+        - description
+        - avatarUrl
+
+    RobloxGroup:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        memberCount:
+          type: integer
+        thumbnailUrl:
+          type: ["string", "null"]
+        publicEntryAllowed:
+          type: boolean
+        isLocked:
+          type: boolean
+      required:
+        - id
+        - name
+        - description
+        - memberCount
+        - thumbnailUrl
+        - publicEntryAllowed
+        - isLocked
+
+    RobloxGroupsResponse:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/RobloxGroup"
+      required:
+        - groups
+
+    RobloxGroupStats:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        memberCount:
+          type: integer
+        funds:
+          type: integer
+        joinPolicy:
+          type: string
+        isLocked:
+          type: boolean
+        publicEntryAllowed:
+          type: boolean
+        description:
+          type: string
+        thumbnailUrl:
+          type: ["string", "null"]
+      required:
+        - id
+        - name
+        - memberCount
+        - funds
+        - joinPolicy
+        - isLocked
+        - publicEntryAllowed
+        - description
+        - thumbnailUrl
+
+    GenerateClothingBody:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: Text description of the clothing design to generate
+        size:
+          type: string
+          description: Image size - "1024x1024", "512x512", or "256x256"
+      required:
+        - prompt
+
+    GenerateClothingResponse:
+      type: object
+      properties:
+        b64_json:
+          type: string
+          description: Base64-encoded image data
+        prompt:
+          type: string
+          description: The prompt used for generation
+      required:
+        - b64_json
+        - prompt
+
+    FeaturedGroupsResponse:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeaturedGroupItem"
+      required:
+        - groups
+
+    FeaturedGroupItem:
+      type: object
+      properties:
+        groupId:
+          type: integer
+          description: The Roblox group ID
+        name:
+          type: string
+          description: Group name
+        memberCount:
+          type: integer
+          description: Number of group members
+        thumbnailUrl:
+          type: string
+          nullable: true
+          description: URL of the group icon
+        lastActiveAt:
+          type: string
+          format: date-time
+          description: When the group was last active on the platform
+      required:
+        - groupId
+        - name
+        - memberCount
+        - lastActiveAt
+
+    UploadClothingBody:
+      type: object
+      properties:
+        groupId:
+          type: integer
+          description: The Roblox group ID to upload to
+        name:
+          type: string
+          description: Name for the clothing item
+        description:
+          type: string
+          description: Description for the clothing item
+        imageData:
+          type: string
+          description: Base64-encoded image data
+        clothingType:
+          type: string
+          description: Type of clothing - "Shirt" or "Pants"
+      required:
+        - groupId
+        - name
+        - imageData
+        - clothingType
+
+    UploadClothingResponse:
+      type: object
+      properties:
+        assetId:
+          type: integer
+          description: The Roblox asset ID of the uploaded clothing
+        name:
+          type: string
+        status:
+          type: string
+      required:
+        - assetId
+        - name
+        - status

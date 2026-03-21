@@ -1,0 +1,15 @@
+packages:
+  "framer-motion": "For premium page transitions and micro-interactions"
+  "lucide-react": "For beautiful consistent icons across the app"
+
+images:
+  - path: "artifacts/limited-ink/public/images/logo.png"
+    description: "Minimalist modern geometric abstract logo mark for Limited.Ink, completely black and white, sleek, premium, symmetrical, isolated on pure white background"
+    aspect_ratio: "1:1"
+  - path: "artifacts/limited-ink/public/images/auth-bg.png"
+    description: "Abstract fluid gradient in pure black and white, sleek 3D waves, very clean and elegant minimal aesthetic, high resolution"
+    aspect_ratio: "16:9"
+
+notes:
+  - Integration relies on generated Orval hooks from @workspace/api-client-react
+  - Device fingerprinting implemented via browser attributes and SubtleCrypto SHA-256
