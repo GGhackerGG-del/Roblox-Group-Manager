@@ -25,13 +25,13 @@ interface BanShieldProps {
   onUseSafeDescription?: (desc: string) => void;
 }
 
-export default function BanShield({ name, description, clothingType, onUseSafeName, onUseSafeDescription }: BanShieldProps) {
+export default function BanShield({ name = "", description, clothingType, onUseSafeName, onUseSafeDescription }: BanShieldProps) {
   const [result, setResult] = useState<BanShieldResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   async function analyze() {
-    if (!name.trim()) return;
+    if (!name || !name.trim()) return;
     setLoading(true);
     setResult(null);
 
@@ -79,7 +79,7 @@ export default function BanShield({ name, description, clothingType, onUseSafeNa
         variant="outline"
         size="sm"
         onClick={analyze}
-        disabled={loading || !name.trim()}
+        disabled={loading || !name || !name.trim()}
         className="rounded-lg text-xs gap-1.5"
       >
         {loading ? (
