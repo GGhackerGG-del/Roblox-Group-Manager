@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage, type Lang } from "@/contexts/LanguageContext";
 import { getAuthCredentials } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Settings as SettingsIcon, User, Key, Shield, Bell, Palette,
   LogOut, Trash2, Download, Moon, Sun, Monitor, ChevronRight,
-  Loader2, CheckCircle2, Globe, Info, Zap, RefreshCw
+  Loader2, CheckCircle2, Globe, Info, Zap, RefreshCw, Languages
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -77,6 +78,7 @@ export default function Settings() {
   const { profile, logoutRoblox, logoutLicense, licenseDetails } = useAuth();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const { lang, setLang, t } = useLanguage();
 
   const [bio, setBio] = useState(() => localStorage.getItem("limitedink_bio") || "");
   const [savingBio, setSavingBio] = useState(false);
@@ -92,7 +94,7 @@ export default function Settings() {
         body: JSON.stringify({ bio: bio.trim() }),
       });
       localStorage.setItem("limitedink_bio", bio.trim());
-      toast({ title: "Bio saved!", description: "Your community profile has been updated." });
+      toast({ title: t("profile.bio.saved"), description: t("profile.bio.saved.desc") });
     } catch (err) {
       toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to save bio" });
     } finally {
@@ -109,6 +111,7 @@ export default function Settings() {
         notifSound,
         compactMode,
         autoRefreshSales,
+        language: lang,
       },
       exportedAt: new Date().toISOString(),
     };
@@ -117,7 +120,7 @@ export default function Settings() {
     a.href = URL.createObjectURL(blob);
     a.download = `limitedink_export_${Date.now()}.json`;
     a.click();
-    toast({ title: "Exported!", description: "Your data has been saved as a JSON file." });
+    toast({ title: t("data.exported"), description: t("data.exported.desc") });
   };
 
   const playNotifSound = () => {
@@ -137,28 +140,34 @@ export default function Settings() {
   };
 
   const sections = [
-    { id: "profile", label: "Profile", icon: User },
-    { id: "appearance", label: "Appearance", icon: Palette },
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "privacy", label: "Privacy & Security", icon: Shield },
-    { id: "data", label: "Data & Storage", icon: Download },
-    { id: "license", label: "License", icon: Key },
-    { id: "about", label: "About", icon: Info },
+    { id: "profile", label: t("settings.profile"), icon: User },
+    { id: "appearance", label: t("settings.appearance"), icon: Palette },
+    { id: "language", label: t("settings.language"), icon: Languages },
+    { id: "notifications", label: t("settings.notifications"), icon: Bell },
+    { id: "privacy", label: t("settings.privacy"), icon: Shield },
+    { id: "data", label: t("settings.data"), icon: Download },
+    { id: "license", label: t("settings.license"), icon: Key },
+    { id: "about", label: t("settings.about"), icon: Info },
   ];
 
   const [active, setActive] = useState("profile");
+
+  const langOptions: Array<{ value: Lang; label: string; flag: string }> = [
+    { value: "ru", label: t("lang.ru"), flag: "🇷🇺" },
+    { value: "en", label: t("lang.en"), flag: "🇺🇸" },
+    { value: "es", label: t("lang.es"), flag: "🇪🇸" },
+  ];
 
   return (
     <div className="p-6 lg:p-10 w-full max-w-5xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-          <SettingsIcon className="w-7 h-7" /> Settings
+          <SettingsIcon className="w-7 h-7" /> {t("settings")}
         </h1>
-        <p className="text-muted-foreground mt-1 text-sm">Manage your account, appearance, and preferences.</p>
+        <p className="text-muted-foreground mt-1 text-sm">{t("settings.desc")}</p>
       </div>
 
       <div className="flex gap-6">
-        {/* Sidebar */}
         <div className="w-56 shrink-0">
           <div className="space-y-1">
             {sections.map(s => (
@@ -174,17 +183,15 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
 
-            {/* ── Profile ── */}
             {active === "profile" && (
               <div className="space-y-5">
                 <Card className="rounded-2xl border border-border shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base">Your Profile</CardTitle>
-                    <CardDescription>Your Roblox identity and community presence.</CardDescription>
+                    <CardTitle className="text-base">{t("profile.title")}</CardTitle>
+                    <CardDescription>{t("profile.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <div className="flex items-center gap-4">
@@ -201,25 +208,25 @@ export default function Settings() {
                           rel="noopener noreferrer"
                           className="text-xs text-blue-500 hover:underline mt-0.5 block"
                         >
-                          View on Roblox ↗
+                          {t("profile.view")}
                         </a>
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-bold uppercase tracking-wider">Community Bio</Label>
+                      <Label className="text-sm font-bold uppercase tracking-wider">{t("profile.bio")}</Label>
                       <Textarea
                         value={bio}
                         onChange={e => setBio(e.target.value)}
-                        placeholder="Tell other developers about yourself..."
+                        placeholder={t("profile.bio.placeholder")}
                         className="resize-none min-h-[100px] rounded-xl"
                         maxLength={250}
                       />
                       <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">{bio.length}/250 characters</p>
+                        <p className="text-xs text-muted-foreground">{bio.length}/250 {t("characters")}</p>
                         <Button onClick={handleSaveBio} disabled={savingBio} size="sm" className="rounded-xl gap-2">
                           {savingBio ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                          Save Bio
+                          {t("profile.bio.save")}
                         </Button>
                       </div>
                     </div>
@@ -228,34 +235,33 @@ export default function Settings() {
 
                 <Card className="rounded-2xl border border-destructive/30 shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base text-destructive">Session Actions</CardTitle>
+                    <CardTitle className="text-base text-destructive">{t("profile.session")}</CardTitle>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-3">
                     <Button variant="outline" onClick={logoutRoblox} className="justify-start gap-2 rounded-xl border-border">
-                      <LogOut className="w-4 h-4" /> Disconnect Roblox Account
+                      <LogOut className="w-4 h-4" /> {t("profile.disconnect")}
                     </Button>
                     <Button variant="outline" onClick={logoutLicense} className="justify-start gap-2 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
-                      <Key className="w-4 h-4" /> Revoke License Key
+                      <Key className="w-4 h-4" /> {t("profile.revoke")}
                     </Button>
                   </CardContent>
                 </Card>
               </div>
             )}
 
-            {/* ── Appearance ── */}
             {active === "appearance" && (
               <div className="space-y-5">
                 <Card className="rounded-2xl border border-border shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base">Theme</CardTitle>
-                    <CardDescription>Choose how Limited.Ink looks for you.</CardDescription>
+                    <CardTitle className="text-base">{t("appearance.theme")}</CardTitle>
+                    <CardDescription>{t("appearance.theme.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-3 gap-3">
                       {([
-                        { value: "light", label: "Light", icon: Sun },
-                        { value: "dark", label: "Dark", icon: Moon },
-                        { value: "system", label: "System", icon: Monitor },
+                        { value: "light", label: t("appearance.light"), icon: Sun },
+                        { value: "dark", label: t("appearance.dark"), icon: Moon },
+                        { value: "system", label: t("appearance.system"), icon: Monitor },
                       ] as Array<{ value: Theme; label: string; icon: React.FC<{ className?: string }> }>).map(({ value, label, icon: Icon }) => (
                         <button
                           key={value}
@@ -264,7 +270,7 @@ export default function Settings() {
                         >
                           <Icon className="w-6 h-6" />
                           <span className="text-sm font-semibold">{label}</span>
-                          {theme === value && <Badge className="text-[10px] bg-black text-white border-0">Active</Badge>}
+                          {theme === value && <Badge className="text-[10px] bg-black text-white border-0">{t("appearance.active")}</Badge>}
                         </button>
                       ))}
                     </div>
@@ -273,13 +279,13 @@ export default function Settings() {
 
                 <Card className="rounded-2xl border border-border shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base">Interface</CardTitle>
+                    <CardTitle className="text-base">{t("appearance.interface")}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center justify-between py-2">
                       <div>
-                        <p className="font-semibold text-sm">Compact Mode</p>
-                        <p className="text-xs text-muted-foreground">Reduce spacing for more content on screen.</p>
+                        <p className="font-semibold text-sm">{t("appearance.compact")}</p>
+                        <p className="text-xs text-muted-foreground">{t("appearance.compact.desc")}</p>
                       </div>
                       <Switch
                         checked={compactMode}
@@ -291,8 +297,8 @@ export default function Settings() {
                     </div>
                     <div className="flex items-center justify-between py-2 border-t border-border">
                       <div>
-                        <p className="font-semibold text-sm">Auto-refresh Sales</p>
-                        <p className="text-xs text-muted-foreground">Automatically refresh sales data every 30 seconds.</p>
+                        <p className="font-semibold text-sm">{t("appearance.autorefresh")}</p>
+                        <p className="text-xs text-muted-foreground">{t("appearance.autorefresh.desc")}</p>
                       </div>
                       <Switch
                         checked={autoRefreshSales}
@@ -307,18 +313,41 @@ export default function Settings() {
               </div>
             )}
 
-            {/* ── Notifications ── */}
+            {active === "language" && (
+              <Card className="rounded-2xl border border-border shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">{t("lang.title")}</CardTitle>
+                  <CardDescription>{t("lang.desc")}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-3">
+                    {langOptions.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setLang(opt.value)}
+                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${lang === opt.value ? "border-black bg-black/5" : "border-border hover:border-black/30"}`}
+                      >
+                        <span className="text-2xl">{opt.flag}</span>
+                        <span className="text-sm font-semibold">{opt.label}</span>
+                        {lang === opt.value && <Badge className="text-[10px] bg-black text-white border-0">{t("appearance.active")}</Badge>}
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {active === "notifications" && (
               <Card className="rounded-2xl border border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base">Notifications</CardTitle>
-                  <CardDescription>Control how you get notified.</CardDescription>
+                  <CardTitle className="text-base">{t("notif.title")}</CardTitle>
+                  <CardDescription>{t("notif.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between py-2">
                     <div>
-                      <p className="font-semibold text-sm">Sound Effects</p>
-                      <p className="text-xs text-muted-foreground">Play sounds for actions and events.</p>
+                      <p className="font-semibold text-sm">{t("notif.sound")}</p>
+                      <p className="text-xs text-muted-foreground">{t("notif.sound.desc")}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -327,7 +356,7 @@ export default function Settings() {
                         className="text-xs h-7 px-2"
                         onClick={playNotifSound}
                       >
-                        Test
+                        {t("notif.sound.test")}
                       </Button>
                       <Switch
                         checked={notifSound}
@@ -341,15 +370,15 @@ export default function Settings() {
                   </div>
                   <div className="flex items-center justify-between py-2 border-t border-border">
                     <div>
-                      <p className="font-semibold text-sm">Upload Notifications</p>
-                      <p className="text-xs text-muted-foreground">Show toast notifications for clothing uploads.</p>
+                      <p className="font-semibold text-sm">{t("notif.upload")}</p>
+                      <p className="text-xs text-muted-foreground">{t("notif.upload.desc")}</p>
                     </div>
                     <Switch defaultChecked />
                   </div>
                   <div className="flex items-center justify-between py-2 border-t border-border">
                     <div>
-                      <p className="font-semibold text-sm">Chat Notifications</p>
-                      <p className="text-xs text-muted-foreground">Show notifications for new messages.</p>
+                      <p className="font-semibold text-sm">{t("notif.chat")}</p>
+                      <p className="text-xs text-muted-foreground">{t("notif.chat.desc")}</p>
                     </div>
                     <Switch defaultChecked />
                   </div>
@@ -357,33 +386,32 @@ export default function Settings() {
               </Card>
             )}
 
-            {/* ── Privacy ── */}
             {active === "privacy" && (
               <div className="space-y-5">
                 <Card className="rounded-2xl border border-border shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base">Privacy</CardTitle>
-                    <CardDescription>Control your visibility on the platform.</CardDescription>
+                    <CardTitle className="text-base">{t("privacy.title")}</CardTitle>
+                    <CardDescription>{t("privacy.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center justify-between py-2">
                       <div>
-                        <p className="font-semibold text-sm">Show Profile in Discover</p>
-                        <p className="text-xs text-muted-foreground">Let other developers find you in the Community tab.</p>
+                        <p className="font-semibold text-sm">{t("privacy.discover")}</p>
+                        <p className="text-xs text-muted-foreground">{t("privacy.discover.desc")}</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
                     <div className="flex items-center justify-between py-2 border-t border-border">
                       <div>
-                        <p className="font-semibold text-sm">Show My Groups</p>
-                        <p className="text-xs text-muted-foreground">Display your Roblox groups on your community profile.</p>
+                        <p className="font-semibold text-sm">{t("privacy.groups")}</p>
+                        <p className="text-xs text-muted-foreground">{t("privacy.groups.desc")}</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
                     <div className="flex items-center justify-between py-2 border-t border-border">
                       <div>
-                        <p className="font-semibold text-sm">Allow Friend Requests</p>
-                        <p className="text-xs text-muted-foreground">Let others send you friend requests.</p>
+                        <p className="font-semibold text-sm">{t("privacy.friends")}</p>
+                        <p className="text-xs text-muted-foreground">{t("privacy.friends.desc")}</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
@@ -392,21 +420,21 @@ export default function Settings() {
 
                 <Card className="rounded-2xl border border-border shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base">Security Info</CardTitle>
+                    <CardTitle className="text-base">{t("privacy.security")}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
                       <Shield className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Cookie Security</p>
-                        <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">Your Roblox cookie is stored in an encrypted server session (PostgreSQL-backed, 7-day TTL) and is cleared when you disconnect. You stay signed in across page refreshes automatically.</p>
+                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">{t("privacy.cookie")}</p>
+                        <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{t("privacy.cookie.desc")}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
                       <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-sm font-semibold text-green-800 dark:text-green-200">License Protected</p>
-                        <p className="text-xs text-green-700 dark:text-green-300 mt-0.5">All API endpoints are protected by your license key. Unauthorized access is blocked.</p>
+                        <p className="text-sm font-semibold text-green-800 dark:text-green-200">{t("privacy.protected")}</p>
+                        <p className="text-xs text-green-700 dark:text-green-300 mt-0.5">{t("privacy.protected.desc")}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -414,31 +442,30 @@ export default function Settings() {
               </div>
             )}
 
-            {/* ── Data ── */}
             {active === "data" && (
               <div className="space-y-5">
                 <Card className="rounded-2xl border border-border shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base">Export Your Data</CardTitle>
-                    <CardDescription>Download a copy of your settings and saved prompts.</CardDescription>
+                    <CardTitle className="text-base">{t("data.export")}</CardTitle>
+                    <CardDescription>{t("data.export.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Button onClick={handleExportData} className="rounded-xl gap-2">
-                      <Download className="w-4 h-4" /> Export Data as JSON
+                      <Download className="w-4 h-4" /> {t("data.export.btn")}
                     </Button>
                   </CardContent>
                 </Card>
 
                 <Card className="rounded-2xl border border-border shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base">Local Storage</CardTitle>
-                    <CardDescription>Manage data stored locally on this device.</CardDescription>
+                    <CardTitle className="text-base">{t("data.local")}</CardTitle>
+                    <CardDescription>{t("data.local.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-xl">
                       <div>
-                        <p className="text-sm font-semibold">UI Preferences</p>
-                        <p className="text-xs text-muted-foreground">Theme, tab states, and more</p>
+                        <p className="text-sm font-semibold">{t("data.prefs")}</p>
+                        <p className="text-xs text-muted-foreground">{t("data.prefs.desc")}</p>
                       </div>
                       <Button
                         variant="outline"
@@ -447,10 +474,10 @@ export default function Settings() {
                         onClick={() => {
                           const keys = Object.keys(localStorage).filter(k => k.startsWith("limitedink_") && !k.includes("bio"));
                           keys.forEach(k => localStorage.removeItem(k));
-                          toast({ title: "Cleared", description: "UI preferences have been reset." });
+                          toast({ title: t("data.cleared"), description: t("data.cleared.desc") });
                         }}
                       >
-                        <RefreshCw className="w-3.5 h-3.5" /> Reset
+                        <RefreshCw className="w-3.5 h-3.5" /> {t("data.reset")}
                       </Button>
                     </div>
                   </CardContent>
@@ -458,40 +485,39 @@ export default function Settings() {
               </div>
             )}
 
-            {/* ── License ── */}
             {active === "license" && (
               <Card className="rounded-2xl border border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base">License Information</CardTitle>
-                  <CardDescription>Details about your current Limited.Ink plan.</CardDescription>
+                  <CardTitle className="text-base">{t("license.title")}</CardTitle>
+                  <CardDescription>{t("license.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-secondary/50 rounded-xl">
-                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Plan</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">{t("license.plan")}</p>
                       <p className="text-xl font-bold capitalize">{licenseDetails?.plan || "—"}</p>
                     </div>
                     <div className="p-4 bg-secondary/50 rounded-xl">
-                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Status</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">{t("license.status")}</p>
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${licenseDetails?.valid ? "bg-green-500" : "bg-red-500"}`} />
-                        <p className="text-xl font-bold">{licenseDetails?.valid ? "Active" : "Invalid"}</p>
+                        <p className="text-xl font-bold">{licenseDetails?.valid ? t("license.active") : t("license.invalid")}</p>
                       </div>
                     </div>
                   </div>
 
                   {licenseDetails?.expiresAt && (
                     <div className="p-4 bg-secondary/50 rounded-xl">
-                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Expires</p>
-                      <p className="font-semibold">{new Date(licenseDetails.expiresAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">{t("license.expires")}</p>
+                      <p className="font-semibold">{new Date(licenseDetails.expiresAt).toLocaleDateString(lang === "ru" ? "ru-RU" : lang === "es" ? "es-ES" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
                     </div>
                   )}
 
                   <div className="flex items-center gap-3 p-4 bg-black text-white rounded-xl">
                     <Zap className="w-5 h-5 shrink-0" />
                     <div>
-                      <p className="font-semibold text-sm">Upgrade Your Plan</p>
-                      <p className="text-xs text-white/70 mt-0.5">Get access to more features with a higher tier plan.</p>
+                      <p className="font-semibold text-sm">{t("license.upgrade")}</p>
+                      <p className="text-xs text-white/70 mt-0.5">{t("license.upgrade.desc")}</p>
                     </div>
                     <ChevronRight className="w-4 h-4 ml-auto shrink-0" />
                   </div>
@@ -499,7 +525,6 @@ export default function Settings() {
               </Card>
             )}
 
-            {/* ── About ── */}
             {active === "about" && (
               <div className="space-y-5">
                 <Card className="rounded-2xl border border-border shadow-sm overflow-hidden">
@@ -514,11 +539,11 @@ export default function Settings() {
                   <CardContent className="p-5 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-3 bg-secondary/50 rounded-xl">
-                        <p className="text-xs text-muted-foreground font-semibold">Version</p>
+                        <p className="text-xs text-muted-foreground font-semibold">{t("about.version")}</p>
                         <p className="font-bold text-sm mt-0.5">1.0.0</p>
                       </div>
                       <div className="p-3 bg-secondary/50 rounded-xl">
-                        <p className="text-xs text-muted-foreground font-semibold">Environment</p>
+                        <p className="text-xs text-muted-foreground font-semibold">{t("about.env")}</p>
                         <p className="font-bold text-sm mt-0.5 capitalize">{import.meta.env.MODE}</p>
                       </div>
                     </div>
@@ -543,7 +568,7 @@ export default function Settings() {
 
                     <div className="flex items-center gap-2 pt-2">
                       <Globe className="w-4 h-4 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">Limited.Ink — Professional Roblox Group Management Platform</p>
+                      <p className="text-xs text-muted-foreground">{t("about.footer")}</p>
                     </div>
                   </CardContent>
                 </Card>

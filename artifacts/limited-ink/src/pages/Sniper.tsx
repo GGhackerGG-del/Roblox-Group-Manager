@@ -83,6 +83,8 @@ export default function Sniper() {
   const [dealsMinDiscount, setDealsMinDiscount] = useState("");
   const [dealsMinDemand, setDealsMinDemand] = useState("-2");
   const [dealsSearch, setDealsSearch] = useState("");
+  const [dealsMinPrice, setDealsMinPrice] = useState("");
+  const [dealsMaxPrice, setDealsMaxPrice] = useState("");
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -129,6 +131,11 @@ export default function Sniper() {
     if (minDisc > 0 && (d.discount ?? 0) < minDisc) return false;
     const minDem = parseInt(dealsMinDemand, 10);
     if (minDem > -2 && d.demand < minDem) return false;
+    const bestPrice = d.listedPrice ?? d.value;
+    const minP = parseInt(dealsMinPrice || "0", 10);
+    const maxP = parseInt(dealsMaxPrice || "0", 10);
+    if (minP > 0 && bestPrice < minP) return false;
+    if (maxP > 0 && bestPrice > maxP) return false;
     if (dealsSearch) {
       const q = dealsSearch.toLowerCase();
       if (!d.name.toLowerCase().includes(q) && !d.acronym.toLowerCase().includes(q)) return false;
@@ -343,7 +350,7 @@ export default function Sniper() {
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="overflow-hidden">
                   <Card>
                     <CardContent className="py-3 px-4">
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div>
                           <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Min Discount %</label>
                           <Input
@@ -368,6 +375,26 @@ export default function Sniper() {
                             </SelectContent>
                           </Select>
                         </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Min Best Price</label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={dealsMinPrice}
+                            onChange={(e) => setDealsMinPrice(e.target.value)}
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Max Best Price</label>
+                          <Input
+                            type="number"
+                            placeholder="No limit"
+                            value={dealsMaxPrice}
+                            onChange={(e) => setDealsMaxPrice(e.target.value)}
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -381,9 +408,8 @@ export default function Sniper() {
 
               <div className="space-y-2">
                 {filteredDeals.map((item, i) => {
-                  const bestPrice = item.listedPrice ?? item.value;
+                  const bestPrice = item.listedPrice ?? 0;
                   const dealPercent = item.discount ?? (item.rap > 0 && bestPrice > 0 ? Math.round(((item.rap - bestPrice) / item.rap) * 100) : 0);
-                  const hasListedPrice = item.listedPrice != null && item.listedPrice > 0;
 
                   return (
                     <motion.div key={item.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(i * 0.02, 1) }}>
@@ -413,7 +439,7 @@ export default function Sniper() {
                                 <span className="font-mono">RAP: <span className="text-foreground font-semibold">{item.rap.toLocaleString()} R$</span></span>
                                 <span className="text-muted-foreground">→</span>
                                 <span className="font-mono text-green-600 font-semibold">
-                                  {hasListedPrice ? "Best Price" : "Value"}: {bestPrice.toLocaleString()} R$
+                                  Best Price: {bestPrice.toLocaleString()} R$
                                 </span>
                                 <DemandBadge demand={item.demand} label={item.demandLabel} />
                               </div>

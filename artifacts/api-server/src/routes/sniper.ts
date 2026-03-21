@@ -96,14 +96,38 @@ async function batchFetchThumbnails(ids: number[]): Promise<Record<number, strin
         `${ROBLOX_THUMBNAILS_API}/v1/assets?assetIds=${batch.join(",")}&size=150x150&format=Png&isCircular=false`
       );
       if (resp.ok) {
-        const data = await resp.json() as { data: Array<{ targetId: number; imageUrl: string }> };
+        const data = await resp.json() as { data: Array<{ targetId: number; imageUrl: string; state: string }> };
         for (const t of data.data || []) {
-          map[t.targetId] = t.imageUrl || null;
+          if (t.state === "Completed" && t.imageUrl) {
+            map[t.targetId] = t.imageUrl;
+          }
         }
       }
     } catch {}
     if (i + 100 < ids.length) await new Promise(r => setTimeout(r, 150));
   }
+
+  const missing = ids.filter(id => !map[id]);
+  if (missing.length > 0 && missing.length <= 200) {
+    for (let i = 0; i < missing.length; i += 100) {
+      const batch = missing.slice(i, i + 100);
+      try {
+        const resp = await fetch(
+          `${ROBLOX_THUMBNAILS_API}/v1/assets?assetIds=${batch.join(",")}&size=420x420&format=Png&isCircular=false`
+        );
+        if (resp.ok) {
+          const data = await resp.json() as { data: Array<{ targetId: number; imageUrl: string; state: string }> };
+          for (const t of data.data || []) {
+            if (t.state === "Completed" && t.imageUrl && !map[t.targetId]) {
+              map[t.targetId] = t.imageUrl;
+            }
+          }
+        }
+      } catch {}
+      if (i + 100 < missing.length) await new Promise(r => setTimeout(r, 150));
+    }
+  }
+
   return map;
 }
 
@@ -311,6 +335,7 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
         discount: Math.round(((i.rap - i.value) / i.rap) * 100),
         priceDiff: Math.round(((i.value - i.rap) / i.rap) * 100),
         thumbnailUrl: thumbMap[i.id] || null,
+        listedPrice: i.value,
       }));
     }
 
