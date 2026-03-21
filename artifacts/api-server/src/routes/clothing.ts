@@ -750,6 +750,7 @@ async function uploadSingleClothing(
 }
 
 router.post("/clothing/upload", async (req, res): Promise<void> => {
+  console.log(`[Upload] Request received: clothingType=${req.body.clothingType} groupId=${req.body.groupId} name=${req.body.name} price=${req.body.price} imageDataLen=${req.body.imageData?.length || 0}`);
   const altIndex: number | null = typeof req.body.altIndex === "number" ? req.body.altIndex : null;
   const openCloudApiKey = req.session.robloxOpenCloudApiKey;
 
