@@ -444,82 +444,149 @@ async function uploadViaCookie(
   imageBuffer: Buffer,
   clothingType: string
 ): Promise<{ assetId: number | null; error?: string }> {
-  const assetTypeId = clothingType === "Pants" ? 12 : 11;
   const csrfToken = await getRobloxCsrf(cookie);
   if (!csrfToken) {
     return { assetId: null, error: "Failed to get CSRF token. Your Roblox cookie may be expired — re-login in Settings." };
   }
 
-  const params = new URLSearchParams({
-    assetTypeId: String(assetTypeId),
-    name,
+  const assetType = clothingType === "Pants" ? "Pants" : "Shirt";
+  console.log(`[Upload] Cookie upload via user-auth API: type=${assetType} group=${groupId} name="${name}"`);
+
+  const requestData = JSON.stringify({
+    displayName: name,
     description: description || "Uploaded via Limited.Ink",
-    groupId: String(groupId),
-    isOwnCreation: "true",
+    assetType: assetType,
+    creationContext: {
+      creator: { groupId: groupId },
+      expectedPrice: 0,
+    },
   });
 
-  const url = `https://www.roblox.com/ide/publish/uploadnewasset?${params.toString()}`;
-  console.log(`[Upload] Cookie upload: type=${clothingType}(${assetTypeId}) group=${groupId} name="${name}"`);
+  const boundary = `----FormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;
+  const crlf = "\r\n";
+
+  const parts: Buffer[] = [];
+  parts.push(Buffer.from(
+    `--${boundary}${crlf}` +
+    `Content-Disposition: form-data; name="request"${crlf}` +
+    `Content-Type: application/json${crlf}${crlf}` +
+    requestData + crlf, "utf8"
+  ));
+  parts.push(Buffer.from(
+    `--${boundary}${crlf}` +
+    `Content-Disposition: form-data; name="fileContent"; filename="clothing.png"${crlf}` +
+    `Content-Type: image/png${crlf}${crlf}`, "utf8"
+  ));
+  parts.push(imageBuffer);
+  parts.push(Buffer.from(`${crlf}--${boundary}--${crlf}`, "utf8"));
+
+  const body = Buffer.concat(parts);
+  const uploadUrl = "https://apis.roblox.com/assets/user-auth/v1/assets";
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const currentCsrf = attempt === 0 ? csrfToken : await getRobloxCsrf(cookie);
-    const resp = await fetch(url, {
+
+    const resp = await fetch(uploadUrl, {
       method: "POST",
       headers: {
         "Cookie": `.ROBLOSECURITY=${cookie}`,
         "X-CSRF-TOKEN": currentCsrf,
-        "Content-Type": "application/octet-stream",
-        "User-Agent": "RobloxStudio/1.0",
-        "Requester": "Client",
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Origin": "https://create.roblox.com",
+        "Referer": "https://create.roblox.com/",
       },
-      body: imageBuffer,
+      body,
     });
 
     if (resp.status === 403) {
       const newCsrf = resp.headers.get("x-csrf-token");
       if (newCsrf && attempt === 0) {
-        console.log("[Upload] CSRF token refreshed, retrying...");
+        console.log("[Upload] CSRF refreshed, retrying...");
         continue;
       }
-      return { assetId: null, error: "Access denied (403). Your Roblox cookie may be expired or you don't have permission to upload to this group." };
+      return { assetId: null, error: "Access denied (403). Cookie expired or no permission for this group." };
     }
 
     const text = await resp.text();
 
-    if (resp.ok) {
-      const assetId = parseInt(text.trim(), 10);
-      if (!isNaN(assetId) && assetId > 0) {
-        console.log(`[Upload] Cookie upload success: assetId=${assetId}`);
+    if (!resp.ok) {
+      console.log(`[Upload] user-auth failed: status=${resp.status} body=${text.slice(0, 400)}`);
+      if (resp.status === 401) return { assetId: null, error: "Roblox cookie expired. Re-login in Settings." };
+      if (resp.status === 429) return { assetId: null, error: "Roblox rate limit. Wait and try again." };
+      let errorMsg = `Upload failed (${resp.status})`;
+      try {
+        const e = JSON.parse(text) as { message?: string; error?: string };
+        if (e.message) errorMsg += `: ${e.message}`;
+        else if (e.error) errorMsg += `: ${e.error}`;
+      } catch {}
+      return { assetId: null, error: errorMsg };
+    }
+
+    let uploadData: { operationId?: string; done?: boolean; response?: { assetId?: string }; path?: string };
+    try { uploadData = JSON.parse(text); } catch {
+      console.log(`[Upload] Could not parse response: ${text.slice(0, 200)}`);
+      return { assetId: null, error: "Upload returned unparseable response." };
+    }
+
+    if (uploadData.done && uploadData.response?.assetId) {
+      const assetId = parseInt(uploadData.response.assetId, 10);
+      if (!isNaN(assetId)) {
+        console.log(`[Upload] Immediate success: assetId=${assetId}`);
         return { assetId };
       }
+    }
+
+    const operationId = uploadData.operationId || uploadData.path;
+    if (!operationId) {
+      console.log(`[Upload] No operationId in response: ${text.slice(0, 300)}`);
+      return { assetId: null, error: "Server did not return an operation ID." };
+    }
+
+    console.log(`[Upload] Operation created: ${operationId}, polling...`);
+
+    const statusUrlBase = operationId.startsWith("http")
+      ? operationId
+      : operationId.startsWith("/")
+        ? `https://apis.roblox.com${operationId}`
+        : `https://apis.roblox.com/assets/user-auth/v1/operations/${operationId}`;
+
+    for (let poll = 0; poll < 30; poll++) {
+      await new Promise(r => setTimeout(r, 2000));
       try {
-        const json = JSON.parse(text) as { Id?: number; id?: number; AssetId?: number };
-        const id = json.Id || json.id || json.AssetId;
-        if (id && id > 0) {
-          console.log(`[Upload] Cookie upload success (JSON): assetId=${id}`);
-          return { assetId: id };
+        const pollResp = await fetch(statusUrlBase, {
+          headers: {
+            "Cookie": `.ROBLOSECURITY=${cookie}`,
+            "X-CSRF-TOKEN": currentCsrf,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          },
+        });
+        if (pollResp.ok) {
+          const pollData = await pollResp.json() as {
+            done?: boolean;
+            response?: { assetId?: string };
+            error?: { message?: string };
+          };
+          if (pollData.done) {
+            if (pollData.response?.assetId) {
+              const assetId = parseInt(pollData.response.assetId, 10);
+              if (!isNaN(assetId)) {
+                console.log(`[Upload] Poll success: assetId=${assetId}`);
+                return { assetId };
+              }
+            }
+            if (pollData.error?.message) {
+              return { assetId: null, error: `Roblox rejected: ${pollData.error.message}` };
+            }
+            return { assetId: null, error: "Operation completed but no asset ID returned." };
+          }
         }
-      } catch {}
-      console.log(`[Upload] Cookie upload returned OK but unexpected body: ${text.slice(0, 200)}`);
-      return { assetId: null, error: `Upload returned OK but couldn't parse asset ID from response.` };
+      } catch (e) {
+        console.log(`[Upload] Poll ${poll + 1} error:`, e instanceof Error ? e.message : e);
+      }
     }
 
-    console.log(`[Upload] Cookie upload failed: status=${resp.status} body=${text.slice(0, 300)}`);
-
-    if (resp.status === 401) {
-      return { assetId: null, error: "Roblox cookie expired. Please re-login in Settings." };
-    }
-    if (resp.status === 429) {
-      return { assetId: null, error: "Roblox rate limit. Wait a moment and try again." };
-    }
-
-    let errorMsg = `Upload failed (${resp.status})`;
-    try {
-      const errJson = JSON.parse(text) as { Message?: string; message?: string; errors?: Array<{ message?: string }> };
-      const msg = errJson.Message || errJson.message || errJson.errors?.[0]?.message;
-      if (msg) errorMsg += `: ${msg}`;
-    } catch {}
-    return { assetId: null, error: errorMsg };
+    return { assetId: null, error: "Upload timed out waiting for Roblox to process the asset." };
   }
 
   return { assetId: null, error: "Upload failed after retries." };
@@ -537,20 +604,26 @@ async function uploadSingleClothing(
 ): Promise<{ assetId: number | null; error?: string }> {
   const imageBuffer = Buffer.from(imageData, "base64");
 
-  if (openCloudApiKey) {
-    console.log("[Upload] Open Cloud API key available, using it as primary method...");
-    const result = await uploadViaOpenCloud(openCloudApiKey, groupId, name, description, imageBuffer, clothingType);
+  if (cookie) {
+    console.log("[Upload] Using cookie-based upload (user-auth API)...");
+    const result = await uploadViaCookie(cookie, groupId, name, description, imageBuffer, clothingType);
     if (result.assetId) return result;
-    console.log(`[Upload] Open Cloud failed: ${result.error}, falling back to cookie upload...`);
+    console.log(`[Upload] Cookie upload failed: ${result.error}`);
+    if (openCloudApiKey) {
+      console.log("[Upload] Falling back to Open Cloud API...");
+      return uploadViaOpenCloud(openCloudApiKey, groupId, name, description, imageBuffer, clothingType);
+    }
+    return result;
   }
 
-  if (cookie) {
-    return uploadViaCookie(cookie, groupId, name, description, imageBuffer, clothingType);
+  if (openCloudApiKey) {
+    console.log("[Upload] No cookie, using Open Cloud API...");
+    return uploadViaOpenCloud(openCloudApiKey, groupId, name, description, imageBuffer, clothingType);
   }
 
   return {
     assetId: null,
-    error: "No upload method available. Please connect your Roblox account in Settings (or optionally add an Open Cloud API key).",
+    error: "No upload method available. Please connect your Roblox account in Settings.",
   };
 }
 

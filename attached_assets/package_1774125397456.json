@@ -1,0 +1,48 @@
+{
+  "name": "roblox-group-manager",
+  "version": "1.0.0",
+  "description": "Roblox Group Manager with beautiful UI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dev": "electron . --dev"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^25.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "animate.css": "^4.1.1",
+    "axios": "^1.13.2",
+    "electron-store": "^8.1.0",
+    "form-data": "^4.0.5",
+    "fs-extra": "^11.1.1",
+    "sharp": "^0.32.0"
+  },
+  "build": {
+    "appId": "com.robox.groupmanager",
+    "productName": "Roblox Group Manager",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!src/**/*.map"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    }
+  }
+}
