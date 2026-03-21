@@ -139,8 +139,49 @@ export default function Settings() {
     } catch {}
   };
 
+  const [openCloudKey, setOpenCloudKey] = useState("");
+  const [hasOpenCloudKey, setHasOpenCloudKey] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [loadingApiKey, setLoadingApiKey] = useState(true);
+
+  useEffect(() => {
+    apiFetch<{ hasKey: boolean }>("/api/roblox/open-cloud-key")
+      .then(d => setHasOpenCloudKey(d.hasKey))
+      .catch(() => {})
+      .finally(() => setLoadingApiKey(false));
+  }, []);
+
+  const handleSaveApiKey = async () => {
+    if (!openCloudKey.trim()) return;
+    setSavingApiKey(true);
+    try {
+      await apiFetch("/api/roblox/open-cloud-key", {
+        method: "POST",
+        body: JSON.stringify({ apiKey: openCloudKey.trim() }),
+      });
+      setHasOpenCloudKey(true);
+      setOpenCloudKey("");
+      toast({ title: "API key saved", description: "Your Roblox Open Cloud API key has been stored for this session." });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to save API key" });
+    } finally {
+      setSavingApiKey(false);
+    }
+  };
+
+  const handleRemoveApiKey = async () => {
+    try {
+      await apiFetch("/api/roblox/open-cloud-key", { method: "DELETE" });
+      setHasOpenCloudKey(false);
+      toast({ title: "API key removed", description: "Your Open Cloud API key has been cleared." });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to remove API key" });
+    }
+  };
+
   const sections = [
     { id: "profile", label: t("settings.profile"), icon: User },
+    { id: "roblox-api", label: "Roblox API Key", icon: Key },
     { id: "appearance", label: t("settings.appearance"), icon: Palette },
     { id: "language", label: t("settings.language"), icon: Languages },
     { id: "notifications", label: t("settings.notifications"), icon: Bell },
@@ -249,6 +290,79 @@ export default function Settings() {
               </div>
             )}
 
+            {/* ── Roblox API Key ── */}
+            {active === "roblox-api" && (
+              <div className="space-y-5">
+                <Card className="rounded-2xl border border-border shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">Roblox Open Cloud API Key</CardTitle>
+                    <CardDescription>Required for uploading clothing. The legacy cookie-based upload method has been deprecated by Roblox.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {loadingApiKey ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Checking API key status...
+                      </div>
+                    ) : hasOpenCloudKey ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                          <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-green-800 dark:text-green-200">API Key Active</p>
+                            <p className="text-xs text-green-700 dark:text-green-300 mt-0.5">Your Open Cloud API key is stored for this session and will be used for clothing uploads.</p>
+                          </div>
+                        </div>
+                        <Button variant="outline" onClick={handleRemoveApiKey} className="rounded-xl gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                          <Trash2 className="w-4 h-4" /> Remove API Key
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                          <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">No API Key Set</p>
+                            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">You need an Open Cloud API key to upload clothing. Without it, uploads will fail.</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-bold">API Key</Label>
+                          <Input
+                            type="password"
+                            value={openCloudKey}
+                            onChange={e => setOpenCloudKey(e.target.value)}
+                            placeholder="Paste your Open Cloud API key here..."
+                            className="rounded-xl font-mono text-xs"
+                          />
+                        </div>
+                        <Button onClick={handleSaveApiKey} disabled={savingApiKey || !openCloudKey.trim()} className="rounded-xl w-full gap-2">
+                          {savingApiKey ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+                          {savingApiKey ? "Saving..." : "Save API Key"}
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border border-border shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">How to Get an API Key</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
+                      <li>Go to <a href="https://create.roblox.com/dashboard/credentials" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Roblox Creator Hub → Credentials</a></li>
+                      <li>Click "Create API Key"</li>
+                      <li>Name it (e.g. "Limited.Ink Uploads")</li>
+                      <li>Under "Access Permissions", add the <span className="font-semibold text-foreground">Asset</span> API with <span className="font-semibold text-foreground">Read</span> and <span className="font-semibold text-foreground">Write</span> operations</li>
+                      <li>Under "Accepted IP Addresses", add <span className="font-mono text-foreground">0.0.0.0/0</span> (or the server's IP)</li>
+                      <li>Copy the generated key and paste it above</li>
+                    </ol>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* ── Appearance ── */}
             {active === "appearance" && (
               <div className="space-y-5">
                 <Card className="rounded-2xl border border-border shadow-sm">

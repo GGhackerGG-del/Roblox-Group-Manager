@@ -18,6 +18,7 @@ declare module "express-session" {
       displayName: string;
       avatarUrl: string | null;
     }>;
+    robloxOpenCloudApiKey?: string;
   }
 }
 

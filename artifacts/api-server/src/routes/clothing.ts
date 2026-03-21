@@ -300,168 +300,167 @@ router.post("/clothing/generate", async (req, res): Promise<void> => {
   }
 });
 
+async function uploadViaOpenCloud(
+  apiKey: string,
+  groupId: number,
+  name: string,
+  description: string,
+  imageBuffer: Buffer,
+  clothingType: string
+): Promise<{ assetId: number | null; error?: string }> {
+  const boundary = `----OpenCloudBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;
+  const crlf = "\r\n";
+
+  const configJson = JSON.stringify({
+    assetType: clothingType === "Pants" ? "ClassicPants" : "ClassicShirt",
+    displayName: name,
+    description: description || "Uploaded via Limited.Ink",
+    creationContext: {
+      creator: { groupId: String(groupId) },
+    },
+  });
+
+  const parts: Buffer[] = [];
+  parts.push(Buffer.from(
+    `--${boundary}${crlf}` +
+    `Content-Disposition: form-data; name="request"${crlf}` +
+    `Content-Type: application/json${crlf}${crlf}` +
+    configJson + crlf, "utf8"
+  ));
+  parts.push(Buffer.from(
+    `--${boundary}${crlf}` +
+    `Content-Disposition: form-data; name="fileContent"; filename="clothing.png"${crlf}` +
+    `Content-Type: image/png${crlf}${crlf}`, "utf8"
+  ));
+  parts.push(imageBuffer);
+  parts.push(Buffer.from(`${crlf}--${boundary}--${crlf}`, "utf8"));
+
+  const body = Buffer.concat(parts);
+
+  console.log(`[Upload] Trying Open Cloud API for group ${groupId}...`);
+  const resp = await fetch("https://apis.roblox.com/assets/v1/assets", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+    },
+    body,
+  });
+
+  if (resp.ok) {
+    const data = await resp.json() as {
+      path?: string;
+      assetId?: string;
+      response?: { assetId?: string };
+      done?: boolean;
+    };
+
+    if (data.done && data.response?.assetId) {
+      const assetId = parseInt(data.response.assetId, 10);
+      if (!isNaN(assetId)) {
+        console.log(`[Upload] Open Cloud immediate success: assetId=${assetId}`);
+        return { assetId };
+      }
+    }
+
+    if (data.assetId) {
+      const assetId = parseInt(data.assetId, 10);
+      if (!isNaN(assetId)) {
+        console.log(`[Upload] Open Cloud success: assetId=${assetId}`);
+        return { assetId };
+      }
+    }
+
+    if (data.path && !data.done) {
+      console.log(`[Upload] Open Cloud operation pending, polling: ${data.path}`);
+      const operationUrl = `https://apis.roblox.com/${data.path}`;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const pollResp = await fetch(operationUrl, {
+            headers: { "x-api-key": apiKey },
+          });
+          if (pollResp.ok) {
+            const pollData = await pollResp.json() as {
+              done?: boolean;
+              response?: { assetId?: string };
+              error?: { message?: string };
+            };
+            if (pollData.done) {
+              if (pollData.response?.assetId) {
+                const assetId = parseInt(pollData.response.assetId, 10);
+                if (!isNaN(assetId)) {
+                  console.log(`[Upload] Open Cloud poll success: assetId=${assetId}`);
+                  return { assetId };
+                }
+              }
+              if (pollData.error?.message) {
+                console.log(`[Upload] Open Cloud operation failed: ${pollData.error.message}`);
+                return { assetId: null, error: `Upload processing failed: ${pollData.error.message}` };
+              }
+              break;
+            }
+          }
+        } catch (pollErr) {
+          console.log(`[Upload] Poll attempt ${attempt + 1} error:`, pollErr instanceof Error ? pollErr.message : pollErr);
+        }
+      }
+    }
+
+    console.log(`[Upload] Open Cloud returned OK but could not resolve asset ID:`, JSON.stringify(data).slice(0, 500));
+    return { assetId: null, error: "Upload was accepted but the asset ID could not be resolved. The asset may still be processing on Roblox's side." };
+  }
+
+  const text = await resp.text();
+  console.log(`[Upload] Open Cloud status=${resp.status} body=${text.slice(0, 500)}`);
+
+  if (resp.status === 401 || resp.status === 403) {
+    let detail = "";
+    try {
+      const errData = JSON.parse(text) as { message?: string; error?: string; code?: string };
+      if (errData.message) detail = ` Roblox says: "${errData.message}"`;
+      else if (errData.error) detail = ` Roblox says: "${errData.error}"`;
+    } catch {}
+    return { assetId: null, error: `Open Cloud API key is invalid or lacks permissions (${resp.status}).${detail} Check your API key in Settings and ensure it has "Asset" write permissions for this group.` };
+  }
+  if (resp.status === 429) {
+    return { assetId: null, error: "Roblox rate limit hit. Please wait a moment and try again." };
+  }
+
+  let errorMessage = `Open Cloud upload failed (${resp.status})`;
+  try {
+    const errData = JSON.parse(text) as { message?: string; error?: string };
+    if (errData.message) errorMessage += `: ${errData.message}`;
+    else if (errData.error) errorMessage += `: ${errData.error}`;
+  } catch {}
+  return { assetId: null, error: errorMessage };
+}
+
 async function uploadSingleClothing(
-  cookie: string,
-  csrfToken: string,
+  _cookie: string,
+  _csrfToken: string,
   groupId: number,
   name: string,
   description: string,
   imageData: string,
-  clothingType: string
+  clothingType: string,
+  openCloudApiKey?: string
 ): Promise<{ assetId: number | null; error?: string }> {
   const imageBuffer = Buffer.from(imageData, "base64");
-  const assetTypeId = clothingType === "Pants" ? 12 : 11;
 
-  const endpoints = [
-    {
-      name: "itemconfiguration",
-      fn: async () => {
-        const boundary = `----WebKitFormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;
-        const crlf = "\r\n";
-
-        const configJson = JSON.stringify({
-          assetType: clothingType === "Pants" ? "ClassicPants" : "ClassicShirt",
-          displayName: name,
-          description: description || "Uploaded via Limited.Ink",
-          creationContext: { creator: { groupId } },
-        });
-
-        const parts: Buffer[] = [];
-        parts.push(Buffer.from(
-          `--${boundary}${crlf}` +
-          `Content-Disposition: form-data; name="config"; filename="config.json"${crlf}` +
-          `Content-Type: application/json${crlf}${crlf}` +
-          configJson + crlf, "utf8"
-        ));
-        parts.push(Buffer.from(
-          `--${boundary}${crlf}` +
-          `Content-Disposition: form-data; name="fileContent"; filename="clothing.png"${crlf}` +
-          `Content-Type: image/png${crlf}${crlf}`, "utf8"
-        ));
-        parts.push(imageBuffer);
-        parts.push(Buffer.from(`${crlf}--${boundary}--${crlf}`, "utf8"));
-
-        const body = Buffer.concat(parts);
-
-        const resp = await fetch("https://itemconfiguration.roblox.com/v1/avatar-assets/upload", {
-          method: "POST",
-          headers: {
-            Cookie: `.ROBLOSECURITY=${cookie}`,
-            "X-CSRF-TOKEN": csrfToken,
-            "Content-Type": `multipart/form-data; boundary=${boundary}`,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
-          body,
-        });
-
-        if (resp.ok) {
-          const data = await resp.json() as { assetId?: number; id?: number };
-          return data.assetId || data.id || null;
-        }
-        const text = await resp.text();
-        console.log(`[Upload] itemconfiguration status=${resp.status} body=${text.slice(0, 500)}`);
-        return null;
-      },
-    },
-    {
-      name: "data.roblox.com",
-      fn: async () => {
-        const typeName = clothingType === "Pants" ? "Pants" : "Shirt";
-        const url = `https://data.roblox.com/Data/Upload.ashx?json=1&type=${typeName}&groupId=${groupId}&name=${encodeURIComponent(name)}&description=${encodeURIComponent(description || "Uploaded via Limited.Ink")}&isOwnCreation=true`;
-        const resp = await fetch(url, {
-          method: "POST",
-          headers: {
-            Cookie: `.ROBLOSECURITY=${cookie}`,
-            "X-CSRF-TOKEN": csrfToken,
-            "Content-Type": "application/octet-stream",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
-          body: imageBuffer,
-        });
-        if (resp.ok) {
-          const text = await resp.text();
-          const match = text.match(/(\d{8,})/);
-          return match ? parseInt(match[1], 10) : null;
-        }
-        const text = await resp.text();
-        console.log(`[Upload] data.roblox.com status=${resp.status} body=${text.slice(0, 500)}`);
-        return null;
-      },
-    },
-    {
-      name: "item.ashx",
-      fn: async () => {
-        const boundary = `----FormBoundary${Date.now()}`;
-        const crlf = "\r\n";
-
-        const parts: Buffer[] = [];
-        const fields: Record<string, string> = {
-          name,
-          description: description || "Uploaded via Limited.Ink",
-          assetTypeId: String(assetTypeId),
-          groupId: String(groupId),
-          isOwnCreation: "True",
-        };
-
-        for (const [key, val] of Object.entries(fields)) {
-          parts.push(Buffer.from(
-            `--${boundary}${crlf}` +
-            `Content-Disposition: form-data; name="${key}"${crlf}${crlf}` +
-            val + crlf, "utf8"
-          ));
-        }
-
-        parts.push(Buffer.from(
-          `--${boundary}${crlf}` +
-          `Content-Disposition: form-data; name="file"; filename="clothing.png"${crlf}` +
-          `Content-Type: image/png${crlf}${crlf}`, "utf8"
-        ));
-        parts.push(imageBuffer);
-        parts.push(Buffer.from(`${crlf}--${boundary}--${crlf}`, "utf8"));
-
-        const body = Buffer.concat(parts);
-
-        const resp = await fetch("https://www.roblox.com/build/upload", {
-          method: "POST",
-          headers: {
-            Cookie: `.ROBLOSECURITY=${cookie}`,
-            "X-CSRF-TOKEN": csrfToken,
-            "Content-Type": `multipart/form-data; boundary=${boundary}`,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
-          body,
-        });
-
-        if (resp.ok) {
-          const text = await resp.text();
-          const match = text.match(/(\d{8,})/);
-          return match ? parseInt(match[1], 10) : null;
-        }
-        const text = await resp.text();
-        console.log(`[Upload] build/upload status=${resp.status} body=${text.slice(0, 500)}`);
-        return null;
-      },
-    },
-  ];
-
-  for (const ep of endpoints) {
-    try {
-      console.log(`[Upload] Trying ${ep.name}...`);
-      const result = await ep.fn();
-      if (result) {
-        console.log(`[Upload] Success via ${ep.name}: assetId=${result}`);
-        return { assetId: result };
-      }
-    } catch (err) {
-      console.error(`[Upload] ${ep.name} error:`, err instanceof Error ? err.message : err);
-    }
+  if (!openCloudApiKey) {
+    return {
+      assetId: null,
+      error: "No Roblox Open Cloud API key configured. Go to Settings → Roblox API Key to add one. The legacy cookie-based upload endpoints have been retired by Roblox.",
+    };
   }
 
-  return { assetId: null, error: "All upload methods failed. Please check your Roblox session." };
+  return uploadViaOpenCloud(openCloudApiKey, groupId, name, description, imageBuffer, clothingType);
 }
 
 router.post("/clothing/upload", async (req, res): Promise<void> => {
   const altIndex: number | null = typeof req.body.altIndex === "number" ? req.body.altIndex : null;
+  const openCloudApiKey = req.session.robloxOpenCloudApiKey;
 
   let cookie: string | undefined;
   if (altIndex !== null) {
@@ -475,16 +474,12 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     cookie = req.session.robloxCookie;
   }
 
-  if (!cookie) {
-    res.status(401).json({ error: "No active Roblox session. Please sign in again." });
+  if (!openCloudApiKey) {
+    res.status(401).json({ error: "No Roblox Open Cloud API key configured. Go to Settings → Roblox API Key to add one. The legacy cookie-based upload endpoints have been retired by Roblox." });
     return;
   }
 
-  const csrfToken = await getRobloxCsrf(cookie);
-  if (!csrfToken) {
-    res.status(401).json({ error: "Failed to get Roblox CSRF token. Please check your cookie." });
-    return;
-  }
+  const csrfToken = "";
 
   const rawItems = req.body.items;
 
@@ -505,8 +500,9 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
 
       try {
         const result = await uploadSingleClothing(
-          cookie, csrfToken, itemGroupId, String(item.name || "Clothing").trim(),
-          String(item.description || ""), item.imageData, item.clothingType
+          cookie || "", csrfToken, itemGroupId, String(item.name || "Clothing").trim(),
+          String(item.description || ""), item.imageData, item.clothingType,
+          openCloudApiKey
         );
         results.push({
           name: item.name || `Item ${idx}`,
@@ -545,7 +541,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
 
   const { groupId, name, description, imageData, clothingType } = parsed.data;
 
-  const result = await uploadSingleClothing(cookie, csrfToken, groupId, name, description || "", imageData, clothingType);
+  const result = await uploadSingleClothing(cookie || "", csrfToken, groupId, name, description || "", imageData, clothingType, openCloudApiKey);
 
   if (result.assetId) {
     res.json({
@@ -556,7 +552,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     });
   } else {
     res.status(500).json({
-      error: result.error || "Upload failed. Please try again.",
+      error: result.error || "Upload failed. Please add a Roblox Open Cloud API key in Settings for reliable uploads.",
       name,
       status: "failed",
     });

@@ -1165,4 +1165,23 @@ router.delete("/roblox/alt/:index", async (req, res): Promise<void> => {
   res.json({ status: "ok" });
 });
 
+router.get("/roblox/open-cloud-key", (req, res): void => {
+  res.json({ hasKey: !!req.session.robloxOpenCloudApiKey });
+});
+
+router.post("/roblox/open-cloud-key", (req, res): void => {
+  const { apiKey } = req.body as { apiKey?: string };
+  if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length === 0) {
+    res.status(400).json({ error: "API key is required." });
+    return;
+  }
+  req.session.robloxOpenCloudApiKey = apiKey.trim();
+  res.json({ status: "ok", hasKey: true });
+});
+
+router.delete("/roblox/open-cloud-key", (req, res): void => {
+  delete req.session.robloxOpenCloudApiKey;
+  res.json({ status: "ok", hasKey: false });
+});
+
 export default router;
