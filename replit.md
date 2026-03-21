@@ -17,13 +17,13 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `RobloxLogin.tsx` — Roblox cookie entry (sessionStorage only, never persisted in DB)
 - `DashboardLayout.tsx` — Sidebar with owner groups list, user profile, license info, Tools section (AI Assistant, Competitors, Limited Sniper), Community & Settings links
 - `Home.tsx` — Empty state when no group selected
-- `GroupView.tsx` — 5-tab view: P&L, Copy Clothing (with bulk ZIP download), Catalog (classic shirts/pants only), Upload (PNG + template overlay upload to Roblox), Alt Accounts. Tab state persisted per group in localStorage. BanShield pre-upload check on clothing items. Default tab is P&L.
+- `GroupView.tsx` — 5-tab view: P&L, Copy Clothing (with bulk ZIP download), Catalog (classic shirts/pants only), Upload (multi-file PNG queue + template overlay + alt account selector), Alt Accounts. Tab state persisted per group in localStorage. BanShield pre-upload check on clothing items. Default tab is P&L.
 - `Community.tsx` — Social hub: Feed (posts/likes/comments), Forum (Suggestions/Off-topic/Q&A with voting & replies), Discover (find developers), Friends (requests, chat), Chat (DMs)
 - `Settings.tsx` — Profile bio, Theme (light/dark/system), Notifications, Privacy (with Cookie Security info), Data export, License info, About. Side-nav layout.
 - `Assistant.tsx` — AI chat assistant for Roblox development help (Lua scripts, moderation policies, clothing strategies, Discord posts). Uses SSE streaming. Supports markdown rendering (**bold**, *italic*, `code`, # ## ### headers).
-- `Competitors.tsx` — Analyze any Roblox group by ID: member count, clothing stats, top items, pricing.
-- `Sniper.tsx` — Monitor Roblox limited items via Rolimons API. Browse all limiteds with RAP/value/demand/trend data. Find deals with price percentage filter (slider). Links to Rolimons item pages.
-- `PnL.tsx` — Group-level Profit & Loss dashboard: balance, pending, daily/weekly revenue, Roblox commission, net in USD/RUB, top items, recent transactions.
+- `Competitors.tsx` — Analyze any Roblox group by ID: member count, clothing stats, top items with thumbnails, all clothing toggle, pricing. Uses PageCacheContext for state persistence.
+- `Sniper.tsx` — Monitor Roblox limited items via Rolimons API. Browse all limiteds with thumbnails + RAP/value/demand/trend data. Find deals showing listed price vs RAP with deal % (e.g. RAP 1500 selling for 750 = 50% DEAL). Uses PageCacheContext for state persistence.
+- `PnL.tsx` — Group-level Profit & Loss dashboard: balance, pending, daily/weekly revenue, Roblox commission, net in USD/RUB, top items, recent transactions. Uses PageCacheContext for state persistence.
 
 ### Backend Routes
 - `POST /api/license/verify` — Activate license code, bind device fingerprint, return JWT
@@ -33,12 +33,12 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `POST /api/roblox/groups` — List groups where user is owner
 - `POST /api/roblox/groups/:groupId/stats` — Group statistics (members, funds, join policy)
 - `POST /api/clothing/upload` — Upload clothing to Roblox group
-- `GET /api/competitor/analyze/:groupId` — Analyze competitor group (members, ALL clothing paginated up to 50 pages, top items)
+- `GET /api/competitor/analyze/:groupId` — Analyze competitor group (members, clothing paginated up to 10 pages with thumbnails, top items)
 - `POST /api/assistant/chat` — AI assistant chat with SSE streaming (uses OpenAI via Replit AI Integrations)
 - `POST /api/banshield/analyze` — Content moderation pre-check for clothing names/descriptions
-- `GET /api/sniper/items?search=` — Browse limited items from Rolimons (3-min cache) with RAP/value/demand/trend data
-- `GET /api/sniper/deals?maxRap=&minDemand=&maxPricePercent=` — Find limited items selling below value with price percentage filter
-- `GET /api/pnl/group/:groupId` — Group P&L: balance, revenue, transactions, top items
+- `GET /api/sniper/items?search=` — Browse limited items from Rolimons (3-min cache) with RAP/value/demand/trend data and thumbnails (batch fetch)
+- `GET /api/sniper/deals` — Find limited items from Rolimons deals API with thumbnails, listed price vs RAP comparison
+- `GET /api/pnl/group/:groupId` — Group P&L: balance, revenue, transactions (up to 10 pages), top items
 - `GET /api/forum/topics?category=` — List forum topics by category (suggestions/offtopic/qa)
 - `GET /api/forum/topics/:topicId` — Get topic details with replies
 - `POST /api/forum/topics` — Create new forum topic
@@ -54,6 +54,10 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 
 ### Components
 - `BanShield.tsx` — Pre-upload moderation check component. Analyzes clothing name/description for policy violations. Shows risk score, issues, and safe alternatives.
+
+### State Management
+- `PageCacheContext.tsx` — Global in-memory page cache (10 min TTL). Preserves data across navigation for Competitors, Sniper, P&L. Keyed by page name + group ID.
+- `useSounds.ts` — Sound effects hook. `playHover`, `playClick`, `playSuccess`, `playError`, `playTabSwitch`. Respects `limitedink_notif_sound` localStorage setting. Uses Web Audio API.
 
 ## Key Technical Details
 

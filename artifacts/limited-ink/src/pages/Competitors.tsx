@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { usePageCache } from "@/contexts/PageCacheContext";
+import { playClick, playSuccess, playTabSwitch } from "@/hooks/useSounds";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,20 +48,29 @@ interface CompetitorData {
 }
 
 export default function Competitors() {
-  const [groupId, setGroupId] = useState("");
-  const [data, setData] = useState<CompetitorData | null>(null);
+  const cache = usePageCache();
+  const cached = cache.get<{ data: CompetitorData; groupId: string }>("competitors");
+
+  const [groupId, setGroupId] = useState(cached?.groupId || "");
+  const [data, setData] = useState<CompetitorData | null>(cached?.data || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [visibleCount, setVisibleCount] = useState(50);
 
+  useEffect(() => {
+    if (data && groupId) {
+      cache.set("competitors", { data, groupId });
+    }
+  }, [data, groupId]);
+
   async function analyze() {
     const id = groupId.trim();
     if (!id) return;
 
+    playClick();
     setLoading(true);
     setError(null);
-    setData(null);
     setShowAll(false);
     setVisibleCount(50);
 
@@ -79,7 +90,9 @@ export default function Competitors() {
         throw new Error(err.error || "Failed to analyze");
       }
 
-      setData(await resp.json());
+      const result = await resp.json();
+      setData(result);
+      playSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
@@ -131,11 +144,14 @@ export default function Competitors() {
       {loading && (
         <div className="space-y-4">
           <Skeleton className="h-48 rounded-xl" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          </div>
           <Skeleton className="h-32 rounded-xl" />
         </div>
       )}
 
-      {data && (
+      {data && !loading && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <Card>
             <CardContent className="pt-6">
@@ -232,7 +248,7 @@ export default function Competitors() {
                     variant="outline"
                     size="sm"
                     className="rounded-lg text-xs gap-1.5"
-                    onClick={() => { setShowAll(!showAll); setVisibleCount(50); }}
+                    onClick={() => { playTabSwitch(); setShowAll(!showAll); setVisibleCount(50); }}
                   >
                     {showAll ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     {showAll ? "Show Top 15" : `Show All (${allItems.length})`}
@@ -283,7 +299,7 @@ export default function Competitors() {
                 <Button
                   variant="outline"
                   className="w-full mt-3 rounded-xl text-xs"
-                  onClick={() => setVisibleCount(v => v + 50)}
+                  onClick={() => { playClick(); setVisibleCount(v => v + 50); }}
                 >
                   Load more ({allItems.length - visibleCount} remaining)
                 </Button>

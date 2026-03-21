@@ -16,6 +16,7 @@ import {
   Hourglass, ChevronRight, DollarSign, Upload, Package, FolderDown
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { playClick, playSuccess, playError, playTabSwitch } from "@/hooks/useSounds";
 import PnL from "./PnL";
 import BanShield from "@/components/features/BanShield";
 import JSZip from "jszip";
@@ -688,11 +689,14 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
 
         if (result.assetId) {
           setQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: "done", assetId: result.assetId } : f));
+          playSuccess();
         } else {
           setQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: "failed", error: result.error || "Upload failed" } : f));
+          playError();
         }
       } catch (err) {
         setQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: "failed", error: err instanceof Error ? err.message : "Error" } : f));
+        playError();
       }
 
       await new Promise(r => setTimeout(r, 1000));
@@ -970,6 +974,7 @@ export default function GroupView({ id }: { id: string }) {
   });
 
   const handleTabChange = (tab: string) => {
+    playTabSwitch();
     setActiveTab(tab);
     localStorage.setItem(`limitedink_tab_${id}`, tab);
   };

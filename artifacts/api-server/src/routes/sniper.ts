@@ -142,24 +142,29 @@ router.get("/sniper/items", async (req, res): Promise<void> => {
       );
     }
 
-    const items = filtered
+    const sorted = filtered
       .sort((a, b) => b.rap - a.rap)
-      .slice(0, 500)
-      .map(i => ({
-        id: i.id,
-        name: i.name,
-        acronym: i.acronym,
-        rap: i.rap,
-        value: i.value,
-        demand: i.demand,
-        demandLabel: getDemandLabel(i.demand),
-        trend: i.trend,
-        trendLabel: getTrendLabel(i.trend),
-        projected: i.projected === 1,
-        hyped: i.hyped === 1,
-        rare: i.rare === 1,
-        priceDiff: i.value > 0 && i.rap > 0 ? Math.round(((i.value - i.rap) / i.rap) * 100) : 0,
-      }));
+      .slice(0, 200);
+
+    const thumbIds = sorted.map(i => i.id);
+    const thumbMap = await batchFetchThumbnails(thumbIds);
+
+    const items = sorted.map(i => ({
+      id: i.id,
+      name: i.name,
+      acronym: i.acronym,
+      rap: i.rap,
+      value: i.value,
+      demand: i.demand,
+      demandLabel: getDemandLabel(i.demand),
+      trend: i.trend,
+      trendLabel: getTrendLabel(i.trend),
+      projected: i.projected === 1,
+      hyped: i.hyped === 1,
+      rare: i.rare === 1,
+      priceDiff: i.value > 0 && i.rap > 0 ? Math.round(((i.value - i.rap) / i.rap) * 100) : 0,
+      thumbnailUrl: thumbMap[i.id] || null,
+    }));
 
     res.json({ items, total: allItems.length });
   } catch (err) {

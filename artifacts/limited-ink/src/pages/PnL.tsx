@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { usePageCache } from "@/contexts/PageCacheContext";
+import { playClick, playSuccess } from "@/hooks/useSounds";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,7 @@ interface PnLData {
 }
 
 export default function PnL({ groupId }: { groupId: string }) {
+  const cache = usePageCache();
   const [data, setData] = useState<PnLData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +39,7 @@ export default function PnL({ groupId }: { groupId: string }) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    playClick();
     try {
       const { token, fingerprint } = getAuthCredentials();
       const headers: Record<string, string> = {};
@@ -48,7 +52,10 @@ export default function PnL({ groupId }: { groupId: string }) {
       });
 
       if (!resp.ok) throw new Error("Failed to load P&L data");
-      setData(await resp.json());
+      const result = await resp.json();
+      setData(result);
+      cache.set(`pnl_${groupId}`, result);
+      playSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Load failed");
     } finally {
@@ -56,7 +63,15 @@ export default function PnL({ groupId }: { groupId: string }) {
     }
   }, [groupId]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    const cached = cache.get<PnLData>(`pnl_${groupId}`);
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      fetchData();
+    }
+  }, [groupId]);
 
   if (loading) {
     return (

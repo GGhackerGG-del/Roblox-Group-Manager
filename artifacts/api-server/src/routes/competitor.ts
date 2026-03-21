@@ -76,9 +76,9 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
     const allItems: CatalogItem[] = [];
     let cursor: string | null = null;
     let pages = 0;
-    const MAX_PAGES = 50;
+    const MAX_PAGES = 10;
     let retryCount = 0;
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = 3;
 
     while (pages < MAX_PAGES) {
       const url = new URL(`${ROBLOX_CATALOG_API}/v1/search/items/details`);

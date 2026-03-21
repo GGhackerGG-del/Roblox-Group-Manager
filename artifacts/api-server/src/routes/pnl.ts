@@ -62,7 +62,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
 
     let txCursor: string | null = null;
     let txPages = 0;
-    const MAX_TX_PAGES = 50;
+    const MAX_TX_PAGES = 10;
     let txRetries = 0;
 
     do {
