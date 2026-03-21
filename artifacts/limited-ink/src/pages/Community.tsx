@@ -1730,12 +1730,6 @@ export default function Community() {
           <TabsTrigger value="forum" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
             <MessageCircleQuestion className="w-3.5 h-3.5" /> Forum
           </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Trophy className="w-3.5 h-3.5" /> Leaderboard
-          </TabsTrigger>
-          <TabsTrigger value="subscriptions" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Bell className="w-3.5 h-3.5" /> Subscriptions
-          </TabsTrigger>
           <TabsTrigger value="discover" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
             <Search className="w-3.5 h-3.5" /> Discover
           </TabsTrigger>
@@ -1753,12 +1747,6 @@ export default function Community() {
           </TabsContent>
           <TabsContent value="forum" className="mt-0">
             <ForumTab myUser={myUser} onUserClick={setProfileModalUserId} />
-          </TabsContent>
-          <TabsContent value="leaderboard" className="mt-0">
-            <LeaderboardTab onUserClick={setProfileModalUserId} />
-          </TabsContent>
-          <TabsContent value="subscriptions" className="mt-0">
-            <SubscriptionsTab myUser={myUser} />
           </TabsContent>
           <TabsContent value="discover" className="mt-0">
             <DiscoverTab myUser={myUser} onUserClick={setProfileModalUserId} onChat={handleChatUser} />

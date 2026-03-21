@@ -22,6 +22,73 @@ const SUGGESTIONS = [
   "Напиши описание для одежды в стиле streetwear",
 ];
 
+function FormattedText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <>
+      {lines.map((line, li) => {
+        if (line.startsWith("### ")) {
+          return <div key={li} className="text-sm font-bold mt-2 mb-1">{formatInline(line.slice(4))}</div>;
+        }
+        if (line.startsWith("## ")) {
+          return <div key={li} className="text-base font-bold mt-3 mb-1">{formatInline(line.slice(3))}</div>;
+        }
+        if (line.startsWith("# ")) {
+          return <div key={li} className="text-lg font-bold mt-3 mb-1">{formatInline(line.slice(2))}</div>;
+        }
+        return <span key={li}>{li > 0 && "\n"}{formatInline(line)}</span>;
+      })}
+    </>
+  );
+}
+
+function formatInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    const codeMatch = remaining.match(/^(.*?)`([^`]+)`([\s\S]*)$/);
+    if (codeMatch) {
+      if (codeMatch[1]) parts.push(...parseBoldItalic(codeMatch[1], key)); key += 10;
+      parts.push(<code key={key++} className="bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded text-xs font-mono">{codeMatch[2]}</code>);
+      remaining = codeMatch[3];
+      continue;
+    }
+    parts.push(...parseBoldItalic(remaining, key));
+    break;
+  }
+
+  return parts.length === 1 ? parts[0] : <>{parts}</>;
+}
+
+function parseBoldItalic(text: string, baseKey: number): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = baseKey;
+
+  while (remaining.length > 0) {
+    const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*([\s\S]*)$/);
+    if (boldMatch) {
+      if (boldMatch[1]) parts.push(<span key={key++}>{boldMatch[1]}</span>);
+      parts.push(<strong key={key++} className="font-bold">{boldMatch[2]}</strong>);
+      remaining = boldMatch[3];
+      continue;
+    }
+    const italicMatch = remaining.match(/^(.*?)\*(.+?)\*([\s\S]*)$/);
+    if (italicMatch) {
+      if (italicMatch[1]) parts.push(<span key={key++}>{italicMatch[1]}</span>);
+      parts.push(<em key={key++}>{italicMatch[2]}</em>);
+      remaining = italicMatch[3];
+      continue;
+    }
+    if (remaining) parts.push(<span key={key++}>{remaining}</span>);
+    break;
+  }
+
+  return parts;
+}
+
 export default function Assistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -165,7 +232,7 @@ export default function Assistant() {
                     ? "bg-black text-white rounded-br-md"
                     : "bg-secondary/70 border border-border/50 rounded-bl-md"
                 }`}>
-                  <div className="whitespace-pre-wrap break-words">{msg.content || (isStreaming && i === messages.length - 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : "")}</div>
+                  <div className="whitespace-pre-wrap break-words">{msg.content ? <FormattedText text={msg.content} /> : (isStreaming && i === messages.length - 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : "")}</div>
                 </div>
                 {msg.role === "user" && (
                   <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center shrink-0 mt-0.5">

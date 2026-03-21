@@ -7,7 +7,7 @@ const router: IRouter = Router();
 
 // ── Simple in-memory cache (TTL = 3 min) ─────────────────────────────────────
 const _cache = new Map<string, { data: unknown; ts: number }>();
-const CACHE_TTL_MS = 3 * 60 * 1000;
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 function cacheGet<T>(key: string): T | null {
   const entry = _cache.get(key);
@@ -549,8 +549,7 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
       const data = await clothingResp.json() as PagedResult;
       const all = data.data || [];
       console.log(`[Catalog] primary returned ${all.length} items`);
-      catalogItems = all.filter(i => !i.assetType || i.assetType === 11 || i.assetType === 12);
-      if (catalogItems.length === 0) catalogItems = all;
+      catalogItems = all.filter(i => i.assetType === 11 || i.assetType === 12);
       nextCursor = data.nextPageCursor || null;
     } catch {}
   }
@@ -565,7 +564,7 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
     if (fb1.ok) {
       try {
         const data = await fb1.json() as PagedResult;
-        catalogItems = data.data || [];
+        catalogItems = (data.data || []).filter(i => i.assetType === 11 || i.assetType === 12);
         nextCursor = data.nextPageCursor || null;
         console.log(`[Catalog] fallback-1 returned ${catalogItems.length} items`);
       } catch {}
@@ -582,7 +581,7 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
     if (fb2.ok) {
       try {
         const data = await fb2.json() as PagedResult;
-        catalogItems = (data.data || []).filter(i => String(i.creatorName).toLowerCase().includes(String(groupId)));
+        catalogItems = (data.data || []).filter(i => (i.assetType === 11 || i.assetType === 12) && String(i.creatorName).toLowerCase().includes(String(groupId)));
         nextCursor = null;
         console.log(`[Catalog] fallback-2 returned ${catalogItems.length} items`);
       } catch {}
@@ -779,8 +778,7 @@ router.get("/roblox/catalog/search", async (req, res): Promise<void> => {
       const data = JSON.parse(raw) as { data: CatalogSearchItem[] };
       const all = data.data || [];
       console.log(`[CatalogSearch] parsed ${all.length} items`);
-      const filtered = all.filter(i => !i.assetType || i.assetType === 11 || i.assetType === 12);
-      items = filtered.length > 0 ? filtered : all;
+      items = all.filter(i => i.assetType === 11 || i.assetType === 12);
     } catch (e) {
       console.error(`[CatalogSearch] parse error:`, e);
     }

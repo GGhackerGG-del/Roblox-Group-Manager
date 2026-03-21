@@ -2,159 +2,194 @@ import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
 
-const ROBLOX_CATALOG_API = "https://catalog.roblox.com";
-const ROBLOX_ECONOMY_API = "https://economy.roblox.com";
+const ROLIMONS_API = "https://www.rolimons.com/itemapi/itemdetails";
 
-interface LimitedItem {
+interface RolimonsItem {
   id: number;
   name: string;
-  price: number | null;
-  lowestResalePrice: number | null;
-  favoriteCount: number;
-  creatorName: string;
-  collectibleItemId: string | null;
-  assetType: number;
-  premium?: number;
-  potentialProfit?: number;
+  acronym: string;
+  rap: number;
+  value: number;
+  defaultValue: number;
+  demand: number;
+  trend: number;
+  projected: number;
+  hyped: number;
+  rare: number;
 }
 
-let cachedItems: LimitedItem[] | null = null;
+let cachedItems: RolimonsItem[] | null = null;
 let cacheTime = 0;
-const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_TTL = 3 * 60 * 1000;
 
-async function fetchLimitedItems(): Promise<LimitedItem[]> {
+async function fetchRolimonsItems(): Promise<RolimonsItem[]> {
   if (cachedItems && Date.now() - cacheTime < CACHE_TTL) {
     return cachedItems;
   }
 
-  const allItems: LimitedItem[] = [];
-  let cursor: string | null = null;
-  let pages = 0;
+  console.log("[Sniper] Fetching from Rolimons...");
+  const resp = await fetch(ROLIMONS_API, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "application/json",
+      "Referer": "https://www.rolimons.com/",
+    },
+  });
 
-  while (pages < 5) {
-    const url = new URL(`${ROBLOX_CATALOG_API}/v1/search/items/details`);
-    url.searchParams.set("Category", "2");
-    url.searchParams.set("Subcategory", "2");
-    url.searchParams.set("SortType", "2");
-    url.searchParams.set("SortAggregation", "5");
-    url.searchParams.set("Limit", "30");
-    if (cursor) url.searchParams.set("Cursor", cursor);
+  if (!resp.ok) {
+    console.error("[Sniper] Rolimons API error:", resp.status);
+    throw new Error(`Rolimons API returned ${resp.status}`);
+  }
 
-    const resp = await fetch(url.toString(), {
-      headers: { Accept: "application/json" },
+  const data = await resp.json() as {
+    success: boolean;
+    item_count: number;
+    items: Record<string, [
+      string,  // 0: name
+      string,  // 1: acronym
+      number,  // 2: rap
+      number,  // 3: value
+      number,  // 4: default value
+      number,  // 5: demand (-1=terrible, 0=low, 1=normal, 2=high, 3=amazing)
+      number,  // 6: trend (-1=lowering, 0=unstable, 1=stable, 2=raising, 3=fluctuating)
+      number,  // 7: projected (0=no, 1=yes)
+      number,  // 8: hyped (0=no, 1=yes)
+      number,  // 9: rare (0=no, 1=yes)
+    ]>;
+  };
+
+  if (!data.success || !data.items) {
+    throw new Error("Rolimons returned invalid data");
+  }
+
+  const items: RolimonsItem[] = [];
+  for (const [idStr, arr] of Object.entries(data.items)) {
+    items.push({
+      id: parseInt(idStr, 10),
+      name: arr[0],
+      acronym: arr[1],
+      rap: arr[2],
+      value: arr[3],
+      defaultValue: arr[4],
+      demand: arr[5],
+      trend: arr[6],
+      projected: arr[7],
+      hyped: arr[8],
+      rare: arr[9],
     });
-
-    if (!resp.ok) {
-      if (resp.status === 429) {
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      break;
-    }
-
-    const data = await resp.json() as {
-      nextPageCursor: string | null;
-      data: Array<{
-        id: number;
-        name: string;
-        price: number | null;
-        lowestPrice: number | null;
-        lowestResalePrice: number | null;
-        favoriteCount: number;
-        creatorName: string;
-        creatorType: string;
-        collectibleItemId: string | null;
-        assetType: number;
-        totalQuantity: number;
-        unitsAvailableForConsumption: number;
-      }>;
-    };
-
-    if (data.data) {
-      for (const item of data.data) {
-        allItems.push({
-          id: item.id,
-          name: item.name,
-          price: item.price ?? item.lowestPrice,
-          lowestResalePrice: item.lowestResalePrice,
-          favoriteCount: item.favoriteCount || 0,
-          creatorName: item.creatorName || "Unknown",
-          collectibleItemId: item.collectibleItemId,
-          assetType: item.assetType,
-        });
-      }
-    }
-
-    cursor = data.nextPageCursor;
-    if (!cursor) break;
-    pages++;
-    await new Promise(r => setTimeout(r, 500));
   }
 
-  if (allItems.length > 0) {
-    cachedItems = allItems;
-    cacheTime = Date.now();
-  }
-
-  return allItems;
+  console.log(`[Sniper] Got ${items.length} items from Rolimons`);
+  cachedItems = items;
+  cacheTime = Date.now();
+  return items;
 }
 
-router.get("/sniper/items", async (_req, res): Promise<void> => {
-  try {
-    const allItems = await fetchLimitedItems();
+function getDemandLabel(d: number): string {
+  switch (d) {
+    case -1: return "Terrible";
+    case 0: return "Low";
+    case 1: return "Normal";
+    case 2: return "High";
+    case 3: return "Amazing";
+    default: return "Unknown";
+  }
+}
 
-    const items = allItems
-      .filter(i => (i.price ?? 0) > 0 || (i.lowestResalePrice ?? 0) > 0)
-      .sort((a, b) => (b.favoriteCount || 0) - (a.favoriteCount || 0))
-      .slice(0, 200);
+function getTrendLabel(t: number): string {
+  switch (t) {
+    case -1: return "Lowering";
+    case 0: return "Unstable";
+    case 1: return "Stable";
+    case 2: return "Raising";
+    case 3: return "Fluctuating";
+    default: return "Unknown";
+  }
+}
+
+router.get("/sniper/items", async (req, res): Promise<void> => {
+  try {
+    const allItems = await fetchRolimonsItems();
+    const search = String(req.query.search || "").toLowerCase().trim();
+
+    let filtered = allItems.filter(i => i.value > 0 && i.rap > 0);
+
+    if (search) {
+      filtered = filtered.filter(i =>
+        i.name.toLowerCase().includes(search) || i.acronym.toLowerCase().includes(search)
+      );
+    }
+
+    const items = filtered
+      .sort((a, b) => b.rap - a.rap)
+      .slice(0, 500)
+      .map(i => ({
+        id: i.id,
+        name: i.name,
+        acronym: i.acronym,
+        rap: i.rap,
+        value: i.value,
+        demand: i.demand,
+        demandLabel: getDemandLabel(i.demand),
+        trend: i.trend,
+        trendLabel: getTrendLabel(i.trend),
+        projected: i.projected === 1,
+        hyped: i.hyped === 1,
+        rare: i.rare === 1,
+        priceDiff: i.value > 0 && i.rap > 0 ? Math.round(((i.value - i.rap) / i.rap) * 100) : 0,
+      }));
 
     res.json({ items, total: allItems.length });
   } catch (err) {
     console.error("[Sniper] Fetch error:", err);
-    res.status(502).json({ error: "Failed to fetch limited items data." });
+    res.status(502).json({ error: "Failed to fetch limited items from Rolimons." });
   }
 });
 
 router.get("/sniper/deals", async (req, res): Promise<void> => {
   try {
-    const allItems = await fetchLimitedItems();
-    const maxPrice = parseInt(String(req.query.maxPrice || "50000"), 10);
-    const minFavorites = parseInt(String(req.query.minFavorites || "0"), 10);
+    const allItems = await fetchRolimonsItems();
+    const maxRap = parseInt(String(req.query.maxRap || "1000000"), 10);
+    const minDemand = parseInt(String(req.query.minDemand || "-1"), 10);
+    const maxPricePercent = parseInt(String(req.query.maxPricePercent || "100"), 10);
 
     const deals = allItems
       .filter(i => {
-        const price = i.price ?? i.lowestResalePrice ?? 0;
-        if (price <= 0 || price > maxPrice) return false;
-        if (i.favoriteCount < minFavorites) return false;
-        if (i.lowestResalePrice && i.price && i.lowestResalePrice < i.price) {
-          return true;
-        }
-        return i.favoriteCount > 100;
+        if (i.value <= 0 || i.rap <= 0) return false;
+        if (i.rap > maxRap) return false;
+        if (i.demand < minDemand) return false;
+        if (i.value >= i.rap) return false;
+        const valuePercent = Math.round((i.value / i.rap) * 100);
+        if (valuePercent > maxPricePercent) return false;
+        return true;
       })
       .sort((a, b) => {
-        const aResale = a.lowestResalePrice ?? a.price ?? 0;
-        const aPrice = a.price ?? 0;
-        const bResale = b.lowestResalePrice ?? b.price ?? 0;
-        const bPrice = b.price ?? 0;
-        const aDiscount = aPrice > 0 && aResale > 0 ? (aPrice - aResale) / aPrice : 0;
-        const bDiscount = bPrice > 0 && bResale > 0 ? (bPrice - bResale) / bPrice : 0;
-        return bDiscount - aDiscount;
+        const aDiff = (a.rap - a.value) / a.rap;
+        const bDiff = (b.rap - b.value) / b.rap;
+        return bDiff - aDiff;
       })
-      .slice(0, 50)
-      .map(i => {
-        const resale = i.lowestResalePrice ?? i.price ?? 0;
-        const price = i.price ?? 0;
-        return {
-          ...i,
-          discount: price > 0 && resale > 0 && resale < price ? Math.round((1 - resale / price) * 100) : 0,
-          resalePrice: resale,
-        };
-      });
+      .slice(0, 100)
+      .map(i => ({
+        id: i.id,
+        name: i.name,
+        acronym: i.acronym,
+        rap: i.rap,
+        value: i.value,
+        demand: i.demand,
+        demandLabel: getDemandLabel(i.demand),
+        trend: i.trend,
+        trendLabel: getTrendLabel(i.trend),
+        projected: i.projected === 1,
+        hyped: i.hyped === 1,
+        rare: i.rare === 1,
+        discount: Math.round(((i.rap - i.value) / i.rap) * 100),
+        priceDiff: Math.round(((i.value - i.rap) / i.rap) * 100),
+      }));
 
     res.json({ deals, total: deals.length });
   } catch (err) {
     console.error("[Sniper] Deals error:", err);
-    res.status(502).json({ error: "Failed to find deals." });
+    res.status(502).json({ error: "Failed to find deals from Rolimons." });
   }
 });
 

@@ -56,8 +56,11 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
     const allItems: CatalogItem[] = [];
     let cursor: string | null = null;
     let pages = 0;
+    const MAX_PAGES = 50;
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
 
-    while (pages < 3) {
+    while (pages < MAX_PAGES) {
       const url = new URL(`${ROBLOX_CATALOG_API}/v1/search/items/details`);
       url.searchParams.set("Category", "3");
       url.searchParams.set("CreatorType", "Group");
@@ -70,7 +73,15 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
         headers: { Accept: "application/json" },
       });
 
-      if (!catalogResp.ok) break;
+      if (!catalogResp.ok) {
+        if (catalogResp.status === 429 && retryCount < MAX_RETRIES) {
+          retryCount++;
+          await new Promise(r => setTimeout(r, 2000 * retryCount));
+          continue;
+        }
+        break;
+      }
+      retryCount = 0;
 
       const catalogData = await catalogResp.json() as {
         nextPageCursor: string | null;
@@ -84,6 +95,7 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
       cursor = catalogData.nextPageCursor;
       if (!cursor) break;
       pages++;
+      await new Promise(r => setTimeout(r, 300));
     }
 
     const totalClothing = allItems.length;

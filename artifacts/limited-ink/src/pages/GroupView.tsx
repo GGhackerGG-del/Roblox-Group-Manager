@@ -13,11 +13,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, Users, Shield, Image as ImageIcon,
   Search, Copy, UserPlus, Trash2, Download, RefreshCw,
-  Hourglass, ChevronRight, DollarSign
+  Hourglass, ChevronRight, DollarSign, Upload, Package, FolderDown
 } from "lucide-react";
 import { motion } from "framer-motion";
 import PnL from "./PnL";
 import BanShield from "@/components/features/BanShield";
+import JSZip from "jszip";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -95,6 +96,9 @@ function CopyClothingTab({ groupId }: { groupId: number }) {
   const [alts, setAlts] = useState<AltAccount[]>([]);
   const [rateLimited, setRateLimited] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(0);
+  const [bulkCount, setBulkCount] = useState("");
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
 
   const startRetryCountdown = useCallback((seconds: number, gid: string, fetchFn: (g: string) => Promise<void>) => {
     setRetryCountdown(seconds);
@@ -179,6 +183,45 @@ function CopyClothingTab({ groupId }: { groupId: number }) {
     }
   };
 
+  const handleBulkDownload = async (count?: number) => {
+    const downloadItems = count ? items.slice(0, count) : items;
+    if (downloadItems.length === 0) return;
+
+    setBulkDownloading(true);
+    setBulkProgress(0);
+    const zip = new JSZip();
+    let downloaded = 0;
+
+    for (const item of downloadItems) {
+      try {
+        const tmpl = await apiFetch<{ b64_json: string; name: string; clothingType: string }>(
+          `/api/roblox/clothing/${item.id}/template`
+        );
+        const fileName = `${tmpl.name.replace(/[^a-z0-9]/gi, "_")}_${item.id}.png`;
+        zip.file(fileName, tmpl.b64_json, { base64: true });
+        downloaded++;
+        setBulkProgress(Math.round((downloaded / downloadItems.length) * 100));
+        await new Promise(r => setTimeout(r, 200));
+      } catch {}
+    }
+
+    if (downloaded > 0) {
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `clothing_group_${searchGroupId}_${downloaded}items.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Downloaded!", description: `${downloaded} items saved as ZIP.` });
+    } else {
+      toast({ variant: "destructive", title: "Failed", description: "Could not download any items." });
+    }
+
+    setBulkDownloading(false);
+    setBulkProgress(0);
+  };
+
   return (
     <div className="space-y-5">
       <Card className="rounded-2xl border border-border shadow-sm">
@@ -222,6 +265,51 @@ function CopyClothingTab({ groupId }: { groupId: number }) {
           <p className="text-xs text-muted-foreground">Enter a group ID to load its catalog. Click "Copy" to upload to your group, or "Download" to save the template.</p>
         </CardContent>
       </Card>
+
+      {items.length > 0 && !loading && !rateLimited && (
+        <Card className="rounded-2xl border border-border shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-semibold text-muted-foreground">Bulk Download:</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-lg text-xs gap-1.5"
+                onClick={() => handleBulkDownload()}
+                disabled={bulkDownloading}
+              >
+                <FolderDown className="w-3.5 h-3.5" /> All ({items.length})
+              </Button>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={bulkCount}
+                  onChange={e => setBulkCount(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Count"
+                  className="w-20 h-8 rounded-lg text-xs"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-lg text-xs gap-1.5 h-8"
+                  onClick={() => handleBulkDownload(parseInt(bulkCount) || 10)}
+                  disabled={bulkDownloading || !bulkCount}
+                >
+                  <Package className="w-3.5 h-3.5" /> Download
+                </Button>
+              </div>
+              {bulkDownloading && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>{bulkProgress}%</span>
+                  <div className="w-24 h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-full bg-black rounded-full transition-all" style={{ width: `${bulkProgress}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -483,6 +571,224 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   );
 }
 
+// ─── Upload Clothing Tab ──────────────────────────────────────────────────────
+
+function UploadClothingTab({ groupId }: { groupId: number }) {
+  const { toast } = useToast();
+  const [clothingImage, setClothingImage] = useState<string | null>(null);
+  const [templateImage, setTemplateImage] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [clothingType, setClothingType] = useState<"Shirt" | "Pants">("Shirt");
+  const [uploading, setUploading] = useState(false);
+  const [altIndex, setAltIndex] = useState<number | null>(null);
+  const [alts, setAlts] = useState<AltAccount[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch<{ accounts: AltAccount[] }>("/api/roblox/alt").then(d => setAlts(d.accounts)).catch(() => {});
+  }, []);
+
+  const handleFileSelect = (setter: (v: string | null) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const b64 = result.split(",")[1];
+      setter(b64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  useEffect(() => {
+    if (!clothingImage) { setPreviewUrl(null); return; }
+    if (templateImage) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 585;
+      canvas.height = 559;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const clothingImg = new Image();
+      clothingImg.onload = () => {
+        ctx.drawImage(clothingImg, 0, 0, 585, 559);
+        const templateImg = new Image();
+        templateImg.onload = () => {
+          ctx.drawImage(templateImg, 0, 0, 585, 559);
+          setPreviewUrl(canvas.toDataURL());
+        };
+        templateImg.src = `data:image/png;base64,${templateImage}`;
+      };
+      clothingImg.src = `data:image/png;base64,${clothingImage}`;
+    } else {
+      setPreviewUrl(`data:image/png;base64,${clothingImage}`);
+    }
+  }, [clothingImage, templateImage]);
+
+  const handleUpload = async () => {
+    if (!clothingImage || !name.trim()) return;
+    setUploading(true);
+
+    try {
+      let finalImage = clothingImage;
+      if (templateImage) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 585;
+        canvas.height = 559;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          await new Promise<void>((resolve) => {
+            const img1 = new Image();
+            img1.onload = () => {
+              ctx.drawImage(img1, 0, 0, 585, 559);
+              const img2 = new Image();
+              img2.onload = () => {
+                ctx.drawImage(img2, 0, 0, 585, 559);
+                finalImage = canvas.toDataURL("image/png").split(",")[1];
+                resolve();
+              };
+              img2.src = `data:image/png;base64,${templateImage}`;
+            };
+            img1.src = `data:image/png;base64,${clothingImage}`;
+          });
+        }
+      }
+
+      const body: Record<string, unknown> = {
+        groupId,
+        name: name.trim(),
+        description: description.trim() || `Uploaded via Limited.Ink`,
+        imageData: finalImage,
+        clothingType,
+      };
+      if (altIndex !== null) body.altIndex = altIndex;
+
+      const result = await apiFetch<{ assetId: number; status: string }>("/api/clothing/upload", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+
+      toast({ title: "Uploaded!", description: `Asset ID: ${result.assetId} (${result.status})` });
+      setClothingImage(null);
+      setTemplateImage(null);
+      setName("");
+      setDescription("");
+      setPrice("");
+      setPreviewUrl(null);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Upload failed", description: err instanceof Error ? err.message : "Unknown error" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <Card className="rounded-2xl border border-border shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2"><Upload className="w-5 h-5" /> Upload Clothing</CardTitle>
+          <CardDescription>Upload a PNG clothing image to your Roblox group. Optionally add a template overlay.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Clothing Image (PNG) *</Label>
+              <div className="border-2 border-dashed border-border rounded-xl p-4 text-center hover:border-foreground/30 transition-colors cursor-pointer relative">
+                <input type="file" accept="image/png" onChange={handleFileSelect(setClothingImage)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                {clothingImage ? (
+                  <div className="space-y-2">
+                    <img src={`data:image/png;base64,${clothingImage}`} alt="Clothing" className="w-32 h-32 mx-auto object-contain rounded-lg" />
+                    <p className="text-xs text-green-600 font-semibold">Image loaded</p>
+                  </div>
+                ) : (
+                  <div className="py-4">
+                    <Upload className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+                    <p className="text-xs text-muted-foreground">Click to select clothing PNG</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Template Overlay (optional)</Label>
+              <div className="border-2 border-dashed border-border rounded-xl p-4 text-center hover:border-foreground/30 transition-colors cursor-pointer relative">
+                <input type="file" accept="image/png" onChange={handleFileSelect(setTemplateImage)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                {templateImage ? (
+                  <div className="space-y-2">
+                    <img src={`data:image/png;base64,${templateImage}`} alt="Template" className="w-32 h-32 mx-auto object-contain rounded-lg" />
+                    <p className="text-xs text-green-600 font-semibold">Template loaded</p>
+                  </div>
+                ) : (
+                  <div className="py-4">
+                    <ImageIcon className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+                    <p className="text-xs text-muted-foreground">Click to select template PNG (overlay)</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {previewUrl && (
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground mb-2 font-semibold">Preview</p>
+              <img src={previewUrl} alt="Preview" className="w-48 h-48 mx-auto object-contain rounded-xl border border-border" />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Name *</Label>
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="Clothing name" className="rounded-xl" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Description</Label>
+              <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" className="rounded-xl" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Type</Label>
+              <select
+                value={clothingType}
+                onChange={e => setClothingType(e.target.value as "Shirt" | "Pants")}
+                className="w-full h-9 rounded-xl border border-input bg-background px-3 text-sm"
+              >
+                <option value="Shirt">Shirt</option>
+                <option value="Pants">Pants</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Price (R$)</Label>
+              <Input value={price} onChange={e => setPrice(e.target.value)} placeholder="e.g. 5" className="rounded-xl" type="number" />
+            </div>
+          </div>
+
+          {alts.length > 0 && (
+            <div className="flex gap-2 flex-wrap items-center">
+              <span className="text-xs text-muted-foreground font-semibold">Upload from:</span>
+              <button onClick={() => setAltIndex(null)} className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${altIndex === null ? "bg-black text-white border-black" : "border-border text-muted-foreground"}`}>
+                Main
+              </button>
+              {alts.map(alt => (
+                <button key={alt.index} onClick={() => setAltIndex(alt.index)} className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${altIndex === alt.index ? "bg-black text-white border-black" : "border-border text-muted-foreground"}`}>
+                  @{alt.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <Button onClick={handleUpload} disabled={uploading || !clothingImage || !name.trim()} className="w-full rounded-xl gap-2">
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {uploading ? "Uploading..." : "Upload to Roblox"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Alt Accounts Tab ─────────────────────────────────────────────────────────
 
 function AltAccountsTab() {
@@ -633,7 +939,7 @@ export default function GroupView({ id }: { id: string }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(`limitedink_tab_${id}`);
-    const validTabs = ["pnl", "copy", "catalog", "alts"];
+    const validTabs = ["pnl", "copy", "catalog", "upload", "alts"];
     if (saved && validTabs.includes(saved)) setActiveTab(saved);
     else setActiveTab("pnl");
   }, [id]);
@@ -684,7 +990,7 @@ export default function GroupView({ id }: { id: string }) {
       </div>
 
       {/* Tabs */}
-      <Tabs value={["pnl", "copy", "catalog", "alts"].includes(activeTab) ? activeTab : "pnl"} onValueChange={handleTabChange} className="w-full">
+      <Tabs value={["pnl", "copy", "catalog", "upload", "alts"].includes(activeTab) ? activeTab : "pnl"} onValueChange={handleTabChange} className="w-full">
         <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto flex-wrap gap-1 w-full">
           <TabsTrigger value="pnl" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
             <DollarSign className="w-3.5 h-3.5" /> P&L
@@ -694,6 +1000,9 @@ export default function GroupView({ id }: { id: string }) {
           </TabsTrigger>
           <TabsTrigger value="catalog" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
             <Search className="w-3.5 h-3.5" /> Catalog
+          </TabsTrigger>
+          <TabsTrigger value="upload" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
+            <Upload className="w-3.5 h-3.5" /> Upload
           </TabsTrigger>
           <TabsTrigger value="alts" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5" /> Alt Accounts
@@ -709,6 +1018,9 @@ export default function GroupView({ id }: { id: string }) {
           </TabsContent>
           <TabsContent value="catalog" className="mt-0">
             <CatalogSearchTab groupId={stats.id} />
+          </TabsContent>
+          <TabsContent value="upload" className="mt-0">
+            <UploadClothingTab groupId={stats.id} />
           </TabsContent>
           <TabsContent value="alts" className="mt-0">
             <AltAccountsTab />

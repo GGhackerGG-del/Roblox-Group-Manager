@@ -6,24 +6,30 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import {
-  Crosshair, Loader2, RefreshCw, ArrowUpRight, Filter, BarChart3, Zap, Heart
+  Crosshair, Loader2, RefreshCw, ArrowUpRight, Filter, BarChart3, Zap, TrendingUp,
+  TrendingDown, Minus, Star, Flame
 } from "lucide-react";
 import { motion } from "framer-motion";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-interface LimitedItem {
+interface SniperItem {
   id: number;
   name: string;
-  price: number | null;
-  lowestResalePrice: number | null;
-  favoriteCount: number;
-  creatorName: string;
-  collectibleItemId: string | null;
-  assetType: number;
+  acronym: string;
+  rap: number;
+  value: number;
+  demand: number;
+  demandLabel: string;
+  trend: number;
+  trendLabel: string;
+  projected: boolean;
+  hyped: boolean;
+  rare: boolean;
+  priceDiff: number;
   discount?: number;
-  resalePrice?: number;
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -34,49 +40,61 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
+function DemandBadge({ demand, label }: { demand: number; label: string }) {
+  const colors: Record<number, string> = {
+    [-1]: "bg-red-500/15 text-red-600 border-red-500/20",
+    0: "bg-orange-500/15 text-orange-600 border-orange-500/20",
+    1: "bg-yellow-500/15 text-yellow-600 border-yellow-500/20",
+    2: "bg-green-500/15 text-green-600 border-green-500/20",
+    3: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+  };
+  return <Badge className={`text-[10px] ${colors[demand] || colors[1]}`}>{label}</Badge>;
+}
+
+function TrendIcon({ trend }: { trend: number }) {
+  if (trend === 2) return <TrendingUp className="w-3.5 h-3.5 text-green-500" />;
+  if (trend === -1) return <TrendingDown className="w-3.5 h-3.5 text-red-500" />;
+  return <Minus className="w-3.5 h-3.5 text-muted-foreground" />;
+}
+
 export default function Sniper() {
-  const [items, setItems] = useState<LimitedItem[]>([]);
-  const [deals, setDeals] = useState<LimitedItem[]>([]);
+  const [items, setItems] = useState<SniperItem[]>([]);
+  const [deals, setDeals] = useState<SniperItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [dealsLoading, setDealsLoading] = useState(false);
-  const [maxPrice, setMaxPrice] = useState("50000");
-  const [minFavorites, setMinFavorites] = useState("0");
+  const [maxRap, setMaxRap] = useState("1000000");
+  const [minDemand, setMinDemand] = useState("-1");
+  const [pricePercent, setPricePercent] = useState([100]);
   const [search, setSearch] = useState("");
   const [totalItems, setTotalItems] = useState(0);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${BASE}/api/sniper/items`, { credentials: "include", headers: getAuthHeaders() });
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      const resp = await fetch(`${BASE}/api/sniper/items?${params}`, { credentials: "include", headers: getAuthHeaders() });
       if (resp.ok) {
         const data = await resp.json();
         setItems(data.items || []);
         setTotalItems(data.total || 0);
       }
     } catch {} finally { setLoading(false); }
-  }, []);
+  }, [search]);
 
   const fetchDeals = useCallback(async () => {
     setDealsLoading(true);
     try {
-      const params = new URLSearchParams({ maxPrice, minFavorites });
+      const params = new URLSearchParams({ maxRap, minDemand, maxPricePercent: String(pricePercent[0]) });
       const resp = await fetch(`${BASE}/api/sniper/deals?${params}`, { credentials: "include", headers: getAuthHeaders() });
       if (resp.ok) {
         const data = await resp.json();
         setDeals(data.deals || []);
       }
     } catch {} finally { setDealsLoading(false); }
-  }, [maxPrice, minFavorites]);
+  }, [maxRap, minDemand, pricePercent]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
-
-  const filteredItems = items.filter(i =>
-    !search || i.name.toLowerCase().includes(search.toLowerCase()) || i.creatorName.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const getDisplayPrice = (item: LimitedItem) => {
-    return item.price ?? item.lowestResalePrice ?? 0;
-  };
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -86,12 +104,12 @@ export default function Sniper() {
             <Crosshair className="w-6 h-6" /> Limited Sniper
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Monitor collectible items, find resale opportunities
+            Rolimons data · Find undervalued limiteds
           </p>
         </div>
         {totalItems > 0 && (
           <Badge variant="outline" className="text-xs">
-            {totalItems.toLocaleString()} items tracked
+            {totalItems.toLocaleString()} limiteds tracked
           </Badge>
         )}
       </div>
@@ -109,9 +127,10 @@ export default function Sniper() {
         <TabsContent value="browse" className="space-y-4 mt-4">
           <div className="flex gap-3">
             <Input
-              placeholder="Search by name or creator..."
+              placeholder="Search by name or acronym..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && fetchItems()}
               className="flex-1"
             />
             <Button variant="outline" onClick={fetchItems} disabled={loading}>
@@ -121,36 +140,43 @@ export default function Sniper() {
 
           {loading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
-          ) : filteredItems.length === 0 ? (
+          ) : items.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="py-12 text-center text-muted-foreground">
                 <Crosshair className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">{items.length === 0 ? "Loading items... Click refresh to retry." : "No items match your search."}</p>
+                <p className="text-sm">No items found. Try a different search or click refresh.</p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-1">
-              {filteredItems.slice(0, 100).map((item) => (
+              {items.slice(0, 200).map((item) => (
                 <Card key={item.id} className="hover:bg-secondary/30 transition-colors">
                   <CardContent className="py-2.5 px-4 flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.creatorName}</p>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs shrink-0">
-                      <div className="text-right">
-                        <span className="font-mono font-semibold">{getDisplayPrice(item).toLocaleString()} R$</span>
+                    <div className="min-w-0 flex-1 flex items-center gap-2">
+                      <div>
+                        <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                          {item.name}
+                          {item.rare && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
+                          {item.hyped && <Flame className="w-3 h-3 text-orange-500" />}
+                        </p>
+                        {item.acronym && <p className="text-[10px] text-muted-foreground">{item.acronym}</p>}
                       </div>
-                      {item.lowestResalePrice != null && item.lowestResalePrice > 0 && (
-                        <div className="text-right">
-                          <span className="text-muted-foreground">Resale </span>
-                          <span className="font-mono font-semibold">{item.lowestResalePrice.toLocaleString()}</span>
-                        </div>
-                      )}
-                      <span className="text-muted-foreground flex items-center gap-0.5 w-16 justify-end">
-                        <Heart className="w-3 h-3" /> {item.favoriteCount.toLocaleString()}
-                      </span>
-                      <a href={`https://www.roblox.com/catalog/${item.id}`} target="_blank" rel="noreferrer">
+                    </div>
+                    <div className="flex items-center gap-3 text-xs shrink-0">
+                      <div className="text-right">
+                        <p className="text-muted-foreground text-[10px]">RAP</p>
+                        <span className="font-mono font-semibold">{item.rap.toLocaleString()}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-muted-foreground text-[10px]">Value</p>
+                        <span className="font-mono font-semibold">{item.value.toLocaleString()}</span>
+                      </div>
+                      <div className={`font-mono font-bold text-xs w-14 text-right ${item.priceDiff > 0 ? "text-green-500" : item.priceDiff < 0 ? "text-red-500" : ""}`}>
+                        {item.priceDiff > 0 ? "+" : ""}{item.priceDiff}%
+                      </div>
+                      <TrendIcon trend={item.trend} />
+                      <DemandBadge demand={item.demand} label={item.demandLabel} />
+                      <a href={`https://www.rolimons.com/item/${item.id}`} target="_blank" rel="noreferrer">
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0"><ArrowUpRight className="w-3.5 h-3.5" /></Button>
                       </a>
                     </div>
@@ -167,17 +193,38 @@ export default function Sniper() {
               <CardTitle className="text-sm flex items-center gap-2">
                 <Filter className="w-4 h-4" /> Deal Finder Settings
               </CardTitle>
-              <CardDescription className="text-xs">Find collectibles with resale potential</CardDescription>
+              <CardDescription className="text-xs">Find limiteds selling below their value</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs">Max Price (R$)</Label>
-                  <Input value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="font-mono text-sm" />
+                  <Label className="text-xs">Max RAP</Label>
+                  <Input value={maxRap} onChange={(e) => setMaxRap(e.target.value)} className="font-mono text-sm" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs">Min Favorites</Label>
-                  <Input value={minFavorites} onChange={(e) => setMinFavorites(e.target.value)} className="font-mono text-sm" />
+                  <Label className="text-xs">Min Demand</Label>
+                  <select
+                    value={minDemand}
+                    onChange={(e) => setMinDemand(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="-1">Any</option>
+                    <option value="0">Low+</option>
+                    <option value="1">Normal+</option>
+                    <option value="2">High+</option>
+                    <option value="3">Amazing only</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Max Price % of RAP: {pricePercent[0]}%</Label>
+                  <Slider
+                    value={pricePercent}
+                    onValueChange={setPricePercent}
+                    min={10}
+                    max={100}
+                    step={5}
+                    className="mt-2"
+                  />
                 </div>
               </div>
               <Button onClick={fetchDeals} disabled={dealsLoading} className="w-full">
@@ -198,14 +245,14 @@ export default function Sniper() {
                           <span className="text-xs font-bold text-green-500">#{i + 1}</span>
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate">{item.name}</p>
+                          <p className="text-sm font-semibold truncate flex items-center gap-1.5">
+                            {item.name}
+                            {item.rare && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
+                          </p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{item.creatorName}</span>
-                            <span>Price: {getDisplayPrice(item).toLocaleString()} R$</span>
-                            {item.resalePrice != null && item.resalePrice > 0 && (
-                              <span>Resale: {item.resalePrice.toLocaleString()} R$</span>
-                            )}
-                            <span className="flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" /> {item.favoriteCount.toLocaleString()}</span>
+                            <span>RAP: {item.rap.toLocaleString()}</span>
+                            <span>Value: {item.value.toLocaleString()}</span>
+                            <DemandBadge demand={item.demand} label={item.demandLabel} />
                           </div>
                         </div>
                       </div>
@@ -213,10 +260,10 @@ export default function Sniper() {
                         {item.discount != null && item.discount > 0 && (
                           <div className="text-right">
                             <p className="text-sm font-bold text-green-500">-{item.discount}%</p>
-                            <p className="text-[10px] text-muted-foreground">resale discount</p>
+                            <p className="text-[10px] text-muted-foreground">below RAP</p>
                           </div>
                         )}
-                        <a href={`https://www.roblox.com/catalog/${item.id}`} target="_blank" rel="noreferrer">
+                        <a href={`https://www.rolimons.com/item/${item.id}`} target="_blank" rel="noreferrer">
                           <Button variant="ghost" size="sm"><ArrowUpRight className="w-4 h-4" /></Button>
                         </a>
                       </div>
@@ -231,7 +278,7 @@ export default function Sniper() {
             <Card className="border-dashed">
               <CardContent className="py-12 text-center text-muted-foreground">
                 <Crosshair className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Click "Scan for Deals" to find collectibles with resale potential</p>
+                <p className="text-sm">Click "Scan for Deals" to find limiteds selling below value</p>
               </CardContent>
             </Card>
           )}
