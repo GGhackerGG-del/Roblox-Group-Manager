@@ -18,7 +18,7 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `DashboardLayout.tsx` — Sidebar with owner groups list, user profile, license info, Tools section (AI Assistant, Competitors, Limited Sniper), Community & Settings links
 - `Home.tsx` — Empty state when no group selected
 - `GroupView.tsx` — 4-tab view: P&L, Copy Clothing, Catalog, Alt Accounts. Tab state persisted per group in localStorage. BanShield pre-upload check on clothing items. Default tab is P&L.
-- `Community.tsx` — Social hub: Feed (posts/likes/comments), Discover (find developers, view profiles/groups), Friends (requests, chat), Chat (DM conversations)
+- `Community.tsx` — Social hub: Feed (posts/likes/comments), Forum (Suggestions/Off-topic/Q&A with voting & replies), Leaderboard (top posters/helpers/suggesters), Subscriptions (follow Roblox groups), Discover (find developers), Friends (requests, chat), Chat (DMs)
 - `Settings.tsx` — Profile bio, Theme (light/dark/system), Notifications, Privacy (with Cookie Security info), Data export, License info, About. Side-nav layout.
 - `Assistant.tsx` — AI chat assistant for Roblox development help (Lua scripts, moderation policies, clothing strategies, Discord posts). Uses SSE streaming.
 - `Competitors.tsx` — Analyze any Roblox group by ID: member count, clothing stats, top items, pricing.
@@ -39,6 +39,18 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `GET /api/sniper/items` — Browse top limited items from Rolimons (5-min cache)
 - `GET /api/sniper/deals` — Find limited items with value premium above RAP
 - `GET /api/pnl/group/:groupId` — Group P&L: balance, revenue, transactions, top items
+- `GET /api/forum/topics?category=` — List forum topics by category (suggestions/offtopic/qa)
+- `GET /api/forum/topics/:topicId` — Get topic details with replies
+- `POST /api/forum/topics` — Create new forum topic
+- `DELETE /api/forum/topics/:topicId` — Delete own topic
+- `POST /api/forum/topics/:topicId/vote` — Upvote/downvote topic
+- `POST /api/forum/topics/:topicId/replies` — Reply to topic
+- `POST /api/forum/topics/:topicId/replies/:replyId/answer` — Mark reply as answer (Q&A, author only)
+- `GET /api/forum/leaderboard` — Top posters, helpers, and contributors
+- `GET /api/forum/subscriptions` — List my group subscriptions
+- `POST /api/forum/subscriptions` — Subscribe to a Roblox group
+- `DELETE /api/forum/subscriptions/:subId` — Unsubscribe
+- `GET /api/forum/subscriptions/check/:groupId` — Check if subscribed to a group
 
 ### Components
 - `BanShield.tsx` — Pre-upload moderation check component. Analyzes clothing name/description for policy violations. Shows risk score, issues, and safe alternatives.

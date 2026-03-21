@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, bigint, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, bigint, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -92,6 +92,62 @@ export const featuredGroups = pgTable("featured_groups", {
 
 export type FeaturedGroup = typeof featuredGroups.$inferSelect;
 
+export const forumTopics = pgTable("forum_topics", {
+  id: serial("id").primaryKey(),
+  authorId: integer("author_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull().default("suggestions"),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  isClosed: boolean("is_closed").notNull().default(false),
+  votesUp: integer("votes_up").notNull().default(0),
+  votesDown: integer("votes_down").notNull().default(0),
+  repliesCount: integer("replies_count").notNull().default(0),
+  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("forum_topics_author_idx").on(t.authorId),
+  index("forum_topics_category_idx").on(t.category),
+  index("forum_topics_last_activity_idx").on(t.lastActivityAt),
+]);
+
+export const forumReplies = pgTable("forum_replies", {
+  id: serial("id").primaryKey(),
+  topicId: integer("topic_id").notNull().references(() => forumTopics.id, { onDelete: "cascade" }),
+  authorId: integer("author_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  isAnswer: boolean("is_answer").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("forum_replies_topic_idx").on(t.topicId),
+  index("forum_replies_author_idx").on(t.authorId),
+]);
+
+export const topicVotes = pgTable("topic_votes", {
+  id: serial("id").primaryKey(),
+  topicId: integer("topic_id").notNull().references(() => forumTopics.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  value: integer("value").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("topic_votes_topic_idx").on(t.topicId),
+  index("topic_votes_user_idx").on(t.userId),
+  uniqueIndex("topic_votes_unique").on(t.topicId, t.userId),
+]);
+
+export const groupSubscriptions = pgTable("group_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  robloxGroupId: bigint("roblox_group_id", { mode: "number" }).notNull(),
+  groupName: text("group_name").notNull(),
+  groupThumbnailUrl: text("group_thumbnail_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("group_subs_user_idx").on(t.userId),
+  index("group_subs_group_idx").on(t.robloxGroupId),
+  uniqueIndex("group_subs_unique").on(t.userId, t.robloxGroupId),
+]);
+
 export const insertPlatformUserSchema = createInsertSchema(platformUsers).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertPlatformUser = z.infer<typeof insertPlatformUserSchema>;
 export type PlatformUser = typeof platformUsers.$inferSelect;
@@ -102,3 +158,7 @@ export type PostLike = typeof postLikes.$inferSelect;
 export type PostComment = typeof postComments.$inferSelect;
 export type DmConversation = typeof dmConversations.$inferSelect;
 export type DmMessage = typeof dmMessages.$inferSelect;
+export type ForumTopic = typeof forumTopics.$inferSelect;
+export type ForumReply = typeof forumReplies.$inferSelect;
+export type TopicVote = typeof topicVotes.$inferSelect;
+export type GroupSubscription = typeof groupSubscriptions.$inferSelect;

@@ -12,7 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Heart, MessageCircle, UserPlus, Users, Send, Image as ImageIcon,
   ChevronRight, Loader2, UserCheck, X, Check, Clock, Trash2,
-  Globe, MessageSquare, Search, RefreshCw, Star, ExternalLink, Pencil
+  Globe, MessageSquare, Search, RefreshCw, Star, ExternalLink, Pencil,
+  Lightbulb, Coffee, HelpCircle, Trophy, Bell, BellOff, ThumbsUp, ThumbsDown,
+  MessageCircleQuestion, Plus, ArrowLeft, CheckCircle2, Crown, Award, Flame
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -1051,6 +1053,580 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   );
 }
 
+// ── Forum Types ──────────────────────────────────────────────────────────────
+
+interface ForumTopic {
+  id: number;
+  authorId: number;
+  title: string;
+  content: string;
+  category: string;
+  isPinned: boolean;
+  isClosed: boolean;
+  votesUp: number;
+  votesDown: number;
+  repliesCount: number;
+  lastActivityAt: string;
+  createdAt: string;
+  author: PlatformUser;
+  myVote: number;
+}
+
+interface ForumReply {
+  id: number;
+  topicId: number;
+  authorId: number;
+  content: string;
+  isAnswer: boolean;
+  createdAt: string;
+  author: PlatformUser;
+}
+
+interface GroupSub {
+  id: number;
+  userId: number;
+  robloxGroupId: number;
+  groupName: string;
+  groupThumbnailUrl: string | null;
+  createdAt: string;
+}
+
+interface LeaderboardEntry {
+  user: PlatformUser;
+  count: number;
+}
+
+const FORUM_CATEGORIES = [
+  { key: "suggestions", label: "Suggestions", icon: <Lightbulb className="w-4 h-4" />, desc: "Suggest features for the platform" },
+  { key: "offtopic", label: "Off-topic", icon: <Coffee className="w-4 h-4" />, desc: "Chat about anything" },
+  { key: "qa", label: "Q&A", icon: <HelpCircle className="w-4 h-4" />, desc: "Ask questions, get answers" },
+];
+
+// ── Forum Tab ────────────────────────────────────────────────────────────────
+
+function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserClick: (id: number) => void }) {
+  const { toast } = useToast();
+  const [category, setCategory] = useState("suggestions");
+  const [topics, setTopics] = useState<ForumTopic[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState<ForumTopic | null>(null);
+  const [replies, setReplies] = useState<ForumReply[]>([]);
+  const [loadingReplies, setLoadingReplies] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+
+  const fetchTopics = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch<{ topics: ForumTopic[] }>(`/api/forum/topics?category=${category}`);
+      setTopics(data.topics);
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to load topics" });
+    } finally { setLoading(false); }
+  }, [category]);
+
+  useEffect(() => { fetchTopics(); }, [fetchTopics]);
+
+  const handleCreate = async () => {
+    if (!newTitle.trim() || !newContent.trim()) return;
+    setSubmitting(true);
+    try {
+      const data = await apiFetch<{ topic: ForumTopic }>("/api/forum/topics", {
+        method: "POST",
+        body: JSON.stringify({ title: newTitle.trim(), content: newContent.trim(), category }),
+      });
+      setTopics(prev => [data.topic, ...prev]);
+      setNewTitle("");
+      setNewContent("");
+      setCreating(false);
+      toast({ title: "Topic created!" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed" });
+    } finally { setSubmitting(false); }
+  };
+
+  const handleVote = async (topicId: number, value: number) => {
+    try {
+      const data = await apiFetch<{ votesUp: number; votesDown: number; myVote: number }>(`/api/forum/topics/${topicId}/vote`, {
+        method: "POST",
+        body: JSON.stringify({ value }),
+      });
+      setTopics(prev => prev.map(t => t.id === topicId ? { ...t, votesUp: data.votesUp, votesDown: data.votesDown, myVote: data.myVote } : t));
+      if (selectedTopic?.id === topicId) {
+        setSelectedTopic(prev => prev ? { ...prev, votesUp: data.votesUp, votesDown: data.votesDown, myVote: data.myVote } : prev);
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Vote failed" });
+    }
+  };
+
+  const handleDelete = async (topicId: number) => {
+    try {
+      await apiFetch(`/api/forum/topics/${topicId}`, { method: "DELETE" });
+      setTopics(prev => prev.filter(t => t.id !== topicId));
+      if (selectedTopic?.id === topicId) setSelectedTopic(null);
+      toast({ title: "Topic deleted" });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to delete" });
+    }
+  };
+
+  const openTopic = async (topic: ForumTopic) => {
+    setSelectedTopic(topic);
+    setLoadingReplies(true);
+    try {
+      const data = await apiFetch<{ topic: ForumTopic; replies: ForumReply[] }>(`/api/forum/topics/${topic.id}`);
+      setSelectedTopic(data.topic);
+      setReplies(data.replies);
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to load topic" });
+    } finally { setLoadingReplies(false); }
+  };
+
+  const handleReply = async () => {
+    if (!replyText.trim() || !selectedTopic) return;
+    setSendingReply(true);
+    try {
+      const data = await apiFetch<{ reply: ForumReply }>(`/api/forum/topics/${selectedTopic.id}/replies`, {
+        method: "POST",
+        body: JSON.stringify({ content: replyText.trim() }),
+      });
+      setReplies(prev => [...prev, data.reply]);
+      setReplyText("");
+      setTopics(prev => prev.map(t => t.id === selectedTopic.id ? { ...t, repliesCount: t.repliesCount + 1 } : t));
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed" });
+    } finally { setSendingReply(false); }
+  };
+
+  const handleMarkAnswer = async (replyId: number) => {
+    if (!selectedTopic) return;
+    try {
+      await apiFetch(`/api/forum/topics/${selectedTopic.id}/replies/${replyId}/answer`, { method: "POST" });
+      setReplies(prev => prev.map(r => ({ ...r, isAnswer: r.id === replyId })));
+      toast({ title: "Answer marked!" });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed" });
+    }
+  };
+
+  if (selectedTopic) {
+    return (
+      <div className="space-y-4">
+        <button onClick={() => setSelectedTopic(null)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Back to topics
+        </button>
+
+        <Card className="rounded-2xl border border-border shadow-sm">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  {selectedTopic.isPinned && <Badge className="text-[10px] bg-yellow-500/15 text-yellow-600 border-yellow-500/20">Pinned</Badge>}
+                  {selectedTopic.isClosed && <Badge className="text-[10px] bg-red-500/15 text-red-600 border-red-500/20">Closed</Badge>}
+                  <Badge variant="outline" className="text-[10px]">{FORUM_CATEGORIES.find(c => c.key === selectedTopic.category)?.label || selectedTopic.category}</Badge>
+                </div>
+                <h2 className="text-xl font-bold">{selectedTopic.title}</h2>
+              </div>
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                <button onClick={() => handleVote(selectedTopic.id, selectedTopic.myVote === 1 ? 0 : 1)} className={`p-1 rounded transition-colors ${selectedTopic.myVote === 1 ? "text-green-600" : "text-muted-foreground hover:text-green-600"}`}>
+                  <ThumbsUp className="w-5 h-5" />
+                </button>
+                <span className="text-sm font-bold">{selectedTopic.votesUp - selectedTopic.votesDown}</span>
+                <button onClick={() => handleVote(selectedTopic.id, selectedTopic.myVote === -1 ? 0 : -1)} className={`p-1 rounded transition-colors ${selectedTopic.myVote === -1 ? "text-red-600" : "text-muted-foreground hover:text-red-600"}`}>
+                  <ThumbsDown className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <button className="flex items-center gap-2 text-left" onClick={() => onUserClick(selectedTopic.authorId)}>
+              <Avatar className="w-8 h-8 border border-border">
+                <AvatarImage src={selectedTopic.author?.avatarUrl || undefined} />
+                <AvatarFallback className="text-xs font-bold">{selectedTopic.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
+              </Avatar>
+              <div>
+                <p className="text-sm font-semibold hover:underline">{selectedTopic.author?.displayName}</p>
+                <p className="text-xs text-muted-foreground">{timeAgo(selectedTopic.createdAt)}</p>
+              </div>
+            </button>
+
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">{selectedTopic.content}</p>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-3">
+          <h3 className="font-bold text-sm flex items-center gap-2">
+            <MessageCircle className="w-4 h-4" /> Replies ({selectedTopic.repliesCount})
+          </h3>
+
+          {loadingReplies ? (
+            <div className="space-y-3">
+              {[1, 2].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+            </div>
+          ) : replies.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" strokeWidth={1} />
+              <p className="text-sm">No replies yet. Be the first!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {replies.map(r => (
+                <Card key={r.id} className={`rounded-2xl border shadow-sm ${r.isAnswer ? "border-green-500/40 bg-green-500/5" : "border-border"}`}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <button className="flex items-center gap-2 text-left" onClick={() => onUserClick(r.authorId)}>
+                        <Avatar className="w-7 h-7 border border-border">
+                          <AvatarImage src={r.author?.avatarUrl || undefined} />
+                          <AvatarFallback className="text-[10px] font-bold">{r.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs font-semibold hover:underline">{r.author?.displayName}</span>
+                        <span className="text-[10px] text-muted-foreground">{timeAgo(r.createdAt)}</span>
+                      </button>
+                      <div className="flex items-center gap-2">
+                        {r.isAnswer && (
+                          <Badge className="text-[10px] bg-green-500/15 text-green-600 border-green-500/20 gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Answer
+                          </Badge>
+                        )}
+                        {selectedTopic.category === "qa" && selectedTopic.authorId === myUser?.id && !r.isAnswer && (
+                          <button onClick={() => handleMarkAnswer(r.id)} className="text-[10px] text-muted-foreground hover:text-green-600 transition-colors flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Mark answer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{r.content}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {!selectedTopic.isClosed && myUser && (
+            <Card className="rounded-2xl border border-border shadow-sm">
+              <CardContent className="p-4 space-y-3">
+                <Textarea
+                  value={replyText}
+                  onChange={e => setReplyText(e.target.value)}
+                  placeholder="Write your reply..."
+                  className="min-h-[80px] resize-none rounded-xl text-sm"
+                  maxLength={2000}
+                />
+                <div className="flex justify-end">
+                  <Button onClick={handleReply} disabled={sendingReply || !replyText.trim()} className="rounded-xl gap-2 text-xs">
+                    {sendingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Reply
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {FORUM_CATEGORIES.map(cat => (
+          <button
+            key={cat.key}
+            onClick={() => { setCategory(cat.key); setCreating(false); }}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border transition-all whitespace-nowrap ${
+              category === cat.key ? "bg-black text-white border-black" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
+            }`}
+          >
+            {cat.icon} {cat.label}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs text-muted-foreground">{FORUM_CATEGORIES.find(c => c.key === category)?.desc}</p>
+
+      {!creating ? (
+        <Button onClick={() => setCreating(true)} className="rounded-xl gap-2 text-xs w-full" variant="outline">
+          <Plus className="w-4 h-4" /> New Topic
+        </Button>
+      ) : (
+        <Card className="rounded-2xl border border-border shadow-sm">
+          <CardContent className="p-4 space-y-3">
+            <Input
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              placeholder="Topic title"
+              className="rounded-xl text-sm font-semibold"
+              maxLength={200}
+            />
+            <Textarea
+              value={newContent}
+              onChange={e => setNewContent(e.target.value)}
+              placeholder={category === "qa" ? "Describe your question in detail..." : category === "suggestions" ? "Describe your feature suggestion..." : "What's on your mind?"}
+              className="min-h-[100px] resize-none rounded-xl text-sm"
+              maxLength={5000}
+            />
+            <div className="flex items-center justify-between">
+              <Button size="sm" variant="ghost" onClick={() => setCreating(false)} className="rounded-xl text-xs">Cancel</Button>
+              <Button size="sm" onClick={handleCreate} disabled={submitting || !newTitle.trim() || !newContent.trim()} className="rounded-xl gap-2 text-xs">
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Post
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-2xl" />)}
+        </div>
+      ) : topics.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <MessageCircleQuestion className="w-10 h-10 mx-auto mb-3 opacity-30" strokeWidth={1} />
+          <p className="text-sm font-medium">No topics yet</p>
+          <p className="text-xs mt-1">Be the first to start a discussion!</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {topics.map(topic => (
+            <motion.div key={topic.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
+              <Card className="rounded-2xl border border-border shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => openTopic(topic)}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
+                      <button onClick={e => { e.stopPropagation(); handleVote(topic.id, topic.myVote === 1 ? 0 : 1); }} className={`p-0.5 rounded transition-colors ${topic.myVote === 1 ? "text-green-600" : "text-muted-foreground hover:text-green-600"}`}>
+                        <ThumbsUp className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-xs font-bold">{topic.votesUp - topic.votesDown}</span>
+                      <button onClick={e => { e.stopPropagation(); handleVote(topic.id, topic.myVote === -1 ? 0 : -1); }} className={`p-0.5 rounded transition-colors ${topic.myVote === -1 ? "text-red-600" : "text-muted-foreground hover:text-red-600"}`}>
+                        <ThumbsDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        {topic.isPinned && <Badge className="text-[10px] bg-yellow-500/15 text-yellow-600 border-yellow-500/20">Pinned</Badge>}
+                        {topic.isClosed && <Badge className="text-[10px] bg-red-500/15 text-red-600 border-red-500/20">Closed</Badge>}
+                      </div>
+                      <h3 className="font-semibold text-sm truncate">{topic.title}</h3>
+                      <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{topic.content}</p>
+                      <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                        <button onClick={e => { e.stopPropagation(); onUserClick(topic.authorId); }} className="hover:underline font-medium">{topic.author?.displayName}</button>
+                        <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{topic.repliesCount}</span>
+                        <span>{timeAgo(topic.lastActivityAt)}</span>
+                      </div>
+                    </div>
+                    {topic.authorId === myUser?.id && (
+                      <button onClick={e => { e.stopPropagation(); handleDelete(topic.id); }} className="text-muted-foreground hover:text-destructive p-1 rounded-lg hover:bg-destructive/10 transition-colors shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Leaderboard Tab ──────────────────────────────────────────────────────────
+
+function LeaderboardTab({ onUserClick }: { onUserClick: (id: number) => void }) {
+  const [data, setData] = useState<{ topPosters: LeaderboardEntry[]; topHelpers: LeaderboardEntry[]; topContributors: LeaderboardEntry[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiFetch<{ topPosters: LeaderboardEntry[]; topHelpers: LeaderboardEntry[]; topContributors: LeaderboardEntry[] }>("/api/forum/leaderboard")
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 rounded-2xl" />)}
+      </div>
+    );
+  }
+
+  const renderBoard = (title: string, icon: React.ReactNode, entries: LeaderboardEntry[], label: string) => (
+    <Card className="rounded-2xl border border-border shadow-sm">
+      <CardHeader className="pb-2 p-5">
+        <CardTitle className="text-sm font-bold flex items-center gap-2">{icon} {title}</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {entries.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" strokeWidth={1} />
+            <p className="text-xs">No data yet</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {entries.map((entry, i) => (
+              <button key={entry.user?.id || i} onClick={() => entry.user && onUserClick(entry.user.id)} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-secondary/40 transition-colors text-left">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                  i === 0 ? "bg-yellow-500/20 text-yellow-600" : i === 1 ? "bg-zinc-300/30 text-zinc-500" : i === 2 ? "bg-orange-500/15 text-orange-600" : "bg-secondary text-muted-foreground"
+                }`}>
+                  {i === 0 ? <Crown className="w-3.5 h-3.5" /> : i === 1 ? <Award className="w-3.5 h-3.5" /> : i === 2 ? <Flame className="w-3.5 h-3.5" /> : i + 1}
+                </div>
+                <Avatar className="w-8 h-8 border border-border shrink-0">
+                  <AvatarImage src={entry.user?.avatarUrl || undefined} />
+                  <AvatarFallback className="text-xs font-bold">{entry.user?.displayName?.charAt(0) || "?"}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate hover:underline">{entry.user?.displayName || "Unknown"}</p>
+                  <p className="text-[10px] text-muted-foreground">@{entry.user?.robloxUsername || "?"}</p>
+                </div>
+                <Badge variant="outline" className="text-[10px] shrink-0">{entry.count} {label}</Badge>
+              </button>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {renderBoard("Most Active", <Flame className="w-4 h-4 text-orange-500" />, data?.topPosters || [], "posts")}
+        {renderBoard("Top Helpers", <HelpCircle className="w-4 h-4 text-blue-500" />, data?.topHelpers || [], "replies")}
+        {renderBoard("Top Suggesters", <Lightbulb className="w-4 h-4 text-yellow-500" />, data?.topContributors || [], "ideas")}
+      </div>
+    </div>
+  );
+}
+
+// ── Subscriptions Tab ────────────────────────────────────────────────────────
+
+function SubscriptionsTab({ myUser }: { myUser: PlatformUser | null }) {
+  const { toast } = useToast();
+  const [subs, setSubs] = useState<GroupSub[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [addGroupId, setAddGroupId] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    apiFetch<{ subscriptions: GroupSub[] }>("/api/forum/subscriptions")
+      .then(d => setSubs(d.subscriptions))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSubscribe = async () => {
+    const groupId = parseInt(addGroupId, 10);
+    if (!groupId || isNaN(groupId)) {
+      toast({ variant: "destructive", title: "Error", description: "Enter a valid group ID" });
+      return;
+    }
+    setAdding(true);
+    try {
+      const groupResp = await fetch(`https://groups.roblox.com/v1/groups/${groupId}`);
+      if (!groupResp.ok) throw new Error("Group not found");
+      const groupData = await groupResp.json() as { id: number; name: string };
+
+      let thumbnailUrl: string | undefined;
+      try {
+        const thumbResp = await fetch(`https://thumbnails.roblox.com/v1/groups/icons?groupIds=${groupId}&size=150x150&format=Png&isCircular=false`);
+        if (thumbResp.ok) {
+          const td = await thumbResp.json() as { data: Array<{ imageUrl: string }> };
+          thumbnailUrl = td.data?.[0]?.imageUrl || undefined;
+        }
+      } catch {}
+
+      const data = await apiFetch<{ subscription: GroupSub }>("/api/forum/subscriptions", {
+        method: "POST",
+        body: JSON.stringify({ robloxGroupId: groupData.id, groupName: groupData.name, groupThumbnailUrl: thumbnailUrl }),
+      });
+
+      setSubs(prev => [data.subscription, ...prev]);
+      setAddGroupId("");
+      toast({ title: "Subscribed!", description: `Now following ${groupData.name}` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to subscribe" });
+    } finally { setAdding(false); }
+  };
+
+  const handleUnsubscribe = async (subId: number) => {
+    try {
+      await apiFetch(`/api/forum/subscriptions/${subId}`, { method: "DELETE" });
+      setSubs(prev => prev.filter(s => s.id !== subId));
+      toast({ title: "Unsubscribed" });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to unsubscribe" });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="rounded-2xl border border-border shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex gap-3">
+            <Input
+              value={addGroupId}
+              onChange={e => setAddGroupId(e.target.value)}
+              placeholder="Enter Roblox Group ID to subscribe"
+              className="rounded-xl text-sm flex-1"
+            />
+            <Button onClick={handleSubscribe} disabled={adding || !addGroupId.trim()} className="rounded-xl gap-2 text-xs shrink-0">
+              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+              Subscribe
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 rounded-2xl" />)}
+        </div>
+      ) : subs.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Bell className="w-10 h-10 mx-auto mb-3 opacity-30" strokeWidth={1} />
+          <p className="text-sm font-medium">No subscriptions yet</p>
+          <p className="text-xs mt-1">Subscribe to Roblox groups to follow their updates</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {subs.map(sub => (
+            <Card key={sub.id} className="rounded-2xl border border-border shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl overflow-hidden border border-border shrink-0 bg-secondary">
+                    {sub.groupThumbnailUrl ? (
+                      <img src={sub.groupThumbnailUrl} alt={sub.groupName} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xs font-bold text-muted-foreground">
+                        {sub.groupName.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <a href={`https://www.roblox.com/groups/${sub.robloxGroupId}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-sm hover:underline">
+                      {sub.groupName}
+                    </a>
+                    <p className="text-[10px] text-muted-foreground">Subscribed {timeAgo(sub.createdAt)}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => handleUnsubscribe(sub.id)} className="rounded-xl text-xs gap-1.5 shrink-0 text-muted-foreground hover:text-destructive">
+                    <BellOff className="w-3.5 h-3.5" /> Unsubscribe
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── My Profile Banner ─────────────────────────────────────────────────────────
 
 function MyProfileBanner({ myUser, onEdit }: { myUser: PlatformUser; onEdit: () => void }) {
@@ -1147,9 +1723,18 @@ export default function Community() {
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1">
+        <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1 flex-wrap">
           <TabsTrigger value="feed" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
             <Globe className="w-3.5 h-3.5" /> Feed
+          </TabsTrigger>
+          <TabsTrigger value="forum" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
+            <MessageCircleQuestion className="w-3.5 h-3.5" /> Forum
+          </TabsTrigger>
+          <TabsTrigger value="leaderboard" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
+            <Trophy className="w-3.5 h-3.5" /> Leaderboard
+          </TabsTrigger>
+          <TabsTrigger value="subscriptions" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
+            <Bell className="w-3.5 h-3.5" /> Subscriptions
           </TabsTrigger>
           <TabsTrigger value="discover" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
             <Search className="w-3.5 h-3.5" /> Discover
@@ -1165,6 +1750,15 @@ export default function Community() {
         <div className="mt-6">
           <TabsContent value="feed" className="mt-0">
             <FeedTab myUser={myUser} onUserClick={setProfileModalUserId} />
+          </TabsContent>
+          <TabsContent value="forum" className="mt-0">
+            <ForumTab myUser={myUser} onUserClick={setProfileModalUserId} />
+          </TabsContent>
+          <TabsContent value="leaderboard" className="mt-0">
+            <LeaderboardTab onUserClick={setProfileModalUserId} />
+          </TabsContent>
+          <TabsContent value="subscriptions" className="mt-0">
+            <SubscriptionsTab myUser={myUser} />
           </TabsContent>
           <TabsContent value="discover" className="mt-0">
             <DiscoverTab myUser={myUser} onUserClick={setProfileModalUserId} onChat={handleChatUser} />
