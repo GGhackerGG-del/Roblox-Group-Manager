@@ -436,120 +436,132 @@ async function uploadViaOpenCloud(
   return { assetId: null, error: errorMessage };
 }
 
+async function getAuthenticatedUserId(cookie: string): Promise<number | null> {
+  try {
+    const resp = await fetch("https://users.roblox.com/v1/users/authenticated", {
+      headers: {
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    if (resp.ok) {
+      const data = await resp.json() as { id?: number };
+      return data.id || null;
+    }
+  } catch (err) {
+    console.log("[Upload] Failed to get authenticated user ID:", err);
+  }
+  return null;
+}
+
 async function releaseAndPriceClothing(
   cookie: string,
   assetId: number,
-  price: number
-): Promise<void> {
+  price: number,
+  name: string,
+  description: string,
+  groupId: number
+): Promise<{ success: boolean; error?: string }> {
   const salePrice = Math.max(price, 5);
+
+  console.log(`[Upload] Setting price for asset ${assetId}: ${salePrice} R$ (waiting 5s for Roblox to process)...`);
+  await new Promise(r => setTimeout(r, 5000));
 
   const csrfToken = await getRobloxCsrf(cookie);
   if (!csrfToken) {
     console.log(`[Upload] Could not get CSRF to publish asset ${assetId}`);
-    return;
+    return { success: false, error: "Failed to get CSRF token" };
   }
 
-  console.log(`[Upload] Publishing asset ${assetId} on sale at ${salePrice} R$...`);
+  const publisherUserId = await getAuthenticatedUserId(cookie);
+  if (!publisherUserId) {
+    console.log(`[Upload] Could not get publisher user ID for asset ${assetId}`);
+    return { success: false, error: "Failed to get authenticated user ID" };
+  }
+
+  const requestData = {
+    isRentalOptIn: false,
+    idempotencyToken: crypto.randomUUID(),
+    agreedPublishingFee: 0,
+    creatorGroupId: groupId,
+    description: description || "Created with Limited.Ink",
+    isFree: false,
+    name: name || `Clothing ${assetId}`,
+    optOutFromRegionalPricing: false,
+    priceInRobux: salePrice,
+    priceOffset: 0,
+    publisherUserId: publisherUserId,
+    publishingType: 2,
+    quantity: 0,
+    quantityLimitPerUser: 0,
+    resaleRestriction: 2,
+    saleLocationConfiguration: {
+      saleLocationType: 1,
+      places: [],
+    },
+    targetId: assetId.toString(),
+    targetType: 0,
+  };
+
+  console.log(`[Upload] POST itemconfiguration.roblox.com/v1/collectibles for asset ${assetId}, user ${publisherUserId}, group ${groupId}`);
 
   try {
-    const resp = await fetch(`https://economy.roblox.com/v1/assets/${assetId}/itemtoggle`, {
-      method: "PATCH",
+    const resp = await fetch("https://itemconfiguration.roblox.com/v1/collectibles", {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Cookie": `.ROBLOSECURITY=${cookie}`,
         "X-CSRF-TOKEN": csrfToken,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Origin": "https://create.roblox.com",
+        "Referer": "https://create.roblox.com/",
       },
-      body: JSON.stringify({
-        isForSale: true,
-        price: salePrice,
-      }),
+      body: JSON.stringify(requestData),
     });
+
     if (resp.ok) {
-      console.log(`[Upload] Published asset ${assetId} on sale at ${salePrice} R$ via economy/itemtoggle`);
-      return;
+      const data = await resp.json();
+      console.log(`[Upload] Price ${salePrice} R$ set for asset ${assetId} via collectibles API`, JSON.stringify(data).slice(0, 200));
+      return { success: true };
     }
+
     const text = await resp.text();
-    console.log(`[Upload] economy/itemtoggle failed (${resp.status}): ${text}`);
+    console.log(`[Upload] collectibles API failed (${resp.status}): ${text.slice(0, 500)}`);
 
     if (resp.status === 403) {
       const csrf2 = await getRobloxCsrf(cookie);
       if (csrf2) {
-        const retry = await fetch(`https://economy.roblox.com/v1/assets/${assetId}/itemtoggle`, {
-          method: "PATCH",
+        requestData.idempotencyToken = crypto.randomUUID();
+        const retry = await fetch("https://itemconfiguration.roblox.com/v1/collectibles", {
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Cookie": `.ROBLOSECURITY=${cookie}`,
             "X-CSRF-TOKEN": csrf2,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Origin": "https://create.roblox.com",
+            "Referer": "https://create.roblox.com/",
           },
-          body: JSON.stringify({
-            isForSale: true,
-            price: salePrice,
-          }),
+          body: JSON.stringify(requestData),
         });
+
         if (retry.ok) {
-          console.log(`[Upload] Published asset ${assetId} on sale at ${salePrice} R$ (CSRF retry)`);
-          return;
+          const retryData = await retry.json();
+          console.log(`[Upload] Price ${salePrice} R$ set for asset ${assetId} (CSRF retry)`, JSON.stringify(retryData).slice(0, 200));
+          return { success: true };
         }
         const retryText = await retry.text();
-        console.log(`[Upload] economy/itemtoggle retry failed (${retry.status}): ${retryText}`);
+        console.log(`[Upload] collectibles CSRF retry failed (${retry.status}): ${retryText.slice(0, 500)}`);
+        return { success: false, error: `Price setting failed (${retry.status}): ${retryText.slice(0, 200)}` };
       }
     }
+
+    return { success: false, error: `Price setting failed (${resp.status}): ${text.slice(0, 200)}` };
   } catch (err) {
-    console.log(`[Upload] Error publishing asset ${assetId} via economy/itemtoggle:`, err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.log(`[Upload] Error setting price for asset ${assetId}:`, msg);
+    return { success: false, error: msg };
   }
-
-  try {
-    const csrf3 = await getRobloxCsrf(cookie);
-    if (!csrf3) return;
-
-    const resp2 = await fetch(`https://itemconfiguration.roblox.com/v1/assets/${assetId}/update-price`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "X-CSRF-TOKEN": csrf3,
-      },
-      body: JSON.stringify({
-        priceConfiguration: { priceInRobux: salePrice },
-      }),
-    });
-    if (resp2.ok) {
-      console.log(`[Upload] Price set to ${salePrice} R$ for asset ${assetId} via update-price`);
-      return;
-    }
-    const text2 = await resp2.text();
-    console.log(`[Upload] update-price fallback failed (${resp2.status}): ${text2}`);
-  } catch (err) {
-    console.log(`[Upload] Error in update-price fallback for asset ${assetId}:`, err);
-  }
-
-  try {
-    const csrf4 = await getRobloxCsrf(cookie);
-    if (!csrf4) return;
-
-    const resp3 = await fetch(`https://itemconfiguration.roblox.com/v1/assets/${assetId}/release`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "X-CSRF-TOKEN": csrf4,
-      },
-      body: JSON.stringify({
-        saleStatus: "OnSale",
-        priceConfiguration: { priceInRobux: salePrice },
-      }),
-    });
-    if (resp3.ok) {
-      console.log(`[Upload] Released asset ${assetId} via itemconfiguration/release at ${salePrice} R$`);
-      return;
-    }
-    const text3 = await resp3.text();
-    console.log(`[Upload] itemconfiguration/release fallback failed (${resp3.status}): ${text3}`);
-  } catch (err) {
-    console.log(`[Upload] Error in release fallback for asset ${assetId}:`, err);
-  }
-
-  console.log(`[Upload] WARNING: Could not publish asset ${assetId} on sale. Manual publish may be required.`);
 }
 
 async function uploadViaCookie(
@@ -727,7 +739,10 @@ async function uploadSingleClothing(
     console.log("[Upload] Using cookie-based upload (user-auth API)...");
     const result = await uploadViaCookie(cookie, groupId, name, description, imageBuffer, clothingType, price);
     if (result.assetId) {
-      await releaseAndPriceClothing(cookie, result.assetId, price ?? 5);
+      const priceResult = await releaseAndPriceClothing(cookie, result.assetId, price ?? 5, name, description, groupId);
+      if (!priceResult.success) {
+        console.log(`[Upload] Asset ${result.assetId} uploaded but price not set: ${priceResult.error}`);
+      }
       return result;
     }
     console.log(`[Upload] Cookie upload failed: ${result.error}`);

@@ -116,7 +116,7 @@ CREATE TABLE licenses (
 - Dark mode ready (CSS variables)
 
 ## Known Limitations / Pending Work
-- Roblox clothing upload uses the multipart upload API with CSRF token
+- Roblox clothing upload: uses `apis.roblox.com/assets/user-auth/v1/assets` (cookie-based) with Open Cloud fallback. Price/release via `POST itemconfiguration.roblox.com/v1/collectibles` (publishingType:2, resaleRestriction:2). 5s delay between upload and price-set. Requires `publisherUserId` from authenticated user.
 - Telegram bot for selling license codes is included but basic
 - License expiry checks work via DB `expires_at` field, but UI doesn't show countdown
 - Limited Sniper is a scanner/monitor only, not an autobuyer
