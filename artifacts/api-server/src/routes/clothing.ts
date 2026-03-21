@@ -458,7 +458,7 @@ async function uploadViaCookie(
     assetType: assetType,
     creationContext: {
       creator: { groupId: groupId },
-      expectedPrice: 0,
+      expectedPrice: 10,
     },
   });
 
