@@ -295,8 +295,8 @@ export default function Settings() {
               <div className="space-y-5">
                 <Card className="rounded-2xl border border-border shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base">Roblox Open Cloud API Key</CardTitle>
-                    <CardDescription>Required for uploading clothing. The legacy cookie-based upload method has been deprecated by Roblox.</CardDescription>
+                    <CardTitle className="text-base">Roblox Open Cloud API Key (Optional)</CardTitle>
+                    <CardDescription>Clothing uploads work automatically with your Roblox cookie. This API key is optional — add it only if cookie-based uploads don't work for your account.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {loadingApiKey ? (
@@ -322,7 +322,7 @@ export default function Settings() {
                           <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                           <div>
                             <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">No API Key Set</p>
-                            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">You need an Open Cloud API key to upload clothing. Without it, uploads will fail.</p>
+                            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">Uploads use your Roblox cookie by default. You can optionally add an Open Cloud API key as a backup method.</p>
                           </div>
                         </div>
                         <div className="space-y-2">

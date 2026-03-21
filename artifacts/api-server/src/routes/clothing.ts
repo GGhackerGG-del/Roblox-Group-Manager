@@ -436,8 +436,97 @@ async function uploadViaOpenCloud(
   return { assetId: null, error: errorMessage };
 }
 
+async function uploadViaCookie(
+  cookie: string,
+  groupId: number,
+  name: string,
+  description: string,
+  imageBuffer: Buffer,
+  clothingType: string
+): Promise<{ assetId: number | null; error?: string }> {
+  const assetTypeId = clothingType === "Pants" ? 12 : 11;
+  const csrfToken = await getRobloxCsrf(cookie);
+  if (!csrfToken) {
+    return { assetId: null, error: "Failed to get CSRF token. Your Roblox cookie may be expired — re-login in Settings." };
+  }
+
+  const params = new URLSearchParams({
+    assetTypeId: String(assetTypeId),
+    name,
+    description: description || "Uploaded via Limited.Ink",
+    groupId: String(groupId),
+    isOwnCreation: "true",
+  });
+
+  const url = `https://www.roblox.com/ide/publish/uploadnewasset?${params.toString()}`;
+  console.log(`[Upload] Cookie upload: type=${clothingType}(${assetTypeId}) group=${groupId} name="${name}"`);
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const currentCsrf = attempt === 0 ? csrfToken : await getRobloxCsrf(cookie);
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "X-CSRF-TOKEN": currentCsrf,
+        "Content-Type": "application/octet-stream",
+        "User-Agent": "RobloxStudio/1.0",
+        "Requester": "Client",
+      },
+      body: imageBuffer,
+    });
+
+    if (resp.status === 403) {
+      const newCsrf = resp.headers.get("x-csrf-token");
+      if (newCsrf && attempt === 0) {
+        console.log("[Upload] CSRF token refreshed, retrying...");
+        continue;
+      }
+      return { assetId: null, error: "Access denied (403). Your Roblox cookie may be expired or you don't have permission to upload to this group." };
+    }
+
+    const text = await resp.text();
+
+    if (resp.ok) {
+      const assetId = parseInt(text.trim(), 10);
+      if (!isNaN(assetId) && assetId > 0) {
+        console.log(`[Upload] Cookie upload success: assetId=${assetId}`);
+        return { assetId };
+      }
+      try {
+        const json = JSON.parse(text) as { Id?: number; id?: number; AssetId?: number };
+        const id = json.Id || json.id || json.AssetId;
+        if (id && id > 0) {
+          console.log(`[Upload] Cookie upload success (JSON): assetId=${id}`);
+          return { assetId: id };
+        }
+      } catch {}
+      console.log(`[Upload] Cookie upload returned OK but unexpected body: ${text.slice(0, 200)}`);
+      return { assetId: null, error: `Upload returned OK but couldn't parse asset ID from response.` };
+    }
+
+    console.log(`[Upload] Cookie upload failed: status=${resp.status} body=${text.slice(0, 300)}`);
+
+    if (resp.status === 401) {
+      return { assetId: null, error: "Roblox cookie expired. Please re-login in Settings." };
+    }
+    if (resp.status === 429) {
+      return { assetId: null, error: "Roblox rate limit. Wait a moment and try again." };
+    }
+
+    let errorMsg = `Upload failed (${resp.status})`;
+    try {
+      const errJson = JSON.parse(text) as { Message?: string; message?: string; errors?: Array<{ message?: string }> };
+      const msg = errJson.Message || errJson.message || errJson.errors?.[0]?.message;
+      if (msg) errorMsg += `: ${msg}`;
+    } catch {}
+    return { assetId: null, error: errorMsg };
+  }
+
+  return { assetId: null, error: "Upload failed after retries." };
+}
+
 async function uploadSingleClothing(
-  _cookie: string,
+  cookie: string,
   _csrfToken: string,
   groupId: number,
   name: string,
@@ -448,14 +537,21 @@ async function uploadSingleClothing(
 ): Promise<{ assetId: number | null; error?: string }> {
   const imageBuffer = Buffer.from(imageData, "base64");
 
-  if (!openCloudApiKey) {
-    return {
-      assetId: null,
-      error: "No Roblox Open Cloud API key configured. Go to Settings → Roblox API Key to add one. The legacy cookie-based upload endpoints have been retired by Roblox.",
-    };
+  if (openCloudApiKey) {
+    console.log("[Upload] Open Cloud API key available, using it as primary method...");
+    const result = await uploadViaOpenCloud(openCloudApiKey, groupId, name, description, imageBuffer, clothingType);
+    if (result.assetId) return result;
+    console.log(`[Upload] Open Cloud failed: ${result.error}, falling back to cookie upload...`);
   }
 
-  return uploadViaOpenCloud(openCloudApiKey, groupId, name, description, imageBuffer, clothingType);
+  if (cookie) {
+    return uploadViaCookie(cookie, groupId, name, description, imageBuffer, clothingType);
+  }
+
+  return {
+    assetId: null,
+    error: "No upload method available. Please connect your Roblox account in Settings (or optionally add an Open Cloud API key).",
+  };
 }
 
 router.post("/clothing/upload", async (req, res): Promise<void> => {
@@ -474,8 +570,8 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     cookie = req.session.robloxCookie;
   }
 
-  if (!openCloudApiKey) {
-    res.status(401).json({ error: "No Roblox Open Cloud API key configured. Go to Settings → Roblox API Key to add one. The legacy cookie-based upload endpoints have been retired by Roblox." });
+  if (!cookie && !openCloudApiKey) {
+    res.status(401).json({ error: "No upload method available. Please connect your Roblox account in Settings." });
     return;
   }
 
@@ -552,7 +648,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     });
   } else {
     res.status(500).json({
-      error: result.error || "Upload failed. Please add a Roblox Open Cloud API key in Settings for reliable uploads.",
+      error: result.error || "Upload failed. Check your Roblox account connection in Settings.",
       name,
       status: "failed",
     });
