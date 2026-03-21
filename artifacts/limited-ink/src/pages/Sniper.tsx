@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Crosshair, Loader2, RefreshCw, ArrowUpRight, Filter, BarChart3, Zap, TrendingUp,
-  TrendingDown, Minus, Star, Flame, Image as ImageIcon
+  TrendingDown, Minus, Star, Flame, Image as ImageIcon, SlidersHorizontal, ChevronDown, ChevronUp
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -72,11 +73,26 @@ export default function Sniper() {
   const [totalItems, setTotalItems] = useState(cachedBrowse?.total || 0);
   const [activeTab, setActiveTab] = useState("browse");
 
+  const [showBrowseFilters, setShowBrowseFilters] = useState(false);
+  const [browseMinRap, setBrowseMinRap] = useState("");
+  const [browseMaxRap, setBrowseMaxRap] = useState("");
+  const [browseMinDemand, setBrowseMinDemand] = useState("-2");
+  const [browseSortBy, setBrowseSortBy] = useState("rap");
+
+  const [showDealsFilters, setShowDealsFilters] = useState(false);
+  const [dealsMinDiscount, setDealsMinDiscount] = useState("");
+  const [dealsMinDemand, setDealsMinDemand] = useState("-2");
+  const [dealsSearch, setDealsSearch] = useState("");
+
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
+      if (browseMinRap) params.set("minRap", browseMinRap);
+      if (browseMaxRap) params.set("maxRap", browseMaxRap);
+      if (browseMinDemand !== "-2") params.set("minDemand", browseMinDemand);
+      if (browseSortBy !== "rap") params.set("sortBy", browseSortBy);
       const resp = await fetch(`${BASE}/api/sniper/items?${params}`, { credentials: "include", headers: getAuthHeaders() });
       if (resp.ok) {
         const data = await resp.json();
@@ -87,7 +103,7 @@ export default function Sniper() {
         playSuccess();
       }
     } catch {} finally { setLoading(false); }
-  }, [search]);
+  }, [search, browseMinRap, browseMaxRap, browseMinDemand, browseSortBy]);
 
   const fetchDeals = useCallback(async () => {
     setDealsLoading(true);
@@ -107,6 +123,18 @@ export default function Sniper() {
   useEffect(() => {
     if (items.length === 0) fetchItems();
   }, []);
+
+  const filteredDeals = deals.filter(d => {
+    const minDisc = parseInt(dealsMinDiscount || "0", 10);
+    if (minDisc > 0 && (d.discount ?? 0) < minDisc) return false;
+    const minDem = parseInt(dealsMinDemand, 10);
+    if (minDem > -2 && d.demand < minDem) return false;
+    if (dealsSearch) {
+      const q = dealsSearch.toLowerCase();
+      if (!d.name.toLowerCase().includes(q) && !d.acronym.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -145,10 +173,78 @@ export default function Sniper() {
               onKeyDown={(e) => e.key === "Enter" && fetchItems()}
               className="flex-1"
             />
-            <Button variant="outline" onClick={() => { playClick(); fetchItems(); }} disabled={loading}>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowBrowseFilters(!showBrowseFilters)}
+              className={showBrowseFilters ? "border-primary text-primary" : ""}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => { playClick(); fetchItems(); }} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
+
+          {showBrowseFilters && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="overflow-hidden">
+              <Card>
+                <CardContent className="py-3 px-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Min RAP</label>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={browseMinRap}
+                        onChange={(e) => setBrowseMinRap(e.target.value)}
+                        className="mt-1 h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Max RAP</label>
+                      <Input
+                        type="number"
+                        placeholder="No limit"
+                        value={browseMaxRap}
+                        onChange={(e) => setBrowseMaxRap(e.target.value)}
+                        className="mt-1 h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Min Demand</label>
+                      <Select value={browseMinDemand} onValueChange={setBrowseMinDemand}>
+                        <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="-2">Any</SelectItem>
+                          <SelectItem value="-1">Terrible+</SelectItem>
+                          <SelectItem value="0">Low+</SelectItem>
+                          <SelectItem value="1">Normal+</SelectItem>
+                          <SelectItem value="2">High+</SelectItem>
+                          <SelectItem value="3">Amazing</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Sort By</label>
+                      <Select value={browseSortBy} onValueChange={setBrowseSortBy}>
+                        <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="rap">RAP (High→Low)</SelectItem>
+                          <SelectItem value="value">Value (High→Low)</SelectItem>
+                          <SelectItem value="demand">Demand (High→Low)</SelectItem>
+                          <SelectItem value="name">Name (A→Z)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button size="sm" className="mt-3 w-full h-7 text-xs" onClick={() => { playClick(); fetchItems(); }}>
+                    Apply Filters
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
           {loading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
@@ -161,7 +257,7 @@ export default function Sniper() {
             </Card>
           ) : (
             <div className="space-y-1.5">
-              {items.slice(0, 200).map((item) => (
+              {items.map((item) => (
                 <Card key={item.id} className="hover:bg-secondary/30 transition-colors">
                   <CardContent className="py-2 px-3 flex items-center gap-3">
                     {item.thumbnailUrl ? (
@@ -206,7 +302,7 @@ export default function Sniper() {
 
         <TabsContent value="deals" className="space-y-4 mt-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Filter className="w-4 h-4" /> Deal Finder
               </CardTitle>
@@ -214,7 +310,7 @@ export default function Sniper() {
                 Find limiteds selling below their RAP. Compares Best Price on Roblox vs RAP.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               <Button onClick={fetchDeals} disabled={dealsLoading} className="w-full">
                 {dealsLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Crosshair className="w-4 h-4 mr-2" />}
                 Scan for Deals
@@ -222,72 +318,129 @@ export default function Sniper() {
             </CardContent>
           </Card>
 
-          {dealsLoading && (
-            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          {deals.length > 0 && !dealsLoading && (
+            <>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Search deals..."
+                  value={dealsSearch}
+                  onChange={(e) => setDealsSearch(e.target.value)}
+                  className="flex-1 h-8 text-xs"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`h-8 text-xs gap-1.5 ${showDealsFilters ? "border-primary text-primary" : ""}`}
+                  onClick={() => setShowDealsFilters(!showDealsFilters)}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  Filters
+                  {showDealsFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </Button>
+              </div>
+
+              {showDealsFilters && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="overflow-hidden">
+                  <Card>
+                    <CardContent className="py-3 px-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Min Discount %</label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={dealsMinDiscount}
+                            onChange={(e) => setDealsMinDiscount(e.target.value)}
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Min Demand</label>
+                          <Select value={dealsMinDemand} onValueChange={setDealsMinDemand}>
+                            <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="-2">Any</SelectItem>
+                              <SelectItem value="-1">Terrible+</SelectItem>
+                              <SelectItem value="0">Low+</SelectItem>
+                              <SelectItem value="1">Normal+</SelectItem>
+                              <SelectItem value="2">High+</SelectItem>
+                              <SelectItem value="3">Amazing</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+
+              <p className="text-xs text-muted-foreground font-semibold">
+                {filteredDeals.length} deal{filteredDeals.length !== 1 ? "s" : ""} found
+                {filteredDeals.length !== deals.length && ` (${deals.length} total)`}
+              </p>
+
+              <div className="space-y-2">
+                {filteredDeals.map((item, i) => {
+                  const bestPrice = item.listedPrice ?? item.value;
+                  const dealPercent = item.discount ?? (item.rap > 0 && bestPrice > 0 ? Math.round(((item.rap - bestPrice) / item.rap) * 100) : 0);
+                  const hasListedPrice = item.listedPrice != null && item.listedPrice > 0;
+
+                  return (
+                    <motion.div key={item.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(i * 0.02, 1) }}>
+                      <Card className="hover:border-green-500/30 transition-colors">
+                        <CardContent className="py-3 px-4 flex items-center justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
+                              <span className="text-xs font-bold text-green-500">#{i + 1}</span>
+                            </div>
+                            {item.thumbnailUrl ? (
+                              <img
+                                src={item.thumbnailUrl}
+                                alt={item.name}
+                                className="w-12 h-12 rounded-lg object-cover border border-border/50 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                                <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate flex items-center gap-1.5">
+                                {item.name}
+                                {item.rare && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
+                                <span className="font-mono">RAP: <span className="text-foreground font-semibold">{item.rap.toLocaleString()} R$</span></span>
+                                <span className="text-muted-foreground">→</span>
+                                <span className="font-mono text-green-600 font-semibold">
+                                  {hasListedPrice ? "Best Price" : "Value"}: {bestPrice.toLocaleString()} R$
+                                </span>
+                                <DemandBadge demand={item.demand} label={item.demandLabel} />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {dealPercent > 0 && (
+                              <div className="text-right">
+                                <p className="text-lg font-black text-green-500">{dealPercent}%</p>
+                                <p className="text-[10px] text-muted-foreground font-medium">DEAL</p>
+                              </div>
+                            )}
+                            <a href={`https://www.rolimons.com/item/${item.id}`} target="_blank" rel="noreferrer">
+                              <Button variant="ghost" size="sm"><ArrowUpRight className="w-4 h-4" /></Button>
+                            </a>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </>
           )}
 
-          {deals.length > 0 && !dealsLoading && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground font-semibold">{deals.length} deals found</p>
-              {deals.map((item, i) => {
-                const bestPrice = item.listedPrice ?? 0;
-                const dealPercent = item.rap > 0 && bestPrice > 0 ? Math.round(((item.rap - bestPrice) / item.rap) * 100) : 0;
-
-                return (
-                  <motion.div key={item.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(i * 0.02, 1) }}>
-                    <Card className="hover:border-green-500/30 transition-colors">
-                      <CardContent className="py-3 px-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
-                            <span className="text-xs font-bold text-green-500">#{i + 1}</span>
-                          </div>
-                          {item.thumbnailUrl ? (
-                            <img
-                              src={item.thumbnailUrl}
-                              alt={item.name}
-                              className="w-12 h-12 rounded-lg object-cover border border-border/50 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                              <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold truncate flex items-center gap-1.5">
-                              {item.name}
-                              {item.rare && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
-                            </p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
-                              <span className="font-mono">RAP: <span className="text-foreground font-semibold">{item.rap.toLocaleString()} R$</span></span>
-                              {bestPrice > 0 && (
-                                <>
-                                  <span className="text-muted-foreground">→</span>
-                                  <span className="font-mono text-green-600 font-semibold">
-                                    Best Price: {bestPrice.toLocaleString()} R$
-                                  </span>
-                                </>
-                              )}
-                              <DemandBadge demand={item.demand} label={item.demandLabel} />
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          {dealPercent > 0 && (
-                            <div className="text-right">
-                              <p className="text-lg font-black text-green-500">{dealPercent}%</p>
-                              <p className="text-[10px] text-muted-foreground font-medium">DEAL</p>
-                            </div>
-                          )}
-                          <a href={`https://www.rolimons.com/item/${item.id}`} target="_blank" rel="noreferrer">
-                            <Button variant="ghost" size="sm"><ArrowUpRight className="w-4 h-4" /></Button>
-                          </a>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                );
-              })}
-            </div>
+          {dealsLoading && (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
           )}
 
           {deals.length === 0 && !dealsLoading && (

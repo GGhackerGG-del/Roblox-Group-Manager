@@ -133,6 +133,10 @@ router.get("/sniper/items", async (req, res): Promise<void> => {
   try {
     const allItems = await fetchRolimonsItems();
     const search = String(req.query.search || "").toLowerCase().trim();
+    const minRap = parseInt(String(req.query.minRap || "0"), 10);
+    const maxRap = parseInt(String(req.query.maxRap || "0"), 10);
+    const minDemand = parseInt(String(req.query.minDemand || "-2"), 10);
+    const sortBy = String(req.query.sortBy || "rap");
 
     let filtered = allItems.filter(i => i.value > 0 && i.rap > 0);
 
@@ -142,9 +146,19 @@ router.get("/sniper/items", async (req, res): Promise<void> => {
       );
     }
 
-    const sorted = filtered
-      .sort((a, b) => b.rap - a.rap)
-      .slice(0, 200);
+    if (minRap > 0) filtered = filtered.filter(i => i.rap >= minRap);
+    if (maxRap > 0) filtered = filtered.filter(i => i.rap <= maxRap);
+    if (minDemand > -2) filtered = filtered.filter(i => i.demand >= minDemand);
+
+    let sorted: RolimonsItem[];
+    switch (sortBy) {
+      case "value": sorted = filtered.sort((a, b) => b.value - a.value); break;
+      case "demand": sorted = filtered.sort((a, b) => b.demand - a.demand); break;
+      case "name": sorted = filtered.sort((a, b) => a.name.localeCompare(b.name)); break;
+      default: sorted = filtered.sort((a, b) => b.rap - a.rap); break;
+    }
+
+    sorted = sorted.slice(0, 200);
 
     const thumbIds = sorted.map(i => i.id);
     const thumbMap = await batchFetchThumbnails(thumbIds);
@@ -267,7 +281,37 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
     }
 
     if (dealsFromApi.length === 0) {
-      console.log("[Sniper] Rolimons deals API returned no results");
+      console.log("[Sniper] Rolimons deals API returned no results, using value-based fallback");
+      const allItems = await fetchRolimonsItems();
+      const valueBased = allItems
+        .filter(i => i.rap > 0 && i.value > 0 && i.value < i.rap && i.demand >= 0)
+        .sort((a, b) => {
+          const aDeal = (a.rap - a.value) / a.rap;
+          const bDeal = (b.rap - b.value) / b.rap;
+          return bDeal - aDeal;
+        })
+        .slice(0, 100);
+
+      const ids = valueBased.map(i => i.id);
+      const thumbMap = await batchFetchThumbnails(ids);
+
+      dealsFromApi = valueBased.map(i => ({
+        id: i.id,
+        name: i.name,
+        acronym: i.acronym,
+        rap: i.rap,
+        value: i.value,
+        demand: i.demand,
+        demandLabel: getDemandLabel(i.demand),
+        trend: i.trend,
+        trendLabel: getTrendLabel(i.trend),
+        projected: i.projected === 1,
+        hyped: i.hyped === 1,
+        rare: i.rare === 1,
+        discount: Math.round(((i.rap - i.value) / i.rap) * 100),
+        priceDiff: Math.round(((i.value - i.rap) / i.rap) * 100),
+        thumbnailUrl: thumbMap[i.id] || null,
+      }));
     }
 
     const source = dealsFromApi.length > 0 && dealsFromApi[0].listedPrice != null ? "rolimons_deals" : "value_filter";

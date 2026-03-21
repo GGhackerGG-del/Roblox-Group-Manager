@@ -64,17 +64,27 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
 
     let txCursor: string | null = null;
     let txPages = 0;
-    const MAX_TX_PAGES = 10;
+    const MAX_TX_PAGES = 50;
     let txRetries = 0;
 
     do {
       const txUrl = `${ROBLOX_ECONOMY_API}/v2/groups/${groupId}/transactions?transactionType=Sale&limit=100${txCursor ? `&cursor=${txCursor}` : ""}`;
-      const txResp = await fetchRoblox(txUrl, cookie);
+      let txResp: Response;
+      try {
+        txResp = await fetchRoblox(txUrl, cookie);
+      } catch {
+        if (txRetries < 5) {
+          txRetries++;
+          await new Promise(r => setTimeout(r, 3000 * txRetries));
+          continue;
+        }
+        break;
+      }
 
       if (!txResp.ok) {
-        if (txResp.status === 429 && txRetries < 3) {
+        if (txResp.status === 429 && txRetries < 5) {
           txRetries++;
-          await new Promise(r => setTimeout(r, 2000 * txRetries));
+          await new Promise(r => setTimeout(r, 3000 * txRetries));
           continue;
         }
         break;
@@ -105,7 +115,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
 
       txCursor = d.nextPageCursor || null;
       txPages++;
-      if (txCursor) await new Promise(r => setTimeout(r, 300));
+      if (txCursor) await new Promise(r => setTimeout(r, 500));
     } while (txCursor && txPages < MAX_TX_PAGES);
 
     console.log(`[P&L] Fetched ${transactions.length} total transactions across ${txPages} pages`);
