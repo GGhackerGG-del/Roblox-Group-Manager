@@ -110,9 +110,6 @@ export default function Settings() {
         compactMode,
         autoRefreshSales,
       },
-      savedPrompts: Object.keys(localStorage)
-        .filter(k => k.startsWith("limitedink_prompt_"))
-        .reduce((acc, k) => ({ ...acc, [k]: localStorage.getItem(k) }), {}),
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -123,10 +120,20 @@ export default function Settings() {
     toast({ title: "Exported!", description: "Your data has been saved as a JSON file." });
   };
 
-  const handleClearPrompts = () => {
-    const keys = Object.keys(localStorage).filter(k => k.startsWith("limitedink_prompt_") || k.startsWith("limitedink_ctype_"));
-    keys.forEach(k => localStorage.removeItem(k));
-    toast({ title: "Cleared!", description: `${keys.length} saved prompts have been cleared.` });
+  const playNotifSound = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+    } catch {}
   };
 
   const sections = [
@@ -313,13 +320,24 @@ export default function Settings() {
                       <p className="font-semibold text-sm">Sound Effects</p>
                       <p className="text-xs text-muted-foreground">Play sounds for actions and events.</p>
                     </div>
-                    <Switch
-                      checked={notifSound}
-                      onCheckedChange={v => {
-                        setNotifSound(v);
-                        localStorage.setItem("limitedink_notif_sound", String(v));
-                      }}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 px-2"
+                        onClick={playNotifSound}
+                      >
+                        Test
+                      </Button>
+                      <Switch
+                        checked={notifSound}
+                        onCheckedChange={v => {
+                          setNotifSound(v);
+                          localStorage.setItem("limitedink_notif_sound", String(v));
+                          if (v) playNotifSound();
+                        }}
+                      />
+                    </div>
                   </div>
                   <div className="flex items-center justify-between py-2 border-t border-border">
                     <div>
@@ -419,15 +437,6 @@ export default function Settings() {
                   <CardContent className="space-y-3">
                     <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-xl">
                       <div>
-                        <p className="text-sm font-semibold">Saved AI Prompts</p>
-                        <p className="text-xs text-muted-foreground">Prompts saved per group</p>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={handleClearPrompts} className="rounded-lg gap-1.5 text-xs">
-                        <Trash2 className="w-3.5 h-3.5" /> Clear
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-xl">
-                      <div>
                         <p className="text-sm font-semibold">UI Preferences</p>
                         <p className="text-xs text-muted-foreground">Theme, tab states, and more</p>
                       </div>
@@ -436,7 +445,7 @@ export default function Settings() {
                         size="sm"
                         className="rounded-lg gap-1.5 text-xs"
                         onClick={() => {
-                          const keys = Object.keys(localStorage).filter(k => k.startsWith("limitedink_") && !k.includes("prompt") && !k.includes("bio"));
+                          const keys = Object.keys(localStorage).filter(k => k.startsWith("limitedink_") && !k.includes("bio"));
                           keys.forEach(k => localStorage.removeItem(k));
                           toast({ title: "Cleared", description: "UI preferences have been reset." });
                         }}

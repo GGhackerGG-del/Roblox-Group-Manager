@@ -300,6 +300,166 @@ router.post("/clothing/generate", async (req, res): Promise<void> => {
   }
 });
 
+async function uploadSingleClothing(
+  cookie: string,
+  csrfToken: string,
+  groupId: number,
+  name: string,
+  description: string,
+  imageData: string,
+  clothingType: string
+): Promise<{ assetId: number | null; error?: string }> {
+  const imageBuffer = Buffer.from(imageData, "base64");
+  const assetTypeId = clothingType === "Pants" ? 12 : 11;
+
+  const endpoints = [
+    {
+      name: "itemconfiguration",
+      fn: async () => {
+        const boundary = `----WebKitFormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;
+        const crlf = "\r\n";
+
+        const configJson = JSON.stringify({
+          assetType: clothingType === "Pants" ? "ClassicPants" : "ClassicShirt",
+          displayName: name,
+          description: description || "Uploaded via Limited.Ink",
+          creationContext: { creator: { groupId } },
+        });
+
+        const parts: Buffer[] = [];
+        parts.push(Buffer.from(
+          `--${boundary}${crlf}` +
+          `Content-Disposition: form-data; name="config"; filename="config.json"${crlf}` +
+          `Content-Type: application/json${crlf}${crlf}` +
+          configJson + crlf, "utf8"
+        ));
+        parts.push(Buffer.from(
+          `--${boundary}${crlf}` +
+          `Content-Disposition: form-data; name="fileContent"; filename="clothing.png"${crlf}` +
+          `Content-Type: image/png${crlf}${crlf}`, "utf8"
+        ));
+        parts.push(imageBuffer);
+        parts.push(Buffer.from(`${crlf}--${boundary}--${crlf}`, "utf8"));
+
+        const body = Buffer.concat(parts);
+
+        const resp = await fetch("https://itemconfiguration.roblox.com/v1/avatar-assets/upload", {
+          method: "POST",
+          headers: {
+            Cookie: `.ROBLOSECURITY=${cookie}`,
+            "X-CSRF-TOKEN": csrfToken,
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          },
+          body,
+        });
+
+        if (resp.ok) {
+          const data = await resp.json() as { assetId?: number; id?: number };
+          return data.assetId || data.id || null;
+        }
+        const text = await resp.text();
+        console.log(`[Upload] itemconfiguration status=${resp.status} body=${text.slice(0, 500)}`);
+        return null;
+      },
+    },
+    {
+      name: "data.roblox.com",
+      fn: async () => {
+        const typeName = clothingType === "Pants" ? "Pants" : "Shirt";
+        const url = `https://data.roblox.com/Data/Upload.ashx?json=1&type=${typeName}&groupId=${groupId}&name=${encodeURIComponent(name)}&description=${encodeURIComponent(description || "Uploaded via Limited.Ink")}&isOwnCreation=true`;
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: {
+            Cookie: `.ROBLOSECURITY=${cookie}`,
+            "X-CSRF-TOKEN": csrfToken,
+            "Content-Type": "application/octet-stream",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          },
+          body: imageBuffer,
+        });
+        if (resp.ok) {
+          const text = await resp.text();
+          const match = text.match(/(\d{8,})/);
+          return match ? parseInt(match[1], 10) : null;
+        }
+        const text = await resp.text();
+        console.log(`[Upload] data.roblox.com status=${resp.status} body=${text.slice(0, 500)}`);
+        return null;
+      },
+    },
+    {
+      name: "item.ashx",
+      fn: async () => {
+        const boundary = `----FormBoundary${Date.now()}`;
+        const crlf = "\r\n";
+
+        const parts: Buffer[] = [];
+        const fields: Record<string, string> = {
+          name,
+          description: description || "Uploaded via Limited.Ink",
+          assetTypeId: String(assetTypeId),
+          groupId: String(groupId),
+          isOwnCreation: "True",
+        };
+
+        for (const [key, val] of Object.entries(fields)) {
+          parts.push(Buffer.from(
+            `--${boundary}${crlf}` +
+            `Content-Disposition: form-data; name="${key}"${crlf}${crlf}` +
+            val + crlf, "utf8"
+          ));
+        }
+
+        parts.push(Buffer.from(
+          `--${boundary}${crlf}` +
+          `Content-Disposition: form-data; name="file"; filename="clothing.png"${crlf}` +
+          `Content-Type: image/png${crlf}${crlf}`, "utf8"
+        ));
+        parts.push(imageBuffer);
+        parts.push(Buffer.from(`${crlf}--${boundary}--${crlf}`, "utf8"));
+
+        const body = Buffer.concat(parts);
+
+        const resp = await fetch("https://www.roblox.com/build/upload", {
+          method: "POST",
+          headers: {
+            Cookie: `.ROBLOSECURITY=${cookie}`,
+            "X-CSRF-TOKEN": csrfToken,
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          },
+          body,
+        });
+
+        if (resp.ok) {
+          const text = await resp.text();
+          const match = text.match(/(\d{8,})/);
+          return match ? parseInt(match[1], 10) : null;
+        }
+        const text = await resp.text();
+        console.log(`[Upload] build/upload status=${resp.status} body=${text.slice(0, 500)}`);
+        return null;
+      },
+    },
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      console.log(`[Upload] Trying ${ep.name}...`);
+      const result = await ep.fn();
+      if (result) {
+        console.log(`[Upload] Success via ${ep.name}: assetId=${result}`);
+        return { assetId: result };
+      }
+    } catch (err) {
+      console.error(`[Upload] ${ep.name} error:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  return { assetId: null, error: "All upload methods failed. Please check your Roblox session." };
+}
+
 router.post("/clothing/upload", async (req, res): Promise<void> => {
   const altIndex: number | null = typeof req.body.altIndex === "number" ? req.body.altIndex : null;
 
@@ -320,6 +480,63 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     return;
   }
 
+  const csrfToken = await getRobloxCsrf(cookie);
+  if (!csrfToken) {
+    res.status(401).json({ error: "Failed to get Roblox CSRF token. Please check your cookie." });
+    return;
+  }
+
+  const rawItems = req.body.items;
+
+  if (rawItems && Array.isArray(rawItems) && rawItems.length > 0) {
+    const results: Array<{ name: string; assetId: number | null; status: string; error?: string }> = [];
+
+    for (let idx = 0; idx < rawItems.length; idx++) {
+      const item = rawItems[idx];
+      if (!item || typeof item.imageData !== "string" || !item.imageData || typeof item.clothingType !== "string") {
+        results.push({ name: item?.name || `Item ${idx}`, assetId: null, status: "failed", error: "Missing required fields (imageData, clothingType)" });
+        continue;
+      }
+      const itemGroupId = typeof item.groupId === "number" ? item.groupId : parseInt(String(item.groupId), 10);
+      if (isNaN(itemGroupId)) {
+        results.push({ name: item.name || `Item ${idx}`, assetId: null, status: "failed", error: "Invalid groupId" });
+        continue;
+      }
+
+      try {
+        const result = await uploadSingleClothing(
+          cookie, csrfToken, itemGroupId, String(item.name || "Clothing").trim(),
+          String(item.description || ""), item.imageData, item.clothingType
+        );
+        results.push({
+          name: item.name || `Item ${idx}`,
+          assetId: result.assetId,
+          status: result.assetId ? "uploaded" : "failed",
+          error: result.error,
+        });
+      } catch (err) {
+        results.push({
+          name: item.name || `Item ${idx}`,
+          assetId: null,
+          status: "failed",
+          error: err instanceof Error ? err.message : "Unexpected error",
+        });
+      }
+
+      if (idx < rawItems.length - 1) {
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+
+    res.json({
+      results,
+      uploaded: results.filter(r => r.assetId).length,
+      failed: results.filter(r => !r.assetId).length,
+      uploadedWith: altIndex !== null ? `alt_${altIndex}` : "main",
+    });
+    return;
+  }
+
   const parsed = UploadClothingBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -328,74 +545,22 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
 
   const { groupId, name, description, imageData, clothingType } = parsed.data;
 
-  const csrfToken = await getRobloxCsrf(cookie);
-  if (!csrfToken) {
-    res.status(401).json({ error: "Failed to get Roblox CSRF token. Please check your cookie." });
-    return;
-  }
+  const result = await uploadSingleClothing(cookie, csrfToken, groupId, name, description || "", imageData, clothingType);
 
-  const imageBuffer = Buffer.from(imageData, "base64");
-
-  let assetId: number | null = null;
-  try {
-    const assetTypeId = clothingType === "Pants" ? 12 : 11;
-
-    const boundary = `----FormBoundary${Date.now()}`;
-    const crlf = "\r\n";
-
-    let body = "";
-    body += `--${boundary}${crlf}`;
-    body += `Content-Disposition: form-data; name="request"${crlf}${crlf}`;
-    body += JSON.stringify({
-      displayName: name,
-      description: description || `Uploaded via Limited.Ink`,
-      assetTypeId,
-      groupId,
-    }) + crlf;
-
-    const headerStr = [
-      `--${boundary}${crlf}`,
-      `Content-Disposition: form-data; name="fileContent"; filename="clothing.png"${crlf}`,
-      `Content-Type: image/png${crlf}${crlf}`,
-    ].join("");
-
-    const footer = `${crlf}--${boundary}--${crlf}`;
-
-    const totalBuffer = Buffer.concat([
-      Buffer.from(body, "utf8"),
-      Buffer.from(headerStr, "utf8"),
-      imageBuffer,
-      Buffer.from(footer, "utf8"),
-    ]);
-
-    const uploadResp = await fetch("https://www.roblox.com/api/item.ashx?type=asset", {
-      method: "POST",
-      headers: {
-        Cookie: `.ROBLOSECURITY=${cookie}`,
-        "X-CSRF-TOKEN": csrfToken,
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        "User-Agent": "Mozilla/5.0",
-      },
-      body: totalBuffer,
+  if (result.assetId) {
+    res.json({
+      assetId: result.assetId,
+      name,
+      status: "uploaded",
+      uploadedWith: altIndex !== null ? `alt_${altIndex}` : "main",
     });
-
-    if (uploadResp.ok) {
-      const text = await uploadResp.text();
-      const match = text.match(/(\d{8,})/);
-      if (match) assetId = parseInt(match[1], 10);
-    }
-  } catch {
-    // Upload failed — return placeholder
+  } else {
+    res.status(500).json({
+      error: result.error || "Upload failed. Please try again.",
+      name,
+      status: "failed",
+    });
   }
-
-  const finalAssetId = assetId || (Math.floor(Math.random() * 9000000000) + 1000000000);
-
-  res.json({
-    assetId: finalAssetId,
-    name,
-    status: assetId ? "uploaded" : "pending_review",
-    uploadedWith: altIndex !== null ? `alt_${altIndex}` : "main",
-  });
 });
 
 export default router;

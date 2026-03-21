@@ -3,7 +3,6 @@ import { Router, type IRouter } from "express";
 const router: IRouter = Router();
 
 const ROBLOX_ECONOMY_API = "https://economy.roblox.com";
-const ROBLOX_USERS_API = "https://users.roblox.com";
 
 async function fetchRoblox(url: string, cookie: string): Promise<Response> {
   return fetch(url, {
@@ -31,10 +30,9 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
   }
 
   try {
-    const [fundsResp, revResp, txResp] = await Promise.allSettled([
+    const [fundsResp, revResp] = await Promise.allSettled([
       fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/currency`, cookie),
       fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Day`, cookie),
-      fetchRoblox(`${ROBLOX_ECONOMY_API}/v2/groups/${groupId}/transactions?transactionType=Sale&limit=100`, cookie),
     ]);
 
     let funds = 0;
@@ -62,8 +60,27 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       description: string;
     }> = [];
 
-    if (txResp.status === "fulfilled" && txResp.value.ok) {
-      const d = await txResp.value.json() as {
+    let txCursor: string | null = null;
+    let txPages = 0;
+    const MAX_TX_PAGES = 50;
+    let txRetries = 0;
+
+    do {
+      const txUrl = `${ROBLOX_ECONOMY_API}/v2/groups/${groupId}/transactions?transactionType=Sale&limit=100${txCursor ? `&cursor=${txCursor}` : ""}`;
+      const txResp = await fetchRoblox(txUrl, cookie);
+
+      if (!txResp.ok) {
+        if (txResp.status === 429 && txRetries < 3) {
+          txRetries++;
+          await new Promise(r => setTimeout(r, 2000 * txRetries));
+          continue;
+        }
+        break;
+      }
+      txRetries = 0;
+
+      const d = await txResp.json() as {
+        nextPageCursor?: string | null;
         data: Array<{
           id: number;
           created: string;
@@ -72,6 +89,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
           details?: { name: string };
         }>;
       };
+
       for (const tx of d.data || []) {
         transactions.push({
           id: String(tx.id),
@@ -81,7 +99,13 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
           description: tx.details?.name ?? "Sale",
         });
       }
-    }
+
+      txCursor = d.nextPageCursor || null;
+      txPages++;
+      if (txCursor) await new Promise(r => setTimeout(r, 300));
+    } while (txCursor && txPages < MAX_TX_PAGES);
+
+    console.log(`[P&L] Fetched ${transactions.length} total transactions across ${txPages} pages`);
 
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -129,7 +153,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       totalSales: transactions.length,
       todaySales: todayTx.length,
       topItems,
-      recentTransactions: transactions.slice(0, 30),
+      recentTransactions: transactions.slice(0, 50),
     });
   } catch (err) {
     console.error("[P&L] Error:", err);

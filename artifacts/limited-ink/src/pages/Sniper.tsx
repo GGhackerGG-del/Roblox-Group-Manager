@@ -5,11 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import {
   Crosshair, Loader2, RefreshCw, ArrowUpRight, Filter, BarChart3, Zap, TrendingUp,
-  TrendingDown, Minus, Star, Flame
+  TrendingDown, Minus, Star, Flame, Image as ImageIcon
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -30,6 +28,8 @@ interface SniperItem {
   rare: boolean;
   priceDiff: number;
   discount?: number;
+  thumbnailUrl?: string | null;
+  listedPrice?: number;
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -62,9 +62,6 @@ export default function Sniper() {
   const [deals, setDeals] = useState<SniperItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [dealsLoading, setDealsLoading] = useState(false);
-  const [maxRap, setMaxRap] = useState("1000000");
-  const [minDemand, setMinDemand] = useState("-1");
-  const [pricePercent, setPricePercent] = useState([100]);
   const [search, setSearch] = useState("");
   const [totalItems, setTotalItems] = useState(0);
 
@@ -85,14 +82,13 @@ export default function Sniper() {
   const fetchDeals = useCallback(async () => {
     setDealsLoading(true);
     try {
-      const params = new URLSearchParams({ maxRap, minDemand, maxPricePercent: String(pricePercent[0]) });
-      const resp = await fetch(`${BASE}/api/sniper/deals?${params}`, { credentials: "include", headers: getAuthHeaders() });
+      const resp = await fetch(`${BASE}/api/sniper/deals`, { credentials: "include", headers: getAuthHeaders() });
       if (resp.ok) {
         const data = await resp.json();
         setDeals(data.deals || []);
       }
     } catch {} finally { setDealsLoading(false); }
-  }, [maxRap, minDemand, pricePercent]);
+  }, []);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -191,42 +187,11 @@ export default function Sniper() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
-                <Filter className="w-4 h-4" /> Deal Finder Settings
+                <Filter className="w-4 h-4" /> Deal Finder
               </CardTitle>
-              <CardDescription className="text-xs">Find limiteds selling below their value</CardDescription>
+              <CardDescription className="text-xs">Find limiteds listed below their Rolimons value (like rolimons.com/deals)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs">Max RAP</Label>
-                  <Input value={maxRap} onChange={(e) => setMaxRap(e.target.value)} className="font-mono text-sm" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Min Demand</Label>
-                  <select
-                    value={minDemand}
-                    onChange={(e) => setMinDemand(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="-1">Any</option>
-                    <option value="0">Low+</option>
-                    <option value="1">Normal+</option>
-                    <option value="2">High+</option>
-                    <option value="3">Amazing only</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Max Price % of RAP: {pricePercent[0]}%</Label>
-                  <Slider
-                    value={pricePercent}
-                    onValueChange={setPricePercent}
-                    min={10}
-                    max={100}
-                    step={5}
-                    className="mt-2"
-                  />
-                </div>
-              </div>
               <Button onClick={fetchDeals} disabled={dealsLoading} className="w-full">
                 {dealsLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Crosshair className="w-4 h-4 mr-2" />}
                 Scan for Deals
@@ -234,24 +199,43 @@ export default function Sniper() {
             </CardContent>
           </Card>
 
+          {dealsLoading && (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          )}
+
           {deals.length > 0 && (
             <div className="space-y-2">
+              <p className="text-xs text-muted-foreground font-semibold">{deals.length} deals found</p>
               {deals.map((item, i) => (
-                <motion.div key={item.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}>
+                <motion.div key={item.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(i * 0.02, 1) }}>
                   <Card className="hover:border-green-500/30 transition-colors">
                     <CardContent className="py-3 px-4 flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0 relative">
                           <span className="text-xs font-bold text-green-500">#{i + 1}</span>
                         </div>
+                        {item.thumbnailUrl ? (
+                          <img
+                            src={item.thumbnailUrl}
+                            alt={item.name}
+                            className="w-12 h-12 rounded-lg object-cover border border-border/50 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                            <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <p className="text-sm font-semibold truncate flex items-center gap-1.5">
                             {item.name}
                             {item.rare && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
                           </p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                             <span>RAP: {item.rap.toLocaleString()}</span>
                             <span>Value: {item.value.toLocaleString()}</span>
+                            {item.listedPrice != null && (
+                              <span className="text-green-600 font-semibold">Listed: {item.listedPrice.toLocaleString()}</span>
+                            )}
                             <DemandBadge demand={item.demand} label={item.demandLabel} />
                           </div>
                         </div>
@@ -260,7 +244,7 @@ export default function Sniper() {
                         {item.discount != null && item.discount > 0 && (
                           <div className="text-right">
                             <p className="text-sm font-bold text-green-500">-{item.discount}%</p>
-                            <p className="text-[10px] text-muted-foreground">below RAP</p>
+                            <p className="text-[10px] text-muted-foreground">below value</p>
                           </div>
                         )}
                         <a href={`https://www.rolimons.com/item/${item.id}`} target="_blank" rel="noreferrer">
@@ -278,7 +262,7 @@ export default function Sniper() {
             <Card className="border-dashed">
               <CardContent className="py-12 text-center text-muted-foreground">
                 <Crosshair className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Click "Scan for Deals" to find limiteds selling below value</p>
+                <p className="text-sm">Click "Scan for Deals" to find limiteds listed below their Rolimons value</p>
               </CardContent>
             </Card>
           )}

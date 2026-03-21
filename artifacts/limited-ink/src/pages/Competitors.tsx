@@ -7,11 +7,21 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, Users, ShoppingBag, DollarSign, Calendar,
-  TrendingUp, Crown, Loader2, AlertCircle, Heart, Shirt
+  TrendingUp, Crown, Loader2, AlertCircle, Heart, Shirt,
+  ChevronDown, ChevronUp, Image as ImageIcon
 } from "lucide-react";
 import { motion } from "framer-motion";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+interface ClothingItem {
+  id: number;
+  name: string;
+  price: number | null;
+  favorites: number;
+  type: string;
+  thumbnailUrl: string | null;
+}
 
 interface CompetitorData {
   group: {
@@ -30,7 +40,8 @@ interface CompetitorData {
     shirts: number;
     pants: number;
     tshirts: number;
-    topItems: Array<{ id: number; name: string; price: number | null; favorites: number; type: string }>;
+    topItems: ClothingItem[];
+    allItems: ClothingItem[];
   };
 }
 
@@ -39,6 +50,8 @@ export default function Competitors() {
   const [data, setData] = useState<CompetitorData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(50);
 
   async function analyze() {
     const id = groupId.trim();
@@ -47,6 +60,8 @@ export default function Competitors() {
     setLoading(true);
     setError(null);
     setData(null);
+    setShowAll(false);
+    setVisibleCount(50);
 
     try {
       const { token, fingerprint } = getAuthCredentials();
@@ -71,6 +86,9 @@ export default function Competitors() {
       setLoading(false);
     }
   }
+
+  const allItems = data?.clothing.allItems || [];
+  const displayItems = showAll ? allItems.slice(0, visibleCount) : (data?.clothing.topItems || []);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -202,48 +220,76 @@ export default function Competitors() {
             </Card>
           )}
 
-          {data.clothing.topItems.length > 0 && (
-            <Card>
-              <CardHeader>
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" /> Top Clothing Items
+                  <TrendingUp className="w-4 h-4" />
+                  {showAll ? `All Clothing (${allItems.length})` : "Top Clothing Items"}
                 </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {data.clothing.topItems.map((item, i) => (
-                    <a
-                      key={item.id}
-                      href={`https://www.roblox.com/catalog/${item.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-between py-2.5 px-3 border border-border/30 rounded-xl hover:bg-secondary/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-muted-foreground font-mono w-5">{i + 1}.</span>
-                        <div>
-                          <span className="text-sm font-medium">{item.name}</span>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <Badge variant="outline" className="text-[10px] h-4">
-                              {item.type}
-                            </Badge>
-                            {item.favorites > 0 && (
-                              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                <Heart className="w-2.5 h-2.5" /> {item.favorites.toLocaleString()}
-                              </span>
-                            )}
-                          </div>
+                {allItems.length > 15 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg text-xs gap-1.5"
+                    onClick={() => { setShowAll(!showAll); setVisibleCount(50); }}
+                  >
+                    {showAll ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    {showAll ? "Show Top 15" : `Show All (${allItems.length})`}
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar">
+                {displayItems.map((item, i) => (
+                  <a
+                    key={item.id}
+                    href={`https://www.roblox.com/catalog/${item.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between py-2.5 px-3 border border-border/30 rounded-xl hover:bg-secondary/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground font-mono w-5">{i + 1}.</span>
+                      {item.thumbnailUrl ? (
+                        <img src={item.thumbnailUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-border/50" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                          <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-sm font-medium">{item.name}</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Badge variant="outline" className="text-[10px] h-4">
+                            {item.type}
+                          </Badge>
+                          {item.favorites > 0 && (
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                              <Heart className="w-2.5 h-2.5" /> {item.favorites.toLocaleString()}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        {item.price != null ? `${item.price} R$` : "Off-sale"}
-                      </Badge>
-                    </a>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    </div>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {item.price != null ? `${item.price} R$` : "Off-sale"}
+                    </Badge>
+                  </a>
+                ))}
+              </div>
+              {showAll && visibleCount < allItems.length && (
+                <Button
+                  variant="outline"
+                  className="w-full mt-3 rounded-xl text-xs"
+                  onClick={() => setVisibleCount(v => v + 50)}
+                >
+                  Load more ({allItems.length - visibleCount} remaining)
+                </Button>
+              )}
+            </CardContent>
+          </Card>
         </motion.div>
       )}
     </div>

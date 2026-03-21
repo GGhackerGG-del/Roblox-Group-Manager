@@ -573,151 +573,171 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
 
 // ─── Upload Clothing Tab ──────────────────────────────────────────────────────
 
+interface QueuedFile {
+  id: string;
+  name: string;
+  imageData: string;
+  previewUrl: string;
+  status: "pending" | "uploading" | "done" | "failed";
+  assetId?: number;
+  error?: string;
+}
+
 function UploadClothingTab({ groupId }: { groupId: number }) {
   const { toast } = useToast();
-  const [clothingImage, setClothingImage] = useState<string | null>(null);
+  const [queue, setQueue] = useState<QueuedFile[]>([]);
   const [templateImage, setTemplateImage] = useState<string | null>(null);
-  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
   const [clothingType, setClothingType] = useState<"Shirt" | "Pants">("Shirt");
   const [uploading, setUploading] = useState(false);
   const [altIndex, setAltIndex] = useState<number | null>(null);
   const [alts, setAlts] = useState<AltAccount[]>([]);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<{ accounts: AltAccount[] }>("/api/roblox/alt").then(d => setAlts(d.accounts)).catch(() => {});
   }, []);
 
-  const handleFileSelect = (setter: (v: string | null) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMultiFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const b64 = result.split(",")[1];
+        const fileName = file.name.replace(/\.[^.]+$/, "");
+        setQueue(prev => [...prev, {
+          id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          name: fileName,
+          imageData: b64,
+          previewUrl: result,
+          status: "pending",
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
+  const handleTemplateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      const b64 = result.split(",")[1];
-      setter(b64);
+      setTemplateImage(result.split(",")[1]);
     };
     reader.readAsDataURL(file);
   };
 
-  useEffect(() => {
-    if (!clothingImage) { setPreviewUrl(null); return; }
-    if (templateImage) {
+  const removeFromQueue = (id: string) => {
+    setQueue(prev => prev.filter(f => f.id !== id));
+  };
+
+  const updateQueueName = (id: string, newName: string) => {
+    setQueue(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f));
+  };
+
+  const compositeWithTemplate = async (imageData: string): Promise<string> => {
+    if (!templateImage) return imageData;
+    return new Promise<string>((resolve) => {
       const canvas = document.createElement("canvas");
       canvas.width = 585;
       canvas.height = 559;
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      if (!ctx) { resolve(imageData); return; }
 
-      const clothingImg = new Image();
-      clothingImg.onload = () => {
-        ctx.drawImage(clothingImg, 0, 0, 585, 559);
-        const templateImg = new Image();
-        templateImg.onload = () => {
-          ctx.drawImage(templateImg, 0, 0, 585, 559);
-          setPreviewUrl(canvas.toDataURL());
+      const img1 = new Image();
+      img1.onload = () => {
+        ctx.drawImage(img1, 0, 0, 585, 559);
+        const img2 = new Image();
+        img2.onload = () => {
+          ctx.drawImage(img2, 0, 0, 585, 559);
+          resolve(canvas.toDataURL("image/png").split(",")[1]);
         };
-        templateImg.src = `data:image/png;base64,${templateImage}`;
+        img2.src = `data:image/png;base64,${templateImage}`;
       };
-      clothingImg.src = `data:image/png;base64,${clothingImage}`;
-    } else {
-      setPreviewUrl(`data:image/png;base64,${clothingImage}`);
-    }
-  }, [clothingImage, templateImage]);
+      img1.src = `data:image/png;base64,${imageData}`;
+    });
+  };
 
-  const handleUpload = async () => {
-    if (!clothingImage || !name.trim()) return;
+  const handleUploadAll = async () => {
+    const pendingItems = queue.filter(f => f.status === "pending");
+    if (pendingItems.length === 0) return;
     setUploading(true);
 
-    try {
-      let finalImage = clothingImage;
-      if (templateImage) {
-        const canvas = document.createElement("canvas");
-        canvas.width = 585;
-        canvas.height = 559;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          await new Promise<void>((resolve) => {
-            const img1 = new Image();
-            img1.onload = () => {
-              ctx.drawImage(img1, 0, 0, 585, 559);
-              const img2 = new Image();
-              img2.onload = () => {
-                ctx.drawImage(img2, 0, 0, 585, 559);
-                finalImage = canvas.toDataURL("image/png").split(",")[1];
-                resolve();
-              };
-              img2.src = `data:image/png;base64,${templateImage}`;
-            };
-            img1.src = `data:image/png;base64,${clothingImage}`;
-          });
+    for (const item of pendingItems) {
+      setQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: "uploading" } : f));
+
+      try {
+        const finalImage = await compositeWithTemplate(item.imageData);
+        const body: Record<string, unknown> = {
+          groupId,
+          name: item.name.trim() || "Clothing",
+          description: description.trim() || "Uploaded via Limited.Ink",
+          imageData: finalImage,
+          clothingType,
+        };
+        if (altIndex !== null) body.altIndex = altIndex;
+
+        const result = await apiFetch<{ assetId?: number; error?: string; status?: string }>("/api/clothing/upload", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+
+        if (result.assetId) {
+          setQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: "done", assetId: result.assetId } : f));
+        } else {
+          setQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: "failed", error: result.error || "Upload failed" } : f));
         }
+      } catch (err) {
+        setQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: "failed", error: err instanceof Error ? err.message : "Error" } : f));
       }
 
-      const body: Record<string, unknown> = {
-        groupId,
-        name: name.trim(),
-        description: description.trim() || `Uploaded via Limited.Ink`,
-        imageData: finalImage,
-        clothingType,
-      };
-      if (altIndex !== null) body.altIndex = altIndex;
-
-      const result = await apiFetch<{ assetId: number; status: string }>("/api/clothing/upload", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-
-      toast({ title: "Uploaded!", description: `Asset ID: ${result.assetId} (${result.status})` });
-      setClothingImage(null);
-      setTemplateImage(null);
-      setName("");
-      setDescription("");
-      setPrice("");
-      setPreviewUrl(null);
-    } catch (err) {
-      toast({ variant: "destructive", title: "Upload failed", description: err instanceof Error ? err.message : "Unknown error" });
-    } finally {
-      setUploading(false);
+      await new Promise(r => setTimeout(r, 1000));
     }
+
+    const doneCount = queue.filter(f => f.status === "done" || pendingItems.find(p => p.id === f.id)).length;
+    toast({ title: "Upload complete", description: `Processed ${pendingItems.length} items` });
+    setUploading(false);
   };
+
+  const pendingCount = queue.filter(f => f.status === "pending").length;
+  const doneCount = queue.filter(f => f.status === "done").length;
+  const failedCount = queue.filter(f => f.status === "failed").length;
 
   return (
     <div className="space-y-5">
       <Card className="rounded-2xl border border-border shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2"><Upload className="w-5 h-5" /> Upload Clothing</CardTitle>
-          <CardDescription>Upload a PNG clothing image to your Roblox group. Optionally add a template overlay.</CardDescription>
+          <CardDescription>Upload one or multiple PNG clothing images to your Roblox group.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">Clothing Image (PNG) *</Label>
+              <Label className="text-sm font-semibold">Clothing Images (PNG) *</Label>
               <div className="border-2 border-dashed border-border rounded-xl p-4 text-center hover:border-foreground/30 transition-colors cursor-pointer relative">
-                <input type="file" accept="image/png" onChange={handleFileSelect(setClothingImage)} className="absolute inset-0 opacity-0 cursor-pointer" />
-                {clothingImage ? (
-                  <div className="space-y-2">
-                    <img src={`data:image/png;base64,${clothingImage}`} alt="Clothing" className="w-32 h-32 mx-auto object-contain rounded-lg" />
-                    <p className="text-xs text-green-600 font-semibold">Image loaded</p>
-                  </div>
-                ) : (
-                  <div className="py-4">
-                    <Upload className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
-                    <p className="text-xs text-muted-foreground">Click to select clothing PNG</p>
-                  </div>
-                )}
+                <input type="file" accept="image/png" multiple onChange={handleMultiFileSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
+                <div className="py-4">
+                  <Upload className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+                  <p className="text-xs text-muted-foreground">Click to select one or more clothing PNGs</p>
+                  {queue.length > 0 && (
+                    <p className="text-xs text-green-600 font-semibold mt-1">{queue.length} file(s) in queue</p>
+                  )}
+                </div>
               </div>
             </div>
             <div className="space-y-2">
               <Label className="text-sm font-semibold">Template Overlay (optional)</Label>
               <div className="border-2 border-dashed border-border rounded-xl p-4 text-center hover:border-foreground/30 transition-colors cursor-pointer relative">
-                <input type="file" accept="image/png" onChange={handleFileSelect(setTemplateImage)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                <input type="file" accept="image/png" onChange={handleTemplateSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
                 {templateImage ? (
                   <div className="space-y-2">
                     <img src={`data:image/png;base64,${templateImage}`} alt="Template" className="w-32 h-32 mx-auto object-contain rounded-lg" />
                     <p className="text-xs text-green-600 font-semibold">Template loaded</p>
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); setTemplateImage(null); }}>Remove</Button>
                   </div>
                 ) : (
                   <div className="py-4">
@@ -729,25 +749,56 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
             </div>
           </div>
 
-          {previewUrl && (
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-2 font-semibold">Preview</p>
-              <img src={previewUrl} alt="Preview" className="w-48 h-48 mx-auto object-contain rounded-xl border border-border" />
+          {queue.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Upload Queue ({queue.length})</Label>
+              <div className="max-h-64 overflow-y-auto space-y-2 custom-scrollbar">
+                {queue.map(item => (
+                  <div key={item.id} className="flex items-center gap-3 p-2 border border-border/50 rounded-xl">
+                    <img src={item.previewUrl} alt="" className="w-10 h-10 rounded-lg object-contain border border-border/30" />
+                    <Input
+                      value={item.name}
+                      onChange={e => updateQueueName(item.id, e.target.value)}
+                      className="rounded-lg flex-1 h-8 text-xs"
+                      placeholder="Item name"
+                      disabled={item.status !== "pending"}
+                    />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {item.status === "done" && (
+                        <Badge className="text-[10px] bg-green-500/15 text-green-600 border-green-500/20">
+                          ID: {item.assetId}
+                        </Badge>
+                      )}
+                      {item.status === "failed" && (
+                        <Badge className="text-[10px] bg-red-500/15 text-red-600 border-red-500/20">
+                          Failed
+                        </Badge>
+                      )}
+                      {item.status === "uploading" && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {item.status === "pending" && (
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeFromQueue(item.id)}>
+                          <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {(doneCount > 0 || failedCount > 0) && (
+                <p className="text-xs text-muted-foreground">
+                  {doneCount > 0 && <span className="text-green-600">{doneCount} uploaded</span>}
+                  {doneCount > 0 && failedCount > 0 && " · "}
+                  {failedCount > 0 && <span className="text-red-600">{failedCount} failed</span>}
+                </p>
+              )}
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">Name *</Label>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="Clothing name" className="rounded-xl" />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Description</Label>
+              <Label className="text-sm font-semibold">Description (all items)</Label>
               <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" className="rounded-xl" />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-semibold">Type</Label>
               <select
@@ -758,10 +809,6 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
                 <option value="Shirt">Shirt</option>
                 <option value="Pants">Pants</option>
               </select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Price (R$)</Label>
-              <Input value={price} onChange={e => setPrice(e.target.value)} placeholder="e.g. 5" className="rounded-xl" type="number" />
             </div>
           </div>
 
@@ -779,9 +826,9 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
             </div>
           )}
 
-          <Button onClick={handleUpload} disabled={uploading || !clothingImage || !name.trim()} className="w-full rounded-xl gap-2">
+          <Button onClick={handleUploadAll} disabled={uploading || pendingCount === 0} className="w-full rounded-xl gap-2">
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploading ? "Uploading..." : "Upload to Roblox"}
+            {uploading ? "Uploading..." : `Upload ${pendingCount} item${pendingCount !== 1 ? "s" : ""} to Roblox`}
           </Button>
         </CardContent>
       </Card>

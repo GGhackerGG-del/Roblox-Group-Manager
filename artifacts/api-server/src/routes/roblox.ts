@@ -512,7 +512,6 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
 
   const rawId = Array.isArray(req.params.groupId) ? req.params.groupId[0] : req.params.groupId;
   const groupId = parseInt(rawId, 10);
-  const limit = Math.min(parseInt(String(req.query.limit || "60"), 10), 120);
 
   if (isNaN(groupId)) {
     res.status(400).json({ error: "Invalid group ID." });
@@ -521,102 +520,102 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
 
   type RobloxCatalogItem = { id: number; name: string; itemType: string; assetType: number; price: number | null; creatorName: string };
 
-  const cacheKey = `group_clothing_${groupId}_${limit}`;
-  const cached = cacheGet<{ items: unknown[]; nextCursor: string | null }>(cacheKey);
+  const cacheKey = `group_clothing_all_${groupId}`;
+  const cached = cacheGet<{ items: unknown[] }>(cacheKey);
   if (cached) {
     res.json(cached);
     return;
   }
 
-  // Fetch all clothing (shirts + pants) from the group.
-  // creatorType=2 = Group (numeric), category=3 = Clothing.
-  // Using a single request avoids double the rate-limit exposure.
   type PagedResult = { data: RobloxCatalogItem[]; nextPageCursor?: string };
-  const lim = Math.min(limit, 60);
-  console.log(`[Catalog] Fetching group ${groupId} clothing...`);
-  // Primary: category=3 (Clothing), creatorType=2 (Group)
-  const clothingResp = await fetchRobloxWithRetry(
-    `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=2&creatorTargetId=${groupId}&limit=${lim}`,
-    cookie, 2
-  );
-  console.log(`[Catalog] primary status=${clothingResp.status}`);
 
-  let catalogItems: RobloxCatalogItem[] = [];
-  let nextCursor: string | null = null;
+  console.log(`[Catalog] Fetching ALL clothing for group ${groupId}...`);
 
-  if (clothingResp.ok) {
+  const allCatalogItems: RobloxCatalogItem[] = [];
+  let cursor: string | null = null;
+  let pages = 0;
+  const MAX_PAGES = 50;
+  let retryCount = 0;
+  const MAX_RETRIES = 5;
+  let firstStatus = 200;
+
+  while (pages < MAX_PAGES) {
+    const url = `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=2&creatorTargetId=${groupId}&limit=30${cursor ? `&cursor=${cursor}` : ""}`;
+    const clothingResp = await fetchRobloxWithRetry(url, cookie, 2);
+
+    if (pages === 0) firstStatus = clothingResp.status;
+
+    if (!clothingResp.ok) {
+      if (clothingResp.status === 429 && retryCount < MAX_RETRIES) {
+        retryCount++;
+        await new Promise(r => setTimeout(r, 2000 * retryCount));
+        continue;
+      }
+      break;
+    }
+    retryCount = 0;
+
     try {
       const data = await clothingResp.json() as PagedResult;
-      const all = data.data || [];
-      console.log(`[Catalog] primary returned ${all.length} items`);
-      catalogItems = all.filter(i => i.assetType === 11 || i.assetType === 12);
-      nextCursor = data.nextPageCursor || null;
-    } catch {}
+      const items = (data.data || []).filter(i => i.assetType === 11 || i.assetType === 12);
+      allCatalogItems.push(...items);
+      cursor = data.nextPageCursor || null;
+      if (!cursor) break;
+      pages++;
+      await new Promise(r => setTimeout(r, 300));
+    } catch {
+      break;
+    }
   }
 
-  // Fallback 1: try creatorType=1 (User) — some older groups index under User
-  if (catalogItems.length === 0 && (clothingResp.ok || clothingResp.status === 200)) {
+  console.log(`[Catalog] Fetched ${allCatalogItems.length} items across ${pages + 1} pages`);
+
+  if (allCatalogItems.length === 0 && pages === 0) {
     console.log(`[Catalog] Primary empty — trying creatorType=1 fallback`);
     const fb1 = await fetchRobloxWithRetry(
-      `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=1&creatorTargetId=${groupId}&limit=${lim}`,
+      `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=1&creatorTargetId=${groupId}&limit=30`,
       cookie, 1
     );
     if (fb1.ok) {
       try {
         const data = await fb1.json() as PagedResult;
-        catalogItems = (data.data || []).filter(i => i.assetType === 11 || i.assetType === 12);
-        nextCursor = data.nextPageCursor || null;
-        console.log(`[Catalog] fallback-1 returned ${catalogItems.length} items`);
+        const items = (data.data || []).filter(i => i.assetType === 11 || i.assetType === 12);
+        allCatalogItems.push(...items);
+        console.log(`[Catalog] fallback-1 returned ${items.length} items`);
       } catch {}
     }
   }
 
-  // Fallback 2: use the group info route to pull shirt/pant asset IDs then resolve them
-  if (catalogItems.length === 0 && !clothingResp.ok) {
-    console.log(`[Catalog] Primary failed (${clothingResp.status}) — trying no-creatorType fallback`);
-    const fb2 = await fetchRobloxWithRetry(
-      `${ROBLOX_CATALOG_API}/v1/search/items?category=3&limit=${Math.min(lim, 30)}`,
-      cookie, 1
-    );
-    if (fb2.ok) {
-      try {
-        const data = await fb2.json() as PagedResult;
-        catalogItems = (data.data || []).filter(i => (i.assetType === 11 || i.assetType === 12) && String(i.creatorName).toLowerCase().includes(String(groupId)));
-        nextCursor = null;
-        console.log(`[Catalog] fallback-2 returned ${catalogItems.length} items`);
-      } catch {}
-    }
-  }
-
-  if (catalogItems.length === 0) {
-    if (clothingResp.status === 429) {
+  if (allCatalogItems.length === 0) {
+    if (firstStatus === 429) {
       res.status(429).json({ error: "Roblox is rate limiting requests. Please wait 30 seconds and try again." });
       return;
     }
-    if (clothingResp.status === 401 || clothingResp.status === 403) {
+    if (firstStatus === 401 || firstStatus === 403) {
       res.status(401).json({ error: "Roblox session expired. Please sign in again in Settings." });
       return;
     }
-    res.json({ items: [], nextCursor: null });
+    res.json({ items: [] });
     return;
   }
 
-  // Fetch thumbnails
-  const ids = catalogItems.map(i => i.id).join(",");
   const thumbMap: Record<number, string | null> = {};
-  if (ids) {
+  const allIds = allCatalogItems.map(i => i.id);
+  for (let i = 0; i < allIds.length; i += 100) {
+    const batch = allIds.slice(i, i + 100);
     try {
       const thumbResp = await fetch(
-        `${ROBLOX_THUMBNAILS_API}/v1/assets?assetIds=${ids}&size=420x420&format=Png&isCircular=false`
+        `${ROBLOX_THUMBNAILS_API}/v1/assets?assetIds=${batch.join(",")}&size=420x420&format=Png&isCircular=false`
       );
       if (thumbResp.ok) {
         const thumbData = await thumbResp.json() as { data: Array<{ targetId: number; imageUrl: string }> };
         thumbData.data.forEach(t => { thumbMap[t.targetId] = t.imageUrl; });
       }
     } catch {}
+    if (i + 100 < allIds.length) await new Promise(r => setTimeout(r, 200));
   }
 
-  const displayItems = catalogItems.map(item => ({
+  const displayItems = allCatalogItems.map(item => ({
     id: item.id,
     name: item.name,
     assetType: item.assetType === 12 ? "Pants" : "Shirt",
@@ -624,7 +623,8 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
     thumbnailUrl: thumbMap[item.id] || null,
   }));
 
-  const payload = { items: displayItems, nextCursor };
+  const truncated = pages >= MAX_PAGES - 1 && cursor !== null;
+  const payload = { items: displayItems, truncated, pagesFetched: pages + 1 };
   cacheSet(cacheKey, payload);
   res.json(payload);
 });

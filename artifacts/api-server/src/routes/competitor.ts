@@ -18,6 +18,26 @@ interface CatalogItem {
   itemType: string;
 }
 
+async function batchFetchThumbnails(ids: number[]): Promise<Record<number, string | null>> {
+  const map: Record<number, string | null> = {};
+  for (let i = 0; i < ids.length; i += 100) {
+    const batch = ids.slice(i, i + 100);
+    try {
+      const resp = await fetch(
+        `${ROBLOX_THUMBNAILS_API}/v1/assets?assetIds=${batch.join(",")}&size=150x150&format=Png&isCircular=false`
+      );
+      if (resp.ok) {
+        const data = await resp.json() as { data: Array<{ targetId: number; imageUrl: string }> };
+        for (const t of data.data || []) {
+          map[t.targetId] = t.imageUrl || null;
+        }
+      }
+    } catch {}
+    if (i + 100 < ids.length) await new Promise(r => setTimeout(r, 200));
+  }
+  return map;
+}
+
 router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.groupId) ? req.params.groupId[0] : req.params.groupId;
   const groupId = parseInt(rawId, 10);
@@ -104,20 +124,25 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
       ? Math.round(priced.reduce((s, i) => s + (i.price ?? i.lowestPrice ?? 0), 0) / priced.length)
       : 0;
 
-    const topItems = allItems
+    const shirts = allItems.filter(i => i.assetType === 11).length;
+    const pants = allItems.filter(i => i.assetType === 12).length;
+    const tshirts = allItems.filter(i => i.assetType === 2).length;
+
+    const thumbIds = allItems.map(i => i.id);
+    const thumbMap = await batchFetchThumbnails(thumbIds);
+
+    const clothingItems = allItems
       .sort((a, b) => (b.favoriteCount || 0) - (a.favoriteCount || 0))
-      .slice(0, 15)
       .map(i => ({
         id: i.id,
         name: i.name,
         price: i.price ?? i.lowestPrice,
         favorites: i.favoriteCount || 0,
         type: i.assetType === 11 ? "Shirt" : i.assetType === 12 ? "Pants" : i.assetType === 2 ? "T-Shirt" : "Other",
+        thumbnailUrl: thumbMap[i.id] || null,
       }));
 
-    const shirts = allItems.filter(i => i.assetType === 11).length;
-    const pants = allItems.filter(i => i.assetType === 12).length;
-    const tshirts = allItems.filter(i => i.assetType === 2).length;
+    const topItems = clothingItems.slice(0, 15);
 
     res.json({
       group: {
@@ -137,6 +162,7 @@ router.get("/competitor/analyze/:groupId", async (req, res): Promise<void> => {
         pants,
         tshirts,
         topItems,
+        allItems: clothingItems,
       },
     });
   } catch (err) {
