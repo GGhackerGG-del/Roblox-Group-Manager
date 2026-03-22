@@ -195,9 +195,14 @@ router.get("/sniper/live/:assetId", async (req, res): Promise<void> => {
     let sellerId: number | null = null;
     let userAssetId: number | null = null;
 
-    const [economyResp, resellersResp] = await Promise.all([
+    const [economyResp, resellersResp, catalogResp] = await Promise.all([
       fetch(`${ECONOMY_API}/v2/assets/${assetId}/details`, { headers: rHeaders }),
       fetch(`${ECONOMY_API}/v1/assets/${assetId}/resellers?limit=1&sortOrder=Asc`, { headers: rHeaders }),
+      fetch(`https://catalog.roblox.com/v1/catalog/items/details`, {
+        method: "POST",
+        headers: { ...rHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ items: [{ itemType: "Asset", id: assetId }] }),
+      }).catch(() => null),
     ]);
 
     if (economyResp.ok) {
@@ -205,10 +210,16 @@ router.get("/sniper/live/:assetId", async (req, res): Promise<void> => {
         ProductId?: number;
         PriceInRobux?: number | null;
         IsForSale?: boolean;
+        IsLimited?: boolean;
+        IsLimitedUnique?: boolean;
+        LowestSellerData?: { SellerId?: number; LowestPrice?: number };
       };
       productId = eData.ProductId || null;
-      if (eData.IsForSale && eData.PriceInRobux) {
+      if (eData.PriceInRobux != null && eData.PriceInRobux > 0) {
         price = eData.PriceInRobux;
+      }
+      if (!price && eData.LowestSellerData?.LowestPrice) {
+        price = eData.LowestSellerData.LowestPrice;
       }
     }
 
@@ -222,10 +233,22 @@ router.get("/sniper/live/:assetId", async (req, res): Promise<void> => {
       };
       if (rData.data?.[0]) {
         const reseller = rData.data[0];
-        price = reseller.price;
+        if (!price || reseller.price < price) {
+          price = reseller.price;
+        }
         sellerId = reseller.seller.id;
         userAssetId = reseller.userAssetId;
       }
+    }
+
+    if (!price && catalogResp?.ok) {
+      try {
+        const cData = await catalogResp.json() as { data?: Array<{ price?: number; lowestPrice?: number; lowestResalePrice?: number }> };
+        const item = cData.data?.[0];
+        if (item) {
+          price = item.lowestResalePrice ?? item.lowestPrice ?? item.price ?? null;
+        }
+      } catch {}
     }
 
     res.json({
@@ -234,7 +257,7 @@ router.get("/sniper/live/:assetId", async (req, res): Promise<void> => {
       sellerId,
       userAssetId,
       productId,
-      available: price !== null && productId !== null,
+      available: price !== null,
     });
   } catch (err) {
     console.error("[Sniper] Live error:", err);
