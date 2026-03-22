@@ -166,10 +166,10 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
         }
       }
       playSuccess();
-      toast({ title: "Bulk download", description: `Downloaded ${ok} of ${selected.size} templates.` });
+      toast({ title: t("group.bulkDownload"), description: `${ok} / ${selected.size}` });
     } catch (e: unknown) {
       playError();
-      toast({ title: "Bulk download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      toast({ title: t("group.downloadFailed"), description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally {
       setBulkDownloading(false);
     }
@@ -193,7 +193,7 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
         }),
       });
       playSuccess();
-      toast({ title: "Copied!", description: result.message });
+      toast({ title: t("group.copied"), description: result.message });
     } catch (e: unknown) {
       playError();
       toast({ title: t("group.copyFailed"), description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
@@ -213,7 +213,7 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
       playSuccess();
     } catch (e: unknown) {
       playError();
-      toast({ title: "Download failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      toast({ title: t("group.downloadFailed"), description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     }
   };
 
@@ -242,8 +242,8 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
               <SelectItem value="5">{t("group.recentlyUpdated")}</SelectItem>
             </SelectContent>
           </Select>
-          <Input placeholder="Min R$" value={minPrice} onChange={e => setMinPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
-          <Input placeholder="Max R$" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
+          <Input placeholder={`${t("competitors.minPrice")} R$`} value={minPrice} onChange={e => setMinPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
+          <Input placeholder={`${t("competitors.maxPrice")} R$`} value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
           <Input placeholder={t("group.groupIdFilter")} value={creatorId} onChange={e => setCreatorId(e.target.value)} className="w-32 rounded-xl text-sm" />
           <Button onClick={search} disabled={loading || (!keyword.trim() && !creatorId.trim())} className="rounded-xl gap-1.5">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -272,14 +272,14 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
                 <div key={item.id} className={`rounded-xl border p-2 bg-card hover:bg-accent/30 transition-colors cursor-pointer ${selected.has(item.id) ? "border-primary ring-1 ring-primary/30" : "border-border/50"}`} onClick={() => toggleSelect(item.id)}>
                   {item.thumbnailUrl && <img src={item.thumbnailUrl} alt={item.name} className="w-full aspect-square rounded-lg object-cover mb-2" loading="lazy" />}
                   <p className="text-xs font-medium truncate" title={item.name}>{item.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{item.assetType} · {item.price != null ? `${item.price} R$` : "Off-sale"}</p>
+                  <p className="text-[10px] text-muted-foreground">{item.assetType} · {item.price != null ? `${item.price} R$` : t("competitors.offsale")}</p>
                   {item.creatorName && <p className="text-[10px] text-muted-foreground truncate">{item.creatorName}</p>}
                   <div className="flex gap-1 mt-1.5" onClick={e => e.stopPropagation()}>
                     <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 flex-1 gap-1" onClick={() => copyItem(item)} disabled={copying === item.id}>
                       {copying === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Copy className="w-3 h-3" />}
                       {t("group.copy")}
                     </Button>
-                    <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7 px-2" onClick={() => downloadTemplate(item)} title="Download template">
+                    <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7 px-2" onClick={() => downloadTemplate(item)} title={t("group.template")}>
                       <Download className="w-3 h-3" />
                     </Button>
                   </div>
@@ -342,7 +342,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
       price: 5,
     }));
     if (!newFiles.length) {
-      toast({ title: "Only PNG files", description: "Select .png clothing templates.", variant: "destructive" });
+      toast({ title: "PNG", variant: "destructive" });
       return;
     }
     setFiles(prev => [...prev, ...newFiles]);
@@ -360,7 +360,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
     if (!fl || !fl[0]) return;
     const f = fl[0];
     if (f.type !== "image/png") {
-      toast({ title: "PNG only", description: "Template must be a PNG file.", variant: "destructive" });
+      toast({ title: "PNG", variant: "destructive" });
       return;
     }
     const b64 = await new Promise<string>((resolve, reject) => {
@@ -438,7 +438,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
     const fail = newResults.filter(r => !r.success).length;
     if (ok > 0) playSuccess();
     if (fail > 0) playError();
-    toast({ title: "Upload complete", description: `${ok} succeeded, ${fail} failed` });
+    toast({ title: t("group.uploadSuccess"), description: `${ok} ✓ / ${fail} ✗` });
     setUploading(false);
   };
 
@@ -463,7 +463,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
               onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove("bg-accent/30"); addFiles(e.dataTransfer.files); }}
             >
               <FolderDown className="w-7 h-7 mx-auto text-muted-foreground mb-1.5" />
-              <p className="text-xs text-muted-foreground">Click or drag PNG clothing files</p>
+              <p className="text-xs text-muted-foreground">{t("group.uploadTab.desc")}</p>
             </div>
           </div>
 
@@ -473,9 +473,8 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
               <div className="border rounded-xl p-3 bg-card flex items-center gap-3">
                 <img src={templateFile.preview} alt="Template" className="w-12 h-12 rounded-lg object-cover shrink-0 border" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium flex items-center gap-1"><Layers className="w-3 h-3" /> Template overlay</p>
+                  <p className="text-xs font-medium flex items-center gap-1"><Layers className="w-3 h-3" /> {t("group.template")}</p>
                   <p className="text-[10px] text-muted-foreground truncate">{templateFile.file.name}</p>
-                  <p className="text-[10px] text-green-600 dark:text-green-400">Will be applied on top of each clothing PNG</p>
                 </div>
                 <Button size="sm" variant="ghost" className="shrink-0 h-7 w-7 p-0" onClick={removeTemplate}>
                   <Trash2 className="w-3.5 h-3.5" />
@@ -487,8 +486,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
                 onClick={() => templateRef.current?.click()}
               >
                 <Layers className="w-7 h-7 mx-auto text-primary/50 mb-1.5" />
-                <p className="text-xs text-muted-foreground">Template overlay (optional)</p>
-                <p className="text-[10px] text-muted-foreground">Composited on top of each clothing</p>
+                <p className="text-xs text-muted-foreground">{t("group.template")}</p>
               </div>
             )}
           </div>
@@ -502,7 +500,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
                 <div className="space-y-0.5">
                   <Label className="text-[10px]">{t("group.uploadName")}</Label>
                   <div className="flex gap-1">
-                    <Input value={bulkNamePrefix} onChange={e => setBulkNamePrefix(e.target.value)} placeholder="e.g. Design" className="w-28 rounded-lg text-xs h-7" />
+                    <Input value={bulkNamePrefix} onChange={e => setBulkNamePrefix(e.target.value)} placeholder={t("group.uploadName")} className="w-28 rounded-lg text-xs h-7" />
                     <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkName(bulkNamePrefix)}>{t("group.apply")}</Button>
                   </div>
                 </div>
@@ -538,16 +536,16 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0 space-y-1">
-                  <Input value={f.name} onChange={e => updateFile(i, "name", e.target.value)} className="rounded-lg text-xs h-7" placeholder="Name" />
+                  <Input value={f.name} onChange={e => updateFile(i, "name", e.target.value)} className="rounded-lg text-xs h-7" placeholder={t("group.uploadName")} />
                   <div className="flex gap-2">
                     <Select value={f.type} onValueChange={v => updateFile(i, "type", v)}>
                       <SelectTrigger className="w-24 rounded-lg text-[10px] h-7"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Shirt">Shirt</SelectItem>
-                        <SelectItem value="Pants">Pants</SelectItem>
+                        <SelectItem value="Shirt">{t("group.shirts")}</SelectItem>
+                        <SelectItem value="Pants">{t("group.pants")}</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input type="number" min={5} value={f.price} onChange={e => updateFile(i, "price", parseInt(e.target.value) || 5)} className="w-20 rounded-lg text-[10px] h-7" placeholder="Price" />
+                    <Input type="number" min={5} value={f.price} onChange={e => updateFile(i, "price", parseInt(e.target.value) || 5)} className="w-20 rounded-lg text-[10px] h-7" placeholder={t("group.uploadPrice")} />
                     <span className="text-[10px] text-muted-foreground self-center">R$</span>
                   </div>
                 </div>
@@ -559,7 +557,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
 
             <Button onClick={uploadAll} disabled={uploading || !files.length} className="rounded-xl w-full gap-2">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {t("group.uploadBtn")} {files.length}{templateFile ? " + template" : ""}
+              {t("group.uploadBtn")} {files.length}{templateFile ? ` + ${t("group.template")}` : ""}
             </Button>
           </div>
         )}
@@ -597,11 +595,11 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
       setItems(data.items || []);
       setTotal(data.total || data.items?.length || 0);
     } catch {
-      toast({ title: "Failed to load", description: "Could not fetch group clothing.", variant: "destructive" });
+      toast({ title: t("group.failedLoad"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [groupId, toast]);
+  }, [groupId, toast, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -617,7 +615,7 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
       playSuccess();
     } catch (e: unknown) {
       playError();
-      toast({ title: "Download failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      toast({ title: t("group.downloadFailed"), description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     } finally {
       setDownloading(null);
     }
@@ -628,7 +626,7 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle className="text-base flex items-center gap-2"><FolderDown className="w-4 h-4" /> {t("group.clothingTab")}</CardTitle>
-          <CardDescription>{t("group.clothingTab.desc")} {total > 0 && `${total} total items.`}</CardDescription>
+          <CardDescription>{t("group.clothingTab.desc")} {total > 0 && `(${total})`}</CardDescription>
         </div>
         <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={() => load(searchFilter || undefined)} disabled={loading}>
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> {t("group.refreshAlts")}
@@ -654,10 +652,10 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
               <div key={item.id} className="rounded-xl border border-border/50 p-2 bg-card hover:bg-accent/30 transition-colors">
                 {item.thumbnailUrl && <img src={item.thumbnailUrl} alt={item.name} className="w-full aspect-square rounded-lg object-cover mb-2" loading="lazy" />}
                 <p className="text-xs font-medium truncate" title={item.name}>{item.name}</p>
-                <p className="text-[10px] text-muted-foreground">{item.assetType} · {item.price != null ? `${item.price} R$` : "Off-sale"}</p>
+                <p className="text-[10px] text-muted-foreground">{item.assetType} · {item.price != null ? `${item.price} R$` : t("competitors.offsale")}</p>
                 <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 w-full mt-1.5 gap-1" onClick={() => downloadTemplate(item)} disabled={downloading === item.id}>
                   {downloading === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-                  Template
+                  {t("group.template")}
                 </Button>
               </div>
             ))}
@@ -697,9 +695,9 @@ function AltAccountsTab() {
       });
       setAlts(prev => [...prev, data]);
       setNewCookie("");
-      toast({ title: "Account added", description: `@${data.name} is ready to use.` });
+      toast({ title: t("group.addAlt"), description: `@${data.name}` });
     } catch (err) {
-      toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to add account." });
+      toast({ variant: "destructive", title: t("group.uploadFailed"), description: err instanceof Error ? err.message : "" });
     } finally {
       setAdding(false);
     }
@@ -710,9 +708,9 @@ function AltAccountsTab() {
     try {
       await apiFetch(`/api/roblox/alt/${alt.index}`, { method: "DELETE" });
       setAlts(prev => prev.filter(a => a.userId !== alt.userId).map((a, i) => ({ ...a, index: i })));
-      toast({ title: "Removed", description: `@${alt.name} has been removed.` });
+      toast({ title: t("group.removeAlt"), description: `@${alt.name}` });
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to remove account." });
+      toast({ variant: "destructive", title: t("group.uploadFailed") });
     } finally {
       setRemoving(null);
     }
@@ -740,7 +738,7 @@ function AltAccountsTab() {
             {adding ? "..." : t("group.addAlt")}
           </Button>
           <p className="text-xs text-muted-foreground">
-            The cookie is not stored permanently — only in server memory for the current session.
+            {t("roblox.security")}
           </p>
         </CardContent>
       </Card>
@@ -753,7 +751,7 @@ function AltAccountsTab() {
         <div className="text-center py-12 text-muted-foreground">
           <Users className="w-12 h-12 mx-auto mb-3 opacity-30" strokeWidth={1} />
           <p className="font-medium">{t("group.noResults")}</p>
-          <p className="text-sm mt-1">Add an account cookie above</p>
+          <p className="text-sm mt-1">{t("group.altsTab.desc")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -771,7 +769,7 @@ function AltAccountsTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className="text-xs bg-green-500/15 text-green-600 border-green-500/20">Active</Badge>
+                  <Badge className="text-xs bg-green-500/15 text-green-600 border-green-500/20">{t("license.active")}</Badge>
                   <Button
                     size="sm"
                     variant="ghost"

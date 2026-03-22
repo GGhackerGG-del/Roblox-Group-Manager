@@ -125,8 +125,9 @@ CREATE TABLE licenses (
 - Dark mode ready (CSS variables)
 
 ## Known Limitations / Pending Work
-- Roblox clothing upload uses `apis.roblox.com/assets/user-auth/v1/assets` (Open Cloud API) with multipart form: `fileContent` (PNG binary) + `request` (JSON metadata with displayName, assetType, creationContext). Returns operationId that is polled at `/operations/{id}` for completion. Price set via `itemconfiguration.roblox.com/v1/assets/{id}/release`.
+- Roblox clothing upload uses `apis.roblox.com/assets/user-auth/v1/assets` (Open Cloud API) with multipart form. Price set + release via `itemconfiguration.roblox.com/v1/collectibles` with correct payload (targetId, creatorGroupId, publisherUserId, priceInRobux, agreedPublishingFee:10, publishingType:2, resaleRestriction:2, saleLocationConfiguration).
 - Upload tab supports Template Overlay: user can upload a template PNG that gets composited on top of each clothing image via HTML5 Canvas (585x559 px) before upload. Also has bulk name/type/price/description settings.
+- Group clothing uses ItemConfig API (`/v1/creations/get-assets`) as primary source (100 items/page, up to 5000 per type: Shirt, Pants, TShirt), with Catalog API as fallback. Both have 429 retry logic with exponential backoff.
 - Rate limit mitigation: throttledFetch (350ms min gap), search cache 30min TTL, group cache 15min TTL, exponential backoff on 429, thumbnail retry on rate limit, frontend 3s search debounce.
 - Sniper thumbnails use persistent `thumbnailCache` Map (30min TTL) separate from Rolimons item cache (5min TTL).
 - Telegram bot for selling license codes is included but basic

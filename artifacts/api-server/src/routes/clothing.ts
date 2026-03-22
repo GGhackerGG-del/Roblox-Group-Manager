@@ -317,48 +317,51 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
 
 async function fetchGroupItemsViaItemConfig(groupId: number, cookie: string): Promise<Array<{ id: number; name?: string; assetType?: number; price?: number | null }>> {
   const items: Array<{ id: number; name?: string; assetType?: number; price?: number | null }> = [];
-  try {
+
+  async function fetchAssetType(assetType: string, assetTypeId: number) {
     let cursor: string | null = null;
     let pages = 0;
-    while (pages < 10) {
-      const url = `${ITEM_CONFIG_API}/v1/creations/get-assets?assetType=Shirt&groupId=${groupId}&limit=100${cursor ? `&cursor=${cursor}` : ""}`;
+    let retries = 0;
+    while (pages < 50) {
+      const url = `${ITEM_CONFIG_API}/v1/creations/get-assets?assetType=${assetType}&groupId=${groupId}&limit=100${cursor ? `&cursor=${cursor}` : ""}`;
       const resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
-      if (!resp.ok) {
-        console.log(`[Clothing] ItemConfig Shirt API status=${resp.status}`);
+
+      if (resp.status === 429) {
+        if (retries < 5) {
+          retries++;
+          console.log(`[Clothing] ItemConfig ${assetType} rate limited, retry ${retries}...`);
+          await new Promise(r => setTimeout(r, 3000 * retries));
+          continue;
+        }
+        console.log(`[Clothing] ItemConfig ${assetType} rate limited, giving up after ${retries} retries`);
         break;
       }
+
+      if (!resp.ok) {
+        console.log(`[Clothing] ItemConfig ${assetType} API status=${resp.status}`);
+        break;
+      }
+
+      retries = 0;
       const data = await resp.json() as { data: Array<{ assetId: number; name: string }>; nextPageCursor?: string };
       for (const item of data.data || []) {
-        items.push({ id: item.assetId, name: item.name, assetType: 11, price: null });
+        items.push({ id: item.assetId, name: item.name, assetType: assetTypeId, price: null });
       }
+      console.log(`[Clothing] ItemConfig ${assetType} page ${pages + 1}: got ${data.data?.length || 0} items (total so far: ${items.length})`);
       cursor = data.nextPageCursor || null;
       if (!cursor) break;
       pages++;
       await new Promise(r => setTimeout(r, 500));
     }
+  }
 
-    cursor = null;
-    pages = 0;
-    while (pages < 10) {
-      const url = `${ITEM_CONFIG_API}/v1/creations/get-assets?assetType=Pants&groupId=${groupId}&limit=100${cursor ? `&cursor=${cursor}` : ""}`;
-      const resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
-      if (!resp.ok) {
-        console.log(`[Clothing] ItemConfig Pants API status=${resp.status}`);
-        break;
-      }
-      const data = await resp.json() as { data: Array<{ assetId: number; name: string }>; nextPageCursor?: string };
-      for (const item of data.data || []) {
-        items.push({ id: item.assetId, name: item.name, assetType: 12, price: null });
-      }
-      cursor = data.nextPageCursor || null;
-      if (!cursor) break;
-      pages++;
-      await new Promise(r => setTimeout(r, 500));
-    }
-
-    console.log(`[Clothing] ItemConfig fallback found ${items.length} items for group ${groupId}`);
+  try {
+    await fetchAssetType("Shirt", 11);
+    await fetchAssetType("Pants", 12);
+    await fetchAssetType("TShirt", 2);
+    console.log(`[Clothing] ItemConfig total: ${items.length} items for group ${groupId}`);
   } catch (err) {
-    console.error("[Clothing] ItemConfig fallback error:", err);
+    console.error("[Clothing] ItemConfig error:", err);
   }
   return items;
 }
@@ -378,42 +381,47 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
   if (!allItems) {
     try {
       type GroupDetailItem = { id: number; name?: string; assetType?: number; price?: number | null; lowestPrice?: number | null; creatorName?: string };
+
+      console.log(`[Clothing] Fetching all items for group ${groupId} via ItemConfig API...`);
       const rawItems: GroupDetailItem[] = [];
-      let cursor: string | null = null;
-      let pages = 0;
+      const itemConfigItems = await fetchGroupItemsViaItemConfig(groupId, cookie);
+      console.log(`[Clothing] ItemConfig API returned ${itemConfigItems.length} items for group ${groupId}`);
+      rawItems.push(...itemConfigItems);
 
-      let catalogFailed = false;
-      while (pages < 30) {
-        const url = `${CATALOG_API}/v1/search/items/details?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=30${cursor ? `&cursor=${cursor}` : ""}`;
-        console.log(`[Clothing] Group items URL: ${url}`);
-        let resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
+      if (rawItems.length === 0) {
+        console.log("[Clothing] ItemConfig empty, trying Catalog API...");
+        let cursor: string | null = null;
+        let pages = 0;
+        let retries = 0;
 
-        if (resp.status === 429) {
-          console.log("[Clothing] Group search rate limited, waiting...");
-          await new Promise(r => setTimeout(r, 6000));
-          resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
+        while (pages < 30) {
+          const url = `${CATALOG_API}/v1/search/items/details?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=30${cursor ? `&cursor=${cursor}` : ""}`;
+          let resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
+
+          if (resp.status === 429) {
+            if (retries < 5) {
+              retries++;
+              console.log(`[Clothing] Group search rate limited, retry ${retries}...`);
+              await new Promise(r => setTimeout(r, 4000 * retries));
+              continue;
+            }
+            break;
+          }
+
+          if (!resp.ok) {
+            const errBody = await resp.text().catch(() => "");
+            console.error(`[Clothing] Group items API error status=${resp.status} body=${errBody.slice(0, 300)}`);
+            break;
+          }
+
+          retries = 0;
+          const data = await resp.json() as { data: GroupDetailItem[]; nextPageCursor?: string };
+          rawItems.push(...(data.data || []));
+          cursor = data.nextPageCursor || null;
+          if (!cursor) break;
+          pages++;
+          await new Promise(r => setTimeout(r, 1000));
         }
-
-        if (!resp.ok) {
-          const errBody = await resp.text().catch(() => "");
-          console.error(`[Clothing] Group items API error status=${resp.status} body=${errBody.slice(0, 300)}`);
-          catalogFailed = true;
-          break;
-        }
-
-        const data = await resp.json() as { data: GroupDetailItem[]; nextPageCursor?: string };
-        rawItems.push(...(data.data || []));
-        cursor = data.nextPageCursor || null;
-        if (!cursor) break;
-        pages++;
-        await new Promise(r => setTimeout(r, 600));
-      }
-
-      if ((catalogFailed || rawItems.length === 0) && rawItems.length === 0) {
-        console.log("[Clothing] Catalog API failed or empty, using Item Configuration API as fallback...");
-        const fallbackItems = await fetchGroupItemsViaItemConfig(groupId, cookie);
-        console.log(`[Clothing] ItemConfig fallback returned ${fallbackItems.length} items`);
-        rawItems.push(...fallbackItems);
       }
 
       const ids = rawItems.map(i => i.id);
@@ -422,7 +430,7 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
       allItems = rawItems.map(d => ({
         id: d.id,
         name: d.name || `Asset ${d.id}`,
-        assetType: (d.assetType ?? 11) === 12 ? "Pants" : "Shirt",
+        assetType: d.assetType === 12 ? "Pants" : d.assetType === 2 ? "TShirt" : "Shirt",
         assetTypeId: d.assetType || 11,
         price: d.price ?? d.lowestPrice ?? null,
         thumbnailUrl: thumbMap[d.id] || null,
@@ -431,7 +439,7 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
       if (allItems.length > 0) {
         cacheSet(ck, allItems);
       }
-      console.log(`[Clothing] Group ${groupId}: found ${allItems.length} items`);
+      console.log(`[Clothing] Group ${groupId}: found ${allItems.length} total items`);
     } catch (err) {
       console.error("[Clothing] Group items error:", err);
       res.status(502).json({ error: "Failed to fetch group clothing." });
