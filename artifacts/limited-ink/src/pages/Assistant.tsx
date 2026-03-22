@@ -4,7 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Send, Loader2, User, Sparkles, Trash2 } from "lucide-react";
+import { Bot, Send, Loader2, User, Sparkles, Trash2, ImageIcon, MessageSquare, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -12,6 +12,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 interface Message {
   role: "user" | "assistant";
   content: string;
+  imageUrl?: string;
 }
 
 const SUGGESTIONS = [
@@ -95,15 +96,67 @@ export default function Assistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [mode, setMode] = useState<"chat" | "image">("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  async function generateImage(prompt: string) {
+    const userMsg: Message = { role: "user", content: `🖼 ${prompt}` };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput("");
+    setIsStreaming(true);
+
+    const loadingMsg: Message = { role: "assistant", content: t("assistant.generating") || "Generating image..." };
+    setMessages([...newMessages, loadingMsg]);
+
+    try {
+      const { token, fingerprint } = getAuthCredentials();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
+
+      const resp = await fetch(`${BASE}/api/assistant/generate-image`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Failed" }));
+        throw new Error(err.error || "Failed to generate image");
+      }
+
+      const data = await resp.json() as { b64_json: string };
+      const imageUrl = `data:image/png;base64,${data.b64_json}`;
+
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: "assistant", content: "", imageUrl };
+        return updated;
+      });
+    } catch (err) {
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: "assistant", content: err instanceof Error ? err.message : t("assistant.error") };
+        return updated;
+      });
+    } finally {
+      setIsStreaming(false);
+    }
+  }
+
   async function sendMessage(text?: string) {
     const content = (text || input).trim();
     if (!content || isStreaming) return;
+
+    if (mode === "image") {
+      return generateImage(content);
+    }
 
     const userMsg: Message = { role: "user", content };
     const newMessages = [...messages, userMsg];
@@ -234,7 +287,16 @@ export default function Assistant() {
                     ? "bg-black text-white rounded-br-md"
                     : "bg-secondary/70 border border-border/50 rounded-bl-md"
                 }`}>
-                  <div className="whitespace-pre-wrap break-words">{msg.content ? <FormattedText text={msg.content} /> : (isStreaming && i === messages.length - 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : "")}</div>
+                  {msg.imageUrl ? (
+                    <div className="space-y-2">
+                      <img src={msg.imageUrl} alt="Generated" className="rounded-xl max-w-full" />
+                      <a href={msg.imageUrl} download="generated-image.png" className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
+                        <Download className="w-3 h-3" /> {t("assistant.downloadImage") || "Download"}
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words">{msg.content ? <FormattedText text={msg.content} /> : (isStreaming && i === messages.length - 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : "")}</div>
+                  )}
                 </div>
                 {msg.role === "user" && (
                   <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center shrink-0 mt-0.5">
@@ -247,19 +309,39 @@ export default function Assistant() {
         )}
       </div>
 
-      <div className="p-4 border-t border-border/50 bg-card/50">
+      <div className="p-4 border-t border-border/50 bg-card/50 space-y-2">
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === "chat" ? "default" : "outline"}
+            className="rounded-lg text-xs gap-1.5 h-7"
+            onClick={() => setMode("chat")}
+          >
+            <MessageSquare className="w-3 h-3" /> {t("assistant.chatMode") || "Chat"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === "image" ? "default" : "outline"}
+            className="rounded-lg text-xs gap-1.5 h-7"
+            onClick={() => setMode("image")}
+          >
+            <ImageIcon className="w-3 h-3" /> {t("assistant.imageMode") || "Image"}
+          </Button>
+        </div>
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={t("assistant.placeholder")}
+            placeholder={mode === "image" ? (t("assistant.imagePlaceholder") || "Describe the image...") : t("assistant.placeholder")}
             className="min-h-[44px] max-h-[120px] resize-none rounded-xl text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             }}
           />
           <Button type="submit" disabled={!input.trim() || isStreaming} className="rounded-xl h-11 w-11 p-0 shrink-0">
-            {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : mode === "image" ? <ImageIcon className="w-4 h-4" /> : <Send className="w-4 h-4" />}
           </Button>
         </form>
       </div>

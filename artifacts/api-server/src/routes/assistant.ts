@@ -85,4 +85,37 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
   }
 });
 
+router.post("/assistant/generate-image", async (req, res): Promise<void> => {
+  const { prompt } = req.body as { prompt?: string };
+
+  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+    res.status(400).json({ error: "prompt is required" });
+    return;
+  }
+
+  try {
+    const openai = getOpenAI();
+
+    console.log(`[Assistant] Generating image: "${prompt.slice(0, 80)}..."`);
+
+    const response = await openai.images.generate({
+      model: "gpt-image-1",
+      prompt: prompt.trim(),
+      n: 1,
+      size: "1024x1024",
+    });
+
+    const b64 = response.data?.[0]?.b64_json;
+    if (!b64) {
+      res.status(502).json({ error: "No image returned from API." });
+      return;
+    }
+
+    res.json({ b64_json: b64 });
+  } catch (err) {
+    console.error("[Assistant] Image generation error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to generate image." });
+  }
+});
+
 export default router;
