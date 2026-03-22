@@ -745,53 +745,57 @@ async function setPrice(assetId: number, salePrice: number, cookie: string, csrf
       "X-CSRF-TOKEN": currentCsrf,
       "Content-Type": "application/json",
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      "Referer": "https://www.roblox.com/",
-      "Origin": "https://www.roblox.com",
+      "Referer": "https://create.roblox.com/",
+      "Origin": "https://create.roblox.com",
     };
 
-    const body = JSON.stringify({
-      priceConfiguration: { priceInRobux: salePrice },
+    const collectiblesBody = JSON.stringify({
+      assetId: String(assetId),
+      price: salePrice,
+      isLimited: false,
+      saleLocationType: "ShopAndAllExperiences",
     });
 
     try {
-      const releaseResp = await fetch(`${ITEM_CONFIG_API}/v1/assets/${assetId}/release`, {
+      console.log(`[Clothing] Publishing via /v1/collectibles: assetId=${assetId} price=${salePrice}`);
+      const releaseResp = await fetch(`${ITEM_CONFIG_API}/v1/collectibles`, {
         method: "POST",
         headers: hdrs,
-        body,
+        body: collectiblesBody,
       });
 
       if (releaseResp.ok) {
-        console.log(`[Clothing] Release success for asset ${assetId} at ${salePrice} R$`);
+        console.log(`[Clothing] Publish success for asset ${assetId} at ${salePrice} R$`);
         return true;
       }
 
       const respText = await releaseResp.text().catch(() => "");
-      console.log(`[Clothing] Release attempt ${attempt + 1} failed: status=${releaseResp.status} body=${respText.slice(0, 300)}`);
+      console.log(`[Clothing] Publish attempt ${attempt + 1} failed: status=${releaseResp.status} body=${respText.slice(0, 300)}`);
 
       if (releaseResp.status === 403) {
         const newCsrf = releaseResp.headers.get("x-csrf-token");
         if (newCsrf) {
           hdrs["X-CSRF-TOKEN"] = newCsrf;
-          const retry = await fetch(`${ITEM_CONFIG_API}/v1/assets/${assetId}/release`, {
+          const retry = await fetch(`${ITEM_CONFIG_API}/v1/collectibles`, {
             method: "POST",
             headers: hdrs,
-            body,
+            body: collectiblesBody,
           });
           if (retry.ok) {
-            console.log(`[Clothing] Release success on CSRF retry for asset ${assetId}`);
+            console.log(`[Clothing] Publish success on CSRF retry for asset ${assetId}`);
             return true;
           }
           const retryText = await retry.text().catch(() => "");
-          console.log(`[Clothing] Release CSRF retry failed: status=${retry.status} body=${retryText.slice(0, 300)}`);
+          console.log(`[Clothing] Publish CSRF retry failed: status=${retry.status} body=${retryText.slice(0, 300)}`);
         }
       }
 
       if (releaseResp.status === 429) {
-        console.log("[Clothing] Release rate limited, waiting longer...");
+        console.log("[Clothing] Publish rate limited, waiting longer...");
         await new Promise(r => setTimeout(r, 5000 * (attempt + 1)));
       }
     } catch (err) {
-      console.error(`[Clothing] Release error attempt ${attempt + 1}:`, err);
+      console.error(`[Clothing] Publish error attempt ${attempt + 1}:`, err);
     }
   }
   return false;
