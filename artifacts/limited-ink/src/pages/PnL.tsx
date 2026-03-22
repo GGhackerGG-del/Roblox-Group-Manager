@@ -73,7 +73,7 @@ export default function PnL({ groupId }: { groupId: string }) {
 
   useEffect(() => {
     const cached = cache.get<PnLData>(`pnl_${groupId}`);
-    if (cached) {
+    if (cached && cached.monthRevenue !== undefined) {
       setData(cached);
       setLoading(false);
     } else {

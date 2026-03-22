@@ -179,8 +179,9 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
     const netMonthUSD = netMonth * ROBUX_TO_USD;
     const netMonthRUB = netMonthUSD * USD_TO_RUB;
 
+    const txSource = weekTx.length > 0 ? weekTx : transactions;
     const itemStats: Record<string, { name: string; revenue: number; count: number }> = {};
-    for (const tx of weekTx) {
+    for (const tx of txSource) {
       const key = tx.description;
       if (!itemStats[key]) {
         itemStats[key] = { name: key, revenue: 0, count: 0 };
