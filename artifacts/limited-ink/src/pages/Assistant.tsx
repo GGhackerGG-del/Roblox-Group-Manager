@@ -211,8 +211,8 @@ export default function Assistant() {
       }
 
       if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({ error: "Failed" }));
-        throw new Error(errData.error || "Failed to generate image");
+        const errData = await resp.json().catch(() => ({ error: t("assistant.failed") }));
+        throw new Error(errData.error || t("assistant.failedGenerate"));
       }
 
       const data = await resp.json() as { b64_json: string };
@@ -224,7 +224,7 @@ export default function Assistant() {
         return updated;
       });
     } catch (ex: any) {
-      const msg = ex?.name === "AbortError" ? "Timeout — try a simpler prompt" : (ex instanceof Error ? ex.message : t("assistant.error"));
+      const msg = ex?.name === "AbortError" ? t("assistant.timeout") : (ex instanceof Error ? ex.message : t("assistant.error"));
       setMessages(prev => {
         const updated = [...prev];
         updated[updated.length - 1] = { role: "assistant", content: msg };
@@ -274,12 +274,12 @@ export default function Assistant() {
       });
 
       if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({ error: "Server error" }));
+        const errData = await resp.json().catch(() => ({ error: t("assistant.serverError") }));
         throw new Error(errData.error || `Error ${resp.status}`);
       }
 
       const reader = resp.body?.getReader();
-      if (!reader) throw new Error("No stream");
+      if (!reader) throw new Error(t("assistant.noStream"));
 
       const decoder = new TextDecoder();
       let fullContent = "";

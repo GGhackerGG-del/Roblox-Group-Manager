@@ -61,7 +61,7 @@ interface WatchlistEntry {
   available?: boolean;
 }
 
-const demandLabels: Record<number, string> = { [-1]: "Terrible", 0: "Low", 1: "Normal", 2: "High", 3: "Amazing" };
+const demandKeys: Record<number, string> = { [-1]: "sniper.demand.terrible", 0: "sniper.demand.low", 1: "sniper.demand.normal", 2: "sniper.demand.high", 3: "sniper.demand.amazing" };
 const trendIcons: Record<number, React.ReactNode> = {
   [-1]: <TrendingDown className="w-3.5 h-3.5 text-red-500" />,
   0: <Minus className="w-3.5 h-3.5 text-amber-500" />,
@@ -100,10 +100,10 @@ function ItemCard({ item, onWatch, watching }: { item: LimitedItem; onWatch: (i:
             )}
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <Badge variant="outline" className="text-[9px] h-5">{demandLabels[item.demand] || "?"}</Badge>
+            <Badge variant="outline" className="text-[9px] h-5">{t(demandKeys[item.demand] || "sniper.demand.normal")}</Badge>
             {trendIcons[item.trend]}
-            {item.projected === 1 && <Badge className="text-[9px] h-5 bg-purple-500/20 text-purple-700 dark:text-purple-300 border-0">Projected</Badge>}
-            {item.rare === 1 && <Badge className="text-[9px] h-5 bg-amber-500/20 text-amber-700 dark:text-amber-300 border-0">Rare</Badge>}
+            {item.projected === 1 && <Badge className="text-[9px] h-5 bg-purple-500/20 text-purple-700 dark:text-purple-300 border-0">{t("sniper.projected")}</Badge>}
+            {item.rare === 1 && <Badge className="text-[9px] h-5 bg-amber-500/20 text-amber-700 dark:text-amber-300 border-0">{t("sniper.rare")}</Badge>}
             {item.dealPercent !== undefined && item.dealPercent > 0 && (
               <Badge className="text-[9px] h-5 bg-green-500/20 text-green-700 dark:text-green-300 border-0">+{item.dealPercent}%</Badge>
             )}
@@ -149,11 +149,11 @@ export default function Sniper() {
       const data = await apiFetch<{ items: LimitedItem[]; total: number }>(`/api/sniper/items${params}`);
       setItems(data.items || []);
     } catch (e: unknown) {
-      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to load", variant: "destructive" });
+      toast({ title: t("sniper.error"), description: e instanceof Error ? e.message : t("sniper.failedLoad"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const fetchDeals = useCallback(async () => {
     setDealsLoading(true);
@@ -161,11 +161,11 @@ export default function Sniper() {
       const data = await apiFetch<{ items: LimitedItem[] }>("/api/sniper/deals");
       setDeals(data.items || []);
     } catch (e: unknown) {
-      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to load deals", variant: "destructive" });
+      toast({ title: t("sniper.error"), description: e instanceof Error ? e.message : t("sniper.failedLoadDeals"), variant: "destructive" });
     } finally {
       setDealsLoading(false);
     }
-  }, [toast]);
+  }, [toast, t]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -200,10 +200,10 @@ export default function Sniper() {
     setMonitoring(false);
     if (errors > 0) {
       playError();
-      toast({ title: "Prices updated", description: `${errors} of ${updated.length} items failed to update.`, variant: "destructive" });
+      toast({ title: t("sniper.pricesUpdated"), description: `${errors}/${updated.length} ${t("sniper.pricesPartialFail")}`, variant: "destructive" });
     } else {
       playSuccess();
-      toast({ title: "Prices updated", description: `All ${updated.length} items checked.` });
+      toast({ title: t("sniper.pricesUpdated"), description: t("sniper.pricesAllChecked") });
     }
   };
 
@@ -218,10 +218,10 @@ export default function Sniper() {
         body: JSON.stringify({ assetId: entry.assetId, maxPrice: entry.maxPrice }),
       });
       playSuccess();
-      toast({ title: "Purchased!", description: data.message });
+      toast({ title: t("sniper.purchased"), description: data.message });
     } catch (e: unknown) {
       playError();
-      toast({ title: "Purchase failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      toast({ title: t("sniper.purchaseFailed"), description: e instanceof Error ? e.message : t("sniper.error"), variant: "destructive" });
     } finally {
       setBuying(null);
     }

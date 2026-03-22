@@ -220,8 +220,9 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
   const minPrice = !isNaN(rawMin) && rawMin >= 0 ? String(rawMin) : "";
   const maxPrice = !isNaN(rawMax) && rawMax >= 0 ? String(rawMax) : "";
   const limit = 30;
+  const cursor = String(req.query.cursor || "").trim();
 
-  const ck = `cs_${keyword}_${subcategory}_${sortType}_${sortAggregation}_${minPrice}_${maxPrice}_${creatorId}`;
+  const ck = `cs_${keyword}_${subcategory}_${sortType}_${sortAggregation}_${minPrice}_${maxPrice}_${creatorId}_${cursor}`;
   const cached = cacheGet<unknown>(ck);
   if (cached) { res.json(cached); return; }
 
@@ -237,6 +238,7 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
       url += `&creatorType=Group&creatorTargetId=${cid}`;
     }
   }
+  if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
 
   try {
     console.log(`[Clothing] Search URL: ${url}`);
@@ -283,11 +285,12 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
       creatorName?: string;
       creatorType?: string;
     };
-    const raw = await resp.json() as { data: CatalogDetailItem[] };
+    const raw = await resp.json() as { data: CatalogDetailItem[]; nextPageCursor?: string };
     const dataItems = raw.data || [];
+    const nextCursor = raw.nextPageCursor || null;
 
     if (dataItems.length === 0) {
-      const payload = { items: [] };
+      const payload = { items: [], nextCursor: null };
       cacheSet(ck, payload);
       res.json(payload);
       return;
@@ -306,7 +309,7 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
       thumbnailUrl: thumbMap[d.id] || null,
     }));
 
-    const payload = { items };
+    const payload = { items, nextCursor };
     cacheSet(ck, payload);
     res.json(payload);
   } catch (err) {

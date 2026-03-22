@@ -102,39 +102,56 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   const [creatorId, setCreatorId] = useState(String(groupId));
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [copying, setCopying] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const lastSearchTime = useRef(0);
 
-  const search = async () => {
+  const doSearch = async (cursor?: string) => {
     if (!keyword.trim() && !creatorId.trim()) return;
-    const now = Date.now();
-    if (now - lastSearchTime.current < 3000) {
-      toast({ title: t("group.slowDown"), description: t("group.slowDown.desc"), variant: "destructive" });
-      return;
+    const isLoadMore = !!cursor;
+    if (!isLoadMore) {
+      const now = Date.now();
+      if (now - lastSearchTime.current < 3000) {
+        toast({ title: t("group.slowDown"), description: t("group.slowDown.desc"), variant: "destructive" });
+        return;
+      }
+      lastSearchTime.current = now;
+      playClick();
+      setLoading(true);
+      setSelected(new Set());
+    } else {
+      setLoadingMore(true);
     }
-    lastSearchTime.current = now;
-    playClick();
-    setLoading(true);
-    setSelected(new Set());
     try {
       const params = new URLSearchParams({ subcategory, sortType });
       if (keyword.trim()) params.set("keyword", keyword.trim());
       if (minPrice) params.set("minPrice", minPrice);
       if (maxPrice) params.set("maxPrice", maxPrice);
       if (creatorId.trim()) params.set("creatorId", creatorId.trim());
-      const data = await apiFetch<{ items: ClothingItem[] }>(`/api/clothing/search?${params}`);
-      setItems(data.items || []);
-      if (!data.items?.length) toast({ title: t("group.noResults"), description: t("group.tryDifferent") });
+      if (cursor) params.set("cursor", cursor);
+      const data = await apiFetch<{ items: ClothingItem[]; nextCursor: string | null }>(`/api/clothing/search?${params}`);
+      if (isLoadMore) {
+        setItems(prev => [...prev, ...(data.items || [])]);
+      } else {
+        setItems(data.items || []);
+        if (!data.items?.length) toast({ title: t("group.noResults"), description: t("group.tryDifferent") });
+      }
+      setNextCursor(data.nextCursor || null);
     } catch (e: unknown) {
       playError();
       toast({ title: t("group.searchFailed"), description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  const search = () => doSearch();
+  const loadMore = () => { if (nextCursor) doSearch(nextCursor); };
 
   const toggleSelect = (id: number) => {
     setSelected(prev => {
@@ -267,7 +284,7 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
               )}
               <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7" onClick={() => setSelected(new Set(items.map(i => i.id)))}>{t("group.selectAll")}</Button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[600px] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {items.map(item => (
                 <div key={item.id} className={`rounded-xl border p-2 bg-card hover:bg-accent/30 transition-colors cursor-pointer ${selected.has(item.id) ? "border-primary ring-1 ring-primary/30" : "border-border/50"}`} onClick={() => toggleSelect(item.id)}>
                   {item.thumbnailUrl && <img src={item.thumbnailUrl} alt={item.name} className="w-full aspect-square rounded-lg object-cover mb-2" loading="lazy" />}
@@ -286,6 +303,12 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
                 </div>
               ))}
             </div>
+            {nextCursor && (
+              <Button variant="outline" className="rounded-xl w-full gap-2 mt-3" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
+                {t("group.loadMore")} ({items.length})
+              </Button>
+            )}
           </>
         )}
       </CardContent>
@@ -622,6 +645,7 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
   const [downloading, setDownloading] = useState<number | null>(null);
   const [searchFilter, setSearchFilter] = useState("");
   const [total, setTotal] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(60);
 
   const load = useCallback(async (q?: string) => {
     setLoading(true);
@@ -683,19 +707,27 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">{t("group.noResults")}</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[600px] overflow-y-auto pr-1">
-            {items.map(item => (
-              <div key={item.id} className="rounded-xl border border-border/50 p-2 bg-card hover:bg-accent/30 transition-colors">
-                {item.thumbnailUrl && <img src={item.thumbnailUrl} alt={item.name} className="w-full aspect-square rounded-lg object-cover mb-2" loading="lazy" />}
-                <p className="text-xs font-medium truncate" title={item.name}>{item.name}</p>
-                <p className="text-[10px] text-muted-foreground">{item.assetType} · {item.price != null ? `${item.price} R$` : t("competitors.offsale")}</p>
-                <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 w-full mt-1.5 gap-1" onClick={() => downloadTemplate(item)} disabled={downloading === item.id}>
-                  {downloading === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-                  {t("group.template")}
-                </Button>
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {items.slice(0, visibleCount).map(item => (
+                <div key={item.id} className="rounded-xl border border-border/50 p-2 bg-card hover:bg-accent/30 transition-colors">
+                  {item.thumbnailUrl && <img src={item.thumbnailUrl} alt={item.name} className="w-full aspect-square rounded-lg object-cover mb-2" loading="lazy" />}
+                  <p className="text-xs font-medium truncate" title={item.name}>{item.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{item.assetType} · {item.price != null ? `${item.price} R$` : t("competitors.offsale")}</p>
+                  <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 w-full mt-1.5 gap-1" onClick={() => downloadTemplate(item)} disabled={downloading === item.id}>
+                    {downloading === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                    {t("group.template")}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {visibleCount < items.length && (
+              <Button variant="outline" className="rounded-xl w-full gap-2 mt-3" onClick={() => setVisibleCount(prev => prev + 60)}>
+                <ChevronRight className="w-4 h-4" />
+                {t("group.loadMore")} ({Math.min(visibleCount, items.length)} / {items.length})
+              </Button>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

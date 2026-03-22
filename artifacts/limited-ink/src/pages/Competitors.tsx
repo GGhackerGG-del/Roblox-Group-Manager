@@ -110,15 +110,15 @@ export default function Competitors() {
       });
 
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: "Request failed" })) as { error?: string };
-        throw new Error(err.error || "Failed to analyze");
+        const err = await resp.json().catch(() => ({ error: t("competitors.requestFailed") })) as { error?: string };
+        throw new Error(err.error || t("competitors.analysisFailed"));
       }
 
       const result = await resp.json();
       setData(result);
       playSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
+      setError(err instanceof Error ? err.message : t("competitors.analysisFailed"));
     } finally {
       setLoading(false);
     }

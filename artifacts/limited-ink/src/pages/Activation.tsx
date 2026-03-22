@@ -24,9 +24,9 @@ export default function Activation() {
       const fingerprint = await getDeviceFingerprint();
       const res = await verify({ data: { code: code.trim(), deviceFingerprint: fingerprint } });
       await loginLicense(res.token);
-      toast({ title: t("activation.success"), description: `Welcome! Plan: ${res.plan.toUpperCase()}` });
+      toast({ title: t("activation.success"), description: `${t("activation.welcomePlan")} ${res.plan.toUpperCase()}` });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Invalid or expired license code.";
+      const message = err instanceof Error ? err.message : t("activation.invalidCode");
       toast({ variant: "destructive", title: t("activation.failed"), description: message });
     }
   };

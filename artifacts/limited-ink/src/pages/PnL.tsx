@@ -59,13 +59,13 @@ export default function PnL({ groupId }: { groupId: string }) {
         headers,
       });
 
-      if (!resp.ok) throw new Error("Failed to load P&L data");
+      if (!resp.ok) throw new Error(t("pnl.failedLoad"));
       const result = await resp.json();
       setData(result);
       cache.set(`pnl_${groupId}`, result);
       playSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Load failed");
+      setError(err instanceof Error ? err.message : t("pnl.loadFailed"));
     } finally {
       setLoading(false);
     }

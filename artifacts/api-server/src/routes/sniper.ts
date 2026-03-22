@@ -129,6 +129,22 @@ const catalogPriceCache = new Map<number, number | null>();
 let catalogPriceCacheTime = 0;
 const CATALOG_PRICE_CACHE_TTL = 10 * 60_000;
 
+async function getRobloxCsrf(cookie: string): Promise<string> {
+  try {
+    const r = await fetch("https://auth.roblox.com/v2/logout", {
+      method: "POST",
+      headers: {
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "Content-Length": "0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    return r.headers.get("x-csrf-token") || "";
+  } catch {
+    return "";
+  }
+}
+
 async function addCatalogPrices(items: LimitedItem[], cookie?: string): Promise<void> {
   if (Date.now() - catalogPriceCacheTime > CATALOG_PRICE_CACHE_TTL) {
     catalogPriceCache.clear();
@@ -138,19 +154,37 @@ async function addCatalogPrices(items: LimitedItem[], cookie?: string): Promise<
   const needPrice = items.filter(i => i.catalogPrice === undefined && !catalogPriceCache.has(i.id));
 
   if (needPrice.length && cookie) {
+    const csrf = await getRobloxCsrf(cookie);
+
     for (let b = 0; b < needPrice.length; b += 120) {
       const batch = needPrice.slice(b, b + 120);
       try {
-        const resp = await fetch(`${CATALOG_API}/v1/catalog/items/details`, {
+        const hdrs: Record<string, string> = {
+          "Cookie": `.ROBLOSECURITY=${cookie}`,
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "application/json",
+        };
+        if (csrf) hdrs["X-CSRF-TOKEN"] = csrf;
+
+        let resp = await fetch(`${CATALOG_API}/v1/catalog/items/details`, {
           method: "POST",
-          headers: {
-            "Cookie": `.ROBLOSECURITY=${cookie}`,
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "application/json",
-          },
+          headers: hdrs,
           body: JSON.stringify({ items: batch.map(i => ({ itemType: "Asset", id: i.id })) }),
         });
+
+        if (resp.status === 403) {
+          const newCsrf = resp.headers.get("x-csrf-token");
+          if (newCsrf) {
+            hdrs["X-CSRF-TOKEN"] = newCsrf;
+            resp = await fetch(`${CATALOG_API}/v1/catalog/items/details`, {
+              method: "POST",
+              headers: hdrs,
+              body: JSON.stringify({ items: batch.map(i => ({ itemType: "Asset", id: i.id })) }),
+            });
+          }
+        }
+
         if (resp.ok) {
           const data = await resp.json() as { data: Array<{ id: number; price?: number | null; lowestPrice?: number | null; lowestResalePrice?: number | null }> };
           const returnedIds = new Set<number>();
@@ -261,12 +295,16 @@ router.get("/sniper/live/:assetId", async (req, res): Promise<void> => {
     let sellerId: number | null = null;
     let userAssetId: number | null = null;
 
+    const csrf = await getRobloxCsrf(cookie);
+    const catalogHeaders: Record<string, string> = { ...rHeaders, "Content-Type": "application/json" };
+    if (csrf) catalogHeaders["X-CSRF-TOKEN"] = csrf;
+
     const [economyResp, resellersResp, catalogResp] = await Promise.all([
       fetch(`${ECONOMY_API}/v2/assets/${assetId}/details`, { headers: rHeaders }),
       fetch(`${ECONOMY_API}/v1/assets/${assetId}/resellers?limit=1&sortOrder=Asc`, { headers: rHeaders }),
       fetch(`https://catalog.roblox.com/v1/catalog/items/details`, {
         method: "POST",
-        headers: { ...rHeaders, "Content-Type": "application/json" },
+        headers: catalogHeaders,
         body: JSON.stringify({ items: [{ itemType: "Asset", id: assetId }] }),
       }).catch(() => null),
     ]);

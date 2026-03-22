@@ -105,14 +105,14 @@ interface UserProfile {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function timeAgo(date: string): string {
+function timeAgo(date: string, t: (k: string) => string): string {
   const diff = Date.now() - new Date(date).getTime();
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t("community.timeJustNow");
+  if (minutes < 60) return `${minutes} ${t("community.timeMinAgo")}`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return `${hours} ${t("community.timeHourAgo")}`;
+  return `${Math.floor(hours / 24)} ${t("community.timeDayAgo")}`;
 }
 
 // ── User Profile Modal ────────────────────────────────────────────────────────
@@ -124,6 +124,7 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
   onChat?: (user: PlatformUser) => void;
 }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [friendStatus, setFriendStatus] = useState<{ id: number; status: string; requesterId: number } | null>(null);
@@ -135,7 +136,7 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
         setProfile(d);
         setFriendStatus(d.friendship);
       })
-      .catch(() => toast({ variant: "destructive", title: "Error", description: "Failed to load profile" }))
+      .catch(() => toast({ variant: "destructive", title: t("community.error"), description: t("community.failedLoadProfile") }))
       .finally(() => setLoading(false));
   }, [userId]);
 
@@ -151,32 +152,32 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
           body: JSON.stringify({ targetUserId: profile.user.id }),
         });
         setFriendStatus({ id: -1, status: "pending", requesterId: myUser.id });
-        toast({ title: "Friend request sent!" });
+        toast({ title: t("community.friendSent") });
       } else if (friendStatus.status === "accepted") {
         await apiFetch(`/api/social/friends/${friendStatus.id}`, { method: "DELETE" });
         setFriendStatus(null);
-        toast({ title: "Unfriended" });
+        toast({ title: t("community.unfriended") });
       } else if (friendStatus.status === "pending" && friendStatus.requesterId !== myUser.id) {
         await apiFetch(`/api/social/friends/${friendStatus.id}`, {
           method: "PUT",
           body: JSON.stringify({ action: "accept" }),
         });
         setFriendStatus({ ...friendStatus, status: "accepted" });
-        toast({ title: "Friend added!" });
+        toast({ title: t("community.friendAdded") });
       }
     } catch (err) {
-      toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed" });
+      toast({ variant: "destructive", title: t("community.error"), description: err instanceof Error ? err.message : t("community.failed") });
     } finally {
       setRequesting(false);
     }
   };
 
   const getFriendButtonLabel = () => {
-    if (!friendStatus) return { label: "Add Friend", icon: <UserPlus className="w-4 h-4 mr-1.5" /> };
-    if (friendStatus.status === "accepted") return { label: "Friends ✓", icon: <UserCheck className="w-4 h-4 mr-1.5" /> };
-    if (friendStatus.status === "pending" && friendStatus.requesterId === myUser?.id) return { label: "Request Sent", icon: <Clock className="w-4 h-4 mr-1.5" /> };
-    if (friendStatus.status === "pending") return { label: "Accept Request", icon: <Check className="w-4 h-4 mr-1.5" /> };
-    return { label: "Add Friend", icon: <UserPlus className="w-4 h-4 mr-1.5" /> };
+    if (!friendStatus) return { label: t("community.addFriend"), icon: <UserPlus className="w-4 h-4 mr-1.5" /> };
+    if (friendStatus.status === "accepted") return { label: t("community.friendsCheck"), icon: <UserCheck className="w-4 h-4 mr-1.5" /> };
+    if (friendStatus.status === "pending" && friendStatus.requesterId === myUser?.id) return { label: t("community.requestSent"), icon: <Clock className="w-4 h-4 mr-1.5" /> };
+    if (friendStatus.status === "pending") return { label: t("community.acceptRequest"), icon: <Check className="w-4 h-4 mr-1.5" /> };
+    return { label: t("community.addFriend"), icon: <UserPlus className="w-4 h-4 mr-1.5" /> };
   };
 
   return (
@@ -297,7 +298,7 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{p.likesCount}</span>
                           <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{p.commentsCount}</span>
-                          <span>{timeAgo(p.createdAt)}</span>
+                          <span>{timeAgo(p.createdAt, t)}</span>
                         </div>
                       </div>
                     ))}
@@ -345,7 +346,7 @@ function PostCard({ post, myUserId, onLike, onDelete, onComment, onUserClick }: 
               </Avatar>
               <div>
                 <p className="font-semibold text-sm hover:underline">{post.author?.displayName}</p>
-                <p className="text-xs text-muted-foreground">@{post.author?.robloxUsername} · {timeAgo(post.createdAt)}</p>
+                <p className="text-xs text-muted-foreground">@{post.author?.robloxUsername} · {timeAgo(post.createdAt, t)}</p>
               </div>
             </button>
             {isOwn && (
@@ -390,6 +391,7 @@ function PostCard({ post, myUserId, onLike, onDelete, onComment, onUserClick }: 
 
 function CommentsPanel({ post, myUser, onClose }: { post: Post; myUser: PlatformUser | null; onClose: () => void }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
@@ -450,7 +452,7 @@ function CommentsPanel({ post, myUser, onClose }: { post: Post; myUser: Platform
                   <AvatarFallback className="text-xs font-bold">{c.author?.displayName?.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 bg-secondary/60 rounded-xl px-3 py-2.5">
-                  <p className="text-xs font-semibold">{c.author?.displayName} <span className="font-normal text-muted-foreground">· {timeAgo(c.createdAt)}</span></p>
+                  <p className="text-xs font-semibold">{c.author?.displayName} <span className="font-normal text-muted-foreground">· {timeAgo(c.createdAt, t)}</span></p>
                   <p className="text-sm mt-1">{c.content}</p>
                 </div>
               </div>
@@ -484,6 +486,7 @@ function CommentsPanel({ post, myUser, onClose }: { post: Post; myUser: Platform
 
 function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserClick: (userId: number) => void }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [newContent, setNewContent] = useState("");
@@ -625,6 +628,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
   onChat: (user: PlatformUser) => void;
 }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [users, setUsers] = useState<Array<PlatformUser & { isMe?: boolean }>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -764,6 +768,7 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
   onUserClick: (userId: number) => void;
 }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [friends, setFriends] = useState<Array<{ friendship: { id: number; status: string }; user: PlatformUser }>>([]);
   const [pending, setPending] = useState<Array<{ friendship: { id: number; status: string }; user: PlatformUser }>>([]);
   const [loading, setLoading] = useState(true);
@@ -896,6 +901,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   onClearInitial: () => void;
 }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [conversations, setConversations] = useState<DmConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<PlatformUser | null>(null);
@@ -1024,7 +1030,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                     <div key={msg.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${isOwn ? "bg-black text-white rounded-br-md" : "bg-secondary rounded-bl-md"}`}>
                         {msg.content}
-                        <p className={`text-[10px] mt-1 ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>{timeAgo(msg.createdAt)}</p>
+                        <p className={`text-[10px] mt-1 ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>{timeAgo(msg.createdAt, t)}</p>
                       </div>
                     </div>
                   );
@@ -1107,6 +1113,7 @@ const FORUM_CATEGORIES = [
 
 function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserClick: (id: number) => void }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [category, setCategory] = useState("suggestions");
   const [topics, setTopics] = useState<ForumTopic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1251,7 +1258,7 @@ function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUser
               </Avatar>
               <div>
                 <p className="text-sm font-semibold hover:underline">{selectedTopic.author?.displayName}</p>
-                <p className="text-xs text-muted-foreground">{timeAgo(selectedTopic.createdAt)}</p>
+                <p className="text-xs text-muted-foreground">{timeAgo(selectedTopic.createdAt, t)}</p>
               </div>
             </button>
 
@@ -1285,7 +1292,7 @@ function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUser
                           <AvatarFallback className="text-[10px] font-bold">{r.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
                         </Avatar>
                         <span className="text-xs font-semibold hover:underline">{r.author?.displayName}</span>
-                        <span className="text-[10px] text-muted-foreground">{timeAgo(r.createdAt)}</span>
+                        <span className="text-[10px] text-muted-foreground">{timeAgo(r.createdAt, t)}</span>
                       </button>
                       <div className="flex items-center gap-2">
                         {r.isAnswer && (
@@ -1417,7 +1424,7 @@ function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUser
                       <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
                         <button onClick={e => { e.stopPropagation(); onUserClick(topic.authorId); }} className="hover:underline font-medium">{topic.author?.displayName}</button>
                         <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{topic.repliesCount}</span>
-                        <span>{timeAgo(topic.lastActivityAt)}</span>
+                        <span>{timeAgo(topic.lastActivityAt, t)}</span>
                       </div>
                     </div>
                     {topic.authorId === myUser?.id && (
@@ -1509,6 +1516,7 @@ function LeaderboardTab({ onUserClick }: { onUserClick: (id: number) => void }) 
 
 function SubscriptionsTab({ myUser }: { myUser: PlatformUser | null }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [subs, setSubs] = useState<GroupSub[]>([]);
   const [loading, setLoading] = useState(true);
   const [addGroupId, setAddGroupId] = useState("");
@@ -1613,7 +1621,7 @@ function SubscriptionsTab({ myUser }: { myUser: PlatformUser | null }) {
                     <a href={`https://www.roblox.com/groups/${sub.robloxGroupId}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-sm hover:underline">
                       {sub.groupName}
                     </a>
-                    <p className="text-[10px] text-muted-foreground">Subscribed {timeAgo(sub.createdAt)}</p>
+                    <p className="text-[10px] text-muted-foreground">Subscribed {timeAgo(sub.createdAt, t)}</p>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => handleUnsubscribe(sub.id)} className="rounded-xl text-xs gap-1.5 shrink-0 text-muted-foreground hover:text-destructive">
                     <BellOff className="w-3.5 h-3.5" /> Unsubscribe

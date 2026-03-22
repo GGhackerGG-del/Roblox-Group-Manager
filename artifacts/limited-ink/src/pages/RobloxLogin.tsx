@@ -25,7 +25,7 @@ export default function RobloxLogin() {
       loginRoblox(res);
       toast({ title: t("roblox.connected"), description: `${t("roblox.connectedAs")} ${res.displayName || res.name}` });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Invalid or expired cookie.";
+      const message = err instanceof Error ? err.message : t("roblox.invalidCookie");
       toast({ variant: "destructive", title: t("roblox.failed"), description: message });
     }
   };
