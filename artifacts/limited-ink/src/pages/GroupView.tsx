@@ -99,7 +99,7 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   const [sortType, setSortType] = useState("0");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-  const [creatorId, setCreatorId] = useState("");
+  const [creatorId, setCreatorId] = useState(String(groupId));
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [copying, setCopying] = useState<number | null>(null);
