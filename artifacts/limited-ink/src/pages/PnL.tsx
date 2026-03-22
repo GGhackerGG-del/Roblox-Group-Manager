@@ -22,12 +22,17 @@ interface PnLData {
   dailyRevenue: number;
   todayRevenue: number;
   weekRevenue: number;
+  monthRevenue: number;
   robloxCommission: number;
   netRevenue: number;
+  netMonth: number;
   netUSD: number;
   netRUB: number;
+  netMonthUSD: number;
+  netMonthRUB: number;
   totalSales: number;
   todaySales: number;
+  weekSales: number;
   topItems: Array<{ name: string; revenue: number; count: number }>;
   recentTransactions: Array<{ id: string; created: string; revenue: number; agentName: string; description: string; thumbnailUrl?: string | null; assetId?: number | null }>;
 }
@@ -149,23 +154,33 @@ export default function PnL({ groupId }: { groupId: string }) {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">{t("pnl.weekRevenue") || "Week Gross Revenue"}</p>
+            <p className="text-xs text-muted-foreground mb-1">{t("pnl.weekRevenue") || "Week Revenue"}</p>
             <p className="text-lg font-bold text-green-500">{data.weekRevenue.toLocaleString()} R$</p>
+            <p className="text-[10px] text-muted-foreground">{data.weekSales} {t("pnl.sales")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">{t("pnl.commission") || "Roblox Commission (30%)"}</p>
+            <p className="text-xs text-muted-foreground mb-1">{t("pnl.monthRevenue") || "Month Revenue"}</p>
+            <p className="text-lg font-bold text-green-500">{data.monthRevenue.toLocaleString()} R$</p>
+            <p className="text-[10px] text-muted-foreground">{data.totalSales} {t("pnl.sales")}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">{t("pnl.commission") || "Commission (30%)"}</p>
             <p className="text-lg font-bold text-red-500">-{data.robloxCommission.toLocaleString()} R$</p>
+            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: -{Math.round(data.monthRevenue * 0.3).toLocaleString()} R$</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{t("pnl.netFiat") || "Net in Fiat"}</p>
             <p className="text-lg font-bold">${data.netUSD} <span className="text-sm text-muted-foreground">/ {data.netRUB.toLocaleString()} ₽</span></p>
+            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: ${data.netMonthUSD} / {data.netMonthRUB.toLocaleString()} ₽</p>
           </CardContent>
         </Card>
       </div>

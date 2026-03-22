@@ -31,26 +31,59 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
   }
 
   try {
-    const [fundsResp, revResp] = await Promise.allSettled([
+    const [fundsResp, revDayResp, revWeekResp, revMonthResp] = await Promise.allSettled([
       fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/currency`, cookie),
       fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Day`, cookie),
+      fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Week`, cookie),
+      fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Month`, cookie),
     ]);
 
     let funds = 0;
     if (fundsResp.status === "fulfilled" && fundsResp.value.ok) {
       const d = await fundsResp.value.json() as { robux: number };
       funds = d.robux;
+    } else {
+      console.log(`[P&L] Currency endpoint failed for group ${groupId}:`, fundsResp.status === "fulfilled" ? fundsResp.value.status : "rejected");
     }
 
     let pendingRobux = 0;
     let dailyRevenue = 0;
-    if (revResp.status === "fulfilled" && revResp.value.ok) {
-      const d = await revResp.value.json() as {
+    let summaryWeekRevenue = 0;
+    let summaryMonthRevenue = 0;
+    let summaryWeekSales = 0;
+    let summaryMonthSales = 0;
+    let summaryWeekPurchases = 0;
+    let summaryMonthPurchases = 0;
+
+    if (revDayResp.status === "fulfilled" && revDayResp.value.ok) {
+      const d = await revDayResp.value.json() as {
         pendingRobux?: number;
         itemSaleRobux?: number;
       };
       pendingRobux = d.pendingRobux ?? 0;
       dailyRevenue = d.itemSaleRobux ?? 0;
+    } else {
+      console.log(`[P&L] Day revenue failed for group ${groupId}:`, revDayResp.status === "fulfilled" ? revDayResp.value.status : "rejected");
+    }
+
+    if (revWeekResp.status === "fulfilled" && revWeekResp.value.ok) {
+      const d = await revWeekResp.value.json() as {
+        itemSaleRobux?: number;
+        purchasedRobux?: number;
+        groupPayoutRobux?: number;
+      };
+      summaryWeekRevenue = d.itemSaleRobux ?? 0;
+      summaryWeekPurchases = d.purchasedRobux ?? 0;
+    }
+
+    if (revMonthResp.status === "fulfilled" && revMonthResp.value.ok) {
+      const d = await revMonthResp.value.json() as {
+        itemSaleRobux?: number;
+        purchasedRobux?: number;
+        groupPayoutRobux?: number;
+      };
+      summaryMonthRevenue = d.itemSaleRobux ?? 0;
+      summaryMonthPurchases = d.purchasedRobux ?? 0;
     }
 
     const transactions: Array<{
@@ -123,15 +156,19 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const todayTx = transactions.filter(t => new Date(t.created) > dayAgo);
-    const weekTx = transactions.filter(t => new Date(t.created) > weekAgo);
+    const todayTx = transactions.filter(v => new Date(v.created) > dayAgo);
+    const weekTx = transactions.filter(v => new Date(v.created) > weekAgo);
 
-    const todayRevenue = todayTx.reduce((s, t) => s + t.revenue, 0);
-    const weekRevenue = weekTx.reduce((s, t) => s + t.revenue, 0);
+    const todayRevenue = todayTx.reduce((s, v) => s + v.revenue, 0);
+    const weekRevenue = weekTx.reduce((s, v) => s + v.revenue, 0);
 
-    const grossRevenue = weekRevenue;
+    const grossRevenue = summaryWeekRevenue > 0 ? summaryWeekRevenue : weekRevenue;
     const robloxCommission = Math.round(grossRevenue * 0.3);
     const netRevenue = grossRevenue - robloxCommission;
+
+    const grossMonth = summaryMonthRevenue > 0 ? summaryMonthRevenue : transactions.reduce((s, v) => s + v.revenue, 0);
+    const monthCommission = Math.round(grossMonth * 0.3);
+    const netMonth = grossMonth - monthCommission;
 
     const ROBUX_TO_USD = 0.0035;
     const USD_TO_RUB = 96;
@@ -139,8 +176,11 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
     const netUSD = netRevenue * ROBUX_TO_USD;
     const netRUB = netUSD * USD_TO_RUB;
 
+    const netMonthUSD = netMonth * ROBUX_TO_USD;
+    const netMonthRUB = netMonthUSD * USD_TO_RUB;
+
     const itemStats: Record<string, { name: string; revenue: number; count: number }> = {};
-    for (const tx of todayTx) {
+    for (const tx of weekTx) {
       const key = tx.description;
       if (!itemStats[key]) {
         itemStats[key] = { name: key, revenue: 0, count: 0 };
@@ -156,7 +196,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
     const recentTx = transactions.slice(0, 50);
 
     const txAssetIds = recentTx
-      .map(t => t.assetId)
+      .map(v => v.assetId)
       .filter((id): id is number => id !== null && id > 0);
     const uniqueAssetIds = [...new Set(txAssetIds)];
 
@@ -169,8 +209,8 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
         );
         if (thumbResp.ok) {
           const td = await thumbResp.json() as { data: Array<{ targetId: number; imageUrl: string }> };
-          for (const t of td.data || []) {
-            thumbMap[t.targetId] = t.imageUrl || null;
+          for (const item of td.data || []) {
+            thumbMap[item.targetId] = item.imageUrl || null;
           }
         }
       } catch {}
@@ -186,14 +226,19 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       balance: funds,
       pendingRobux,
       dailyRevenue,
-      todayRevenue,
+      todayRevenue: todayRevenue || dailyRevenue,
       weekRevenue: grossRevenue,
+      monthRevenue: grossMonth,
       robloxCommission,
       netRevenue,
+      netMonth,
       netUSD: Math.round(netUSD * 100) / 100,
       netRUB: Math.round(netRUB),
+      netMonthUSD: Math.round(netMonthUSD * 100) / 100,
+      netMonthRUB: Math.round(netMonthRUB),
       totalSales: transactions.length,
       todaySales: todayTx.length,
+      weekSales: weekTx.length,
       topItems,
       recentTransactions: recentWithThumbs,
     });
