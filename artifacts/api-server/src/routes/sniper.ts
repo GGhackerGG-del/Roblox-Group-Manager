@@ -396,4 +396,182 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
   }
 });
 
+async function getRobloxCsrfSniper(cookie: string): Promise<string | null> {
+  try {
+    const resp = await fetch("https://auth.roblox.com/v2/logout", {
+      method: "POST",
+      headers: {
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "Content-Length": "0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    const token = resp.headers.get("x-csrf-token");
+    return token || null;
+  } catch {
+    return null;
+  }
+}
+
+router.get("/sniper/live/:assetId", async (req, res): Promise<void> => {
+  const assetId = parseInt(req.params.assetId, 10);
+  if (isNaN(assetId) || assetId <= 0) {
+    res.status(400).json({ error: "Invalid asset ID" });
+    return;
+  }
+
+  try {
+    const allItems = await fetchRolimonsItems();
+    const rolimonsItem = allItems.find(i => i.id === assetId);
+
+    let lowestPrice: number | null = null;
+    let itemName = rolimonsItem?.name || `Item #${assetId}`;
+
+    try {
+      const detailsResp = await fetch("https://catalog.roblox.com/v1/catalog/items/details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ items: [{ itemType: "Asset", id: assetId }] }),
+      });
+      if (detailsResp.ok) {
+        const details = await detailsResp.json() as { data: Array<{ id: number; name?: string; lowestPrice?: number; price?: number }> };
+        const item = details.data?.[0];
+        if (item) {
+          if (item.name) itemName = item.name;
+          lowestPrice = item.lowestPrice ?? item.price ?? null;
+        }
+      }
+    } catch {}
+
+    const thumbMap = await batchFetchThumbnails([assetId]);
+
+    res.json({
+      assetId,
+      name: itemName,
+      rap: rolimonsItem?.rap || 0,
+      value: rolimonsItem?.value || 0,
+      demand: rolimonsItem?.demand ?? null,
+      demandLabel: rolimonsItem ? getDemandLabel(rolimonsItem.demand) : "Unknown",
+      trend: rolimonsItem?.trend ?? 0,
+      trendLabel: rolimonsItem ? getTrendLabel(rolimonsItem.trend) : "Unknown",
+      lowestPrice,
+      thumbnailUrl: thumbMap[assetId] || null,
+    });
+  } catch (err) {
+    console.error("[Sniper] Live price error:", err);
+    res.status(500).json({ error: "Failed to fetch item data" });
+  }
+});
+
+router.post("/sniper/buy", async (req, res): Promise<void> => {
+  const cookie = req.session?.robloxCookie;
+  if (!cookie) {
+    res.status(401).json({ error: "Not connected to Roblox. Please connect your account in Settings." });
+    return;
+  }
+
+  const assetId = typeof req.body.assetId === "number" ? req.body.assetId : parseInt(String(req.body.assetId), 10);
+  const maxPrice = typeof req.body.maxPrice === "number" ? req.body.maxPrice : null;
+
+  if (isNaN(assetId) || assetId <= 0) {
+    res.status(400).json({ error: "Invalid asset ID" });
+    return;
+  }
+
+  try {
+    console.log(`[Sniper] Fetching lowest seller for asset ${assetId}...`);
+    const sellersResp = await fetch(
+      `https://economy.roblox.com/v1/assets/${assetId}/lowest-sale-sellers`,
+      {
+        headers: {
+          "Cookie": `.ROBLOSECURITY=${cookie}`,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "application/json",
+        },
+      }
+    );
+
+    if (!sellersResp.ok) {
+      const text = await sellersResp.text();
+      console.error(`[Sniper] Sellers API error ${sellersResp.status}: ${text.slice(0, 200)}`);
+      res.status(400).json({ error: `Failed to get sellers (${sellersResp.status})` });
+      return;
+    }
+
+    const sellersData = await sellersResp.json() as {
+      data?: Array<{
+        seller?: { id: number };
+        price?: number;
+        product_id?: number;
+        user_asset_id?: number;
+      }>;
+    };
+
+    const seller = sellersData.data?.[0];
+    if (!seller) {
+      res.status(404).json({ error: "No sellers available for this item" });
+      return;
+    }
+
+    const price = seller.price ?? 0;
+    const productId = seller.product_id;
+    const sellerId = seller.seller?.id;
+    const userAssetId = seller.user_asset_id;
+
+    if (!productId || !sellerId || !userAssetId) {
+      res.status(400).json({ error: "Incomplete seller data from Roblox" });
+      return;
+    }
+
+    if (maxPrice !== null && price > maxPrice) {
+      res.status(400).json({ error: `Current price ${price} R$ exceeds your target ${maxPrice} R$`, price });
+      return;
+    }
+
+    const csrf = await getRobloxCsrfSniper(cookie);
+    if (!csrf) {
+      res.status(400).json({ error: "Failed to get CSRF token. Your Roblox session may have expired." });
+      return;
+    }
+
+    console.log(`[Sniper] Buying asset ${assetId} for ${price} R$ from seller ${sellerId}...`);
+    const buyResp = await fetch(
+      `https://economy.roblox.com/v1/purchases/products/${productId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": `.ROBLOSECURITY=${cookie}`,
+          "X-CSRF-TOKEN": csrf,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          expectedCurrency: 1,
+          expectedPrice: price,
+          expectedSellerId: sellerId,
+          userAssetId: userAssetId,
+        }),
+      }
+    );
+
+    const buyText = await buyResp.text();
+    let buyData: Record<string, unknown> = {};
+    try { buyData = JSON.parse(buyText); } catch {}
+
+    if (!buyResp.ok) {
+      console.error(`[Sniper] Buy failed ${buyResp.status}: ${buyText.slice(0, 300)}`);
+      const msg = (buyData.message as string) || (buyData.errorMessage as string) || `Purchase failed (${buyResp.status})`;
+      res.status(400).json({ error: msg, data: buyData });
+      return;
+    }
+
+    console.log(`[Sniper] Successfully purchased asset ${assetId} for ${price} R$`);
+    res.json({ success: true, price, assetId, message: `Purchased for ${price} R$` });
+  } catch (err) {
+    console.error("[Sniper] Buy error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Buy failed" });
+  }
+});
+
 export default router;

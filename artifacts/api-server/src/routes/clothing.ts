@@ -463,15 +463,13 @@ async function releaseAndPriceClothing(
   _groupId: number
 ): Promise<{ success: boolean; error?: string }> {
   const salePrice = Math.max(price, 5);
-  const MAX_ATTEMPTS = 4;
-  const DELAYS = [2000, 5000, 10000, 15000];
+  const MAX_ATTEMPTS = 5;
+  const DELAYS = [5000, 5000, 8000, 12000, 15000];
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    if (attempt > 0) {
-      const delay = DELAYS[attempt] || 15000;
-      console.log(`[Upload] Waiting ${delay / 1000}s before release attempt ${attempt + 1}...`);
-      await new Promise(r => setTimeout(r, delay));
-    }
+    const delay = DELAYS[attempt] || 15000;
+    console.log(`[Upload] Waiting ${delay / 1000}s before release attempt ${attempt + 1}...`);
+    await new Promise(r => setTimeout(r, delay));
 
     const csrfToken = await getRobloxCsrf(cookie);
     if (!csrfToken) {
@@ -670,7 +668,7 @@ async function uploadViaCookie(
             ? `https://apis.roblox.com${operationId}`
             : `https://apis.roblox.com/assets/user-auth/v1/operations/${operationId}`;
 
-        for (let poll = 0; poll < 30; poll++) {
+        for (let poll = 0; poll < 15; poll++) {
           await new Promise(r => setTimeout(r, 2000));
           try {
             const pollResp = await fetch(statusUrl, {

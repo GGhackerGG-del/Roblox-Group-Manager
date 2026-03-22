@@ -1,12 +1,15 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useGetRobloxGroups } from "@workspace/api-client-react";
+import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { playHover, playClick } from "@/hooks/useSounds";
+import { usePageCache } from "@/contexts/PageCacheContext";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface NavItemProps {
   href: string;
@@ -41,8 +44,50 @@ function NavItem({ href, icon, label, isActive, badge }: NavItemProps) {
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { profile, logoutRoblox, logoutLicense, licenseDetails } = useAuth();
+  const cache = usePageCache();
+  const prefetchedRef = useRef<Set<string>>(new Set());
 
   const { data: groupsData, isLoading: isLoadingGroups } = useGetRobloxGroups();
+
+  useEffect(() => {
+    if (!groupsData?.groups?.length) return;
+    const { token, fingerprint } = getAuthCredentials();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
+
+    const prefetchPnL = async (groupId: string) => {
+      if (prefetchedRef.current.has(`pnl_${groupId}`)) return;
+      if (cache.get(`pnl_${groupId}`)) return;
+      prefetchedRef.current.add(`pnl_${groupId}`);
+      try {
+        const resp = await fetch(`${BASE}/api/pnl/group/${groupId}`, { credentials: "include", headers });
+        if (resp.ok) {
+          const data = await resp.json();
+          cache.set(`pnl_${groupId}`, data);
+        }
+      } catch {}
+    };
+
+    const prefetchSniper = async () => {
+      if (prefetchedRef.current.has("sniper_items")) return;
+      if (cache.get("sniper_browse")) return;
+      prefetchedRef.current.add("sniper_items");
+      try {
+        const resp = await fetch(`${BASE}/api/sniper/items`, { credentials: "include", headers });
+        if (resp.ok) {
+          const data = await resp.json();
+          cache.set("sniper_browse", { items: data.items || [], total: data.total || 0, search: "" });
+        }
+      } catch {}
+    };
+
+    const groups = groupsData.groups.slice(0, 5);
+    groups.forEach((g, i) => {
+      setTimeout(() => prefetchPnL(String(g.id)), i * 400);
+    });
+    setTimeout(prefetchSniper, groups.length * 400 + 200);
+  }, [groupsData?.groups?.length]);
 
   return (
     <div className="flex h-screen w-full bg-secondary/30 overflow-hidden">
