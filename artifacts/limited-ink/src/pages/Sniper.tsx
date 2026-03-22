@@ -46,6 +46,7 @@ interface LimitedItem {
   rare: number;
   thumbnailUrl?: string | null;
   dealPercent?: number;
+  catalogPrice?: number | null;
 }
 
 interface WatchlistEntry {
@@ -76,6 +77,7 @@ function formatRobux(n: number): string {
 }
 
 function ItemCard({ item, onWatch, watching }: { item: LimitedItem; onWatch: (i: LimitedItem) => void; watching: boolean }) {
+  const { t } = useLanguage();
   return (
     <div className="rounded-xl border border-border/50 p-3 bg-card hover:bg-accent/20 transition-colors">
       <div className="flex gap-3">
@@ -90,6 +92,9 @@ function ItemCard({ item, onWatch, watching }: { item: LimitedItem; onWatch: (i:
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
             <span>RAP: <strong className="text-foreground">{formatRobux(item.rap)}</strong></span>
             <span>Value: <strong className="text-foreground">{formatRobux(item.value)}</strong></span>
+            {item.catalogPrice != null && item.catalogPrice > 0 && (
+              <span>{t("sniper.catalogPrice")}: <strong className="text-blue-600 dark:text-blue-400">{formatRobux(item.catalogPrice)}</strong></span>
+            )}
             {item.rap > 0 && item.value > 0 && item.value > item.rap && (
               <span className="text-green-600 font-semibold">+{Math.round((item.value / item.rap - 1) * 100)}%</span>
             )}

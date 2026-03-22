@@ -283,6 +283,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "assistant.imagePlaceholder": "Опишите изображение...",
     "assistant.generating": "Генерирую изображение...",
     "assistant.downloadImage": "Скачать",
+    "assistant.imageAttached": "Изображение прикреплено",
+    "assistant.attachImage": "Прикрепить фото",
+
+    "sniper.catalogPrice": "Каталог",
 
     "group.overview": "Обзор",
     "group.catalog": "Каталог",
@@ -651,6 +655,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "assistant.imagePlaceholder": "Describe the image...",
     "assistant.generating": "Generating image...",
     "assistant.downloadImage": "Download",
+    "assistant.imageAttached": "Image attached",
+    "assistant.attachImage": "Attach image",
+
+    "sniper.catalogPrice": "Catalog",
 
     "group.overview": "Overview",
     "group.catalog": "Catalog",
@@ -1019,6 +1027,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "assistant.imagePlaceholder": "Describe la imagen...",
     "assistant.generating": "Generando imagen...",
     "assistant.downloadImage": "Descargar",
+    "assistant.imageAttached": "Imagen adjunta",
+    "assistant.attachImage": "Adjuntar imagen",
+
+    "sniper.catalogPrice": "Catálogo",
 
     "group.overview": "Resumen",
     "group.catalog": "Catálogo",

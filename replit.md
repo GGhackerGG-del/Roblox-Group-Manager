@@ -20,9 +20,9 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `GroupView.tsx` — 5-tab view: P&L, Catalog (search marketplace clothing by keyword/sort/price/group filter, copy to group or download template, bulk download, 3s search debounce), Clothing (browse group's own clothing with search filter, download templates), Upload (multi-file PNG drag-and-drop with template overlay compositing, bulk name/type/price/description settings, uses Open Cloud API with operation polling), Alt Accounts. Tab state persisted per group in localStorage. Default tab is P&L.
 - `Community.tsx` — Social hub: Feed (posts/likes/comments), Forum (Suggestions/Off-topic/Q&A with voting & replies), Discover (find developers), Friends (requests, chat), Chat (DMs)
 - `Settings.tsx` — Profile bio, Theme (light/dark/system), Notifications, Privacy (with Cookie Security info), Data export, License info, About. Side-nav layout.
-- `Assistant.tsx` — AI chat assistant for Roblox development help (Lua scripts, moderation policies, clothing strategies, Discord posts). Uses SSE streaming. Supports markdown rendering (**bold**, *italic*, `code`, # ## ### headers).
+- `Assistant.tsx` — AI chat assistant for Roblox development help (Lua scripts, moderation policies, clothing strategies, Discord posts). Uses SSE streaming. Supports markdown rendering (**bold**, *italic*, `code`, # ## ### headers). Chat/Image mode toggle. Image attachment support (paperclip button) for vision analysis. AI image generation mode.
 - `Competitors.tsx` — Analyze any Roblox group by ID: member count, clothing stats, top items with thumbnails, all clothing toggle, pricing. Uses PageCacheContext for state persistence.
-- `Sniper.tsx` — Limited Sniper tool: Browse/search all Roblox limited items (Rolimons data), Deals tab (undervalued/projected items), Watchlist with live price checking and one-click buy. localStorage watchlist persistence.
+- `Sniper.tsx` — Limited Sniper tool: Browse/search all Roblox limited items (Rolimons data) with real catalog prices, Deals tab (undervalued/projected items), Watchlist with live price checking and one-click buy. localStorage watchlist persistence.
 
 - `PnL.tsx` — Group-level Profit & Loss dashboard: balance, pending, daily/weekly revenue, Roblox commission, net in USD/RUB, top items, recent transactions. Uses PageCacheContext for state persistence.
 
@@ -39,7 +39,8 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `GET /api/clothing/:itemId/template` — Download clothing template (texture) as base64
 - `POST /api/clothing/upload` — Upload PNG clothing to group + auto-release at price (CSRF, multipart)
 - `GET /api/competitor/analyze/:groupId` — Analyze competitor group (members, clothing paginated up to 10 pages with thumbnails, top items)
-- `POST /api/assistant/chat` — AI assistant chat with SSE streaming (uses OpenAI via Replit AI Integrations)
+- `POST /api/assistant/chat` — AI assistant chat with SSE streaming (uses OpenAI via Replit AI Integrations). Supports image attachments via `imageBase64` field for vision analysis.
+- `POST /api/assistant/generate-image` — AI image generation (gpt-image-1, b64_json response format)
 - `POST /api/banshield/analyze` — Content moderation pre-check for clothing names/descriptions
 - `GET /api/sniper/items?search=` — Browse/search all Roblox limited items (Rolimons data)
 - `GET /api/sniper/deals` — Get undervalued/projected limited items

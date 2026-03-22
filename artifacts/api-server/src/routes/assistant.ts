@@ -38,7 +38,7 @@ Format your responses with markdown for readability.`;
 
 router.post("/assistant/chat", async (req, res): Promise<void> => {
   const { messages } = req.body as {
-    messages: Array<{ role: "user" | "assistant"; content: string }>;
+    messages: Array<{ role: "user" | "assistant"; content: string; imageBase64?: string }>;
   };
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -53,9 +53,30 @@ router.post("/assistant/chat", async (req, res): Promise<void> => {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    const chatMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+    const chatMessages: OpenAI.ChatCompletionMessageParam[] = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...messages.map(m => ({ role: m.role, content: m.content })),
+      ...messages.map(m => {
+        if (m.role === "user" && m.imageBase64) {
+          let imgUrl = m.imageBase64;
+          if (imgUrl.startsWith("data:")) {
+            const mimeMatch = imgUrl.match(/^data:(image\/(png|jpeg|jpg|gif|webp));base64,/);
+            if (!mimeMatch) return { role: m.role, content: m.content };
+            const b64Part = imgUrl.slice(imgUrl.indexOf(",") + 1);
+            if (b64Part.length > 5 * 1024 * 1024 * 1.37) return { role: m.role, content: m.content };
+          } else {
+            if (m.imageBase64.length > 5 * 1024 * 1024 * 1.37) return { role: m.role, content: m.content };
+            imgUrl = `data:image/png;base64,${m.imageBase64}`;
+          }
+          return {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: m.content || "What's in this image?" },
+              { type: "image_url" as const, image_url: { url: imgUrl } },
+            ],
+          };
+        }
+        return { role: m.role, content: m.content };
+      }),
     ];
 
     const stream = await openai.chat.completions.create({
@@ -103,7 +124,8 @@ router.post("/assistant/generate-image", async (req, res): Promise<void> => {
       prompt: prompt.trim(),
       n: 1,
       size: "1024x1024",
-    });
+      response_format: "b64_json",
+    } as any);
 
     const b64 = response.data?.[0]?.b64_json;
     if (!b64) {

@@ -19,6 +19,7 @@ interface LimitedItem {
   hyped: number;
   rare: number;
   thumbnailUrl?: string | null;
+  catalogPrice?: number | null;
 }
 
 let cachedItems: LimitedItem[] | null = null;
@@ -124,6 +125,61 @@ async function addThumbnails(items: LimitedItem[]): Promise<void> {
   }
 }
 
+const catalogPriceCache = new Map<number, number | null>();
+let catalogPriceCacheTime = 0;
+const CATALOG_PRICE_CACHE_TTL = 10 * 60_000;
+
+async function addCatalogPrices(items: LimitedItem[], cookie?: string): Promise<void> {
+  if (Date.now() - catalogPriceCacheTime > CATALOG_PRICE_CACHE_TTL) {
+    catalogPriceCache.clear();
+    catalogPriceCacheTime = Date.now();
+  }
+
+  const needPrice = items.filter(i => i.catalogPrice === undefined && !catalogPriceCache.has(i.id));
+
+  if (needPrice.length && cookie) {
+    for (let b = 0; b < needPrice.length; b += 120) {
+      const batch = needPrice.slice(b, b + 120);
+      try {
+        const resp = await fetch(`${CATALOG_API}/v1/catalog/items/details`, {
+          method: "POST",
+          headers: {
+            "Cookie": `.ROBLOSECURITY=${cookie}`,
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
+          },
+          body: JSON.stringify({ items: batch.map(i => ({ itemType: "Asset", id: i.id })) }),
+        });
+        if (resp.ok) {
+          const data = await resp.json() as { data: Array<{ id: number; price?: number | null; lowestPrice?: number | null; lowestResalePrice?: number | null }> };
+          const returnedIds = new Set<number>();
+          for (const d of (data.data || [])) {
+            const p = d.lowestResalePrice ?? d.lowestPrice ?? d.price ?? null;
+            catalogPriceCache.set(d.id, p);
+            returnedIds.add(d.id);
+          }
+          for (const bi of batch) {
+            if (!returnedIds.has(bi.id)) catalogPriceCache.set(bi.id, null);
+          }
+        } else {
+          console.log(`[Sniper] Catalog price API status=${resp.status}`);
+          for (const bi of batch) catalogPriceCache.set(bi.id, null);
+        }
+      } catch (e) {
+        console.error("[Sniper] Catalog price fetch error:", e);
+        for (const bi of batch) catalogPriceCache.set(bi.id, null);
+      }
+    }
+  }
+
+  for (const item of items) {
+    if (catalogPriceCache.has(item.id)) {
+      item.catalogPrice = catalogPriceCache.get(item.id) ?? null;
+    }
+  }
+}
+
 router.get("/sniper/items", async (_req, res): Promise<void> => {
   try {
     const search = String(_req.query.search || "").trim().toLowerCase();
@@ -140,6 +196,11 @@ router.get("/sniper/items", async (_req, res): Promise<void> => {
     const sorted = [...items].sort((a, b) => b.rap - a.rap);
     const page = sorted.slice(0, 200);
     await addThumbnails(page);
+
+    const cookie = _req.session.robloxCookie;
+    if (cookie) {
+      await addCatalogPrices(page, cookie);
+    }
 
     res.json({ items: page, total: items.length });
   } catch (err) {
@@ -163,6 +224,11 @@ router.get("/sniper/deals", async (_req, res): Promise<void> => {
       .slice(0, 100);
 
     await addThumbnails(deals);
+
+    const cookie = _req.session.robloxCookie;
+    if (cookie) {
+      await addCatalogPrices(deals, cookie);
+    }
 
     res.json({
       items: deals.map(d => ({

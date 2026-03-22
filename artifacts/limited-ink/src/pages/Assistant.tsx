@@ -4,7 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Send, Loader2, User, Sparkles, Trash2, ImageIcon, MessageSquare, Download } from "lucide-react";
+import { Bot, Send, Loader2, User, Sparkles, Trash2, ImageIcon, MessageSquare, Download, Paperclip, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -13,6 +13,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   imageUrl?: string;
+  attachedImage?: string;
 }
 
 const SUGGESTIONS = [
@@ -97,7 +98,22 @@ export default function Assistant() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [mode, setMode] = useState<"chat" | "image">("chat");
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 10 * 1024 * 1024) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachedImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -152,16 +168,20 @@ export default function Assistant() {
 
   async function sendMessage(text?: string) {
     const content = (text || input).trim();
-    if (!content || isStreaming) return;
+    if (isStreaming) return;
+    if (!content && !attachedImage) return;
 
     if (mode === "image") {
+      if (!content) return;
       return generateImage(content);
     }
 
-    const userMsg: Message = { role: "user", content };
+    const currentImage = attachedImage;
+    const userMsg: Message = { role: "user", content, attachedImage: currentImage || undefined };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
+    setAttachedImage(null);
     setIsStreaming(true);
 
     const assistantMsg: Message = { role: "assistant", content: "" };
@@ -173,11 +193,17 @@ export default function Assistant() {
       if (token) headers["Authorization"] = `Bearer ${token}`;
       if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
 
+      const apiMessages = newMessages.map(m => ({
+        role: m.role,
+        content: m.content,
+        ...(m.attachedImage ? { imageBase64: m.attachedImage } : {}),
+      }));
+
       const resp = await fetch(`${BASE}/api/assistant/chat`, {
         method: "POST",
         credentials: "include",
         headers,
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: apiMessages }),
       });
 
       if (!resp.ok) throw new Error("Failed to get response");
@@ -287,6 +313,9 @@ export default function Assistant() {
                     ? "bg-black text-white rounded-br-md"
                     : "bg-secondary/70 border border-border/50 rounded-bl-md"
                 }`}>
+                  {msg.attachedImage && (
+                    <img src={msg.attachedImage} alt="Attached" className="rounded-lg max-w-[200px] max-h-[150px] object-cover mb-2" />
+                  )}
                   {msg.imageUrl ? (
                     <div className="space-y-2">
                       <img src={msg.imageUrl} alt="Generated" className="rounded-xl max-w-full" />
@@ -330,7 +359,40 @@ export default function Assistant() {
             <ImageIcon className="w-3 h-3" /> {t("assistant.imageMode") || "Image"}
           </Button>
         </div>
+        {attachedImage && (
+          <div className="flex items-center gap-2 px-1">
+            <div className="relative">
+              <img src={attachedImage} alt="Attached" className="h-12 w-12 rounded-lg object-cover border border-border" />
+              <button
+                type="button"
+                onClick={() => setAttachedImage(null)}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+            <span className="text-xs text-muted-foreground">{t("assistant.imageAttached") || "Image attached"}</span>
+          </div>
+        )}
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageAttach}
+          />
+          {mode === "chat" && (
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl h-11 w-11 p-0 shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isStreaming}
+            >
+              <Paperclip className="w-4 h-4" />
+            </Button>
+          )}
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -340,7 +402,7 @@ export default function Assistant() {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             }}
           />
-          <Button type="submit" disabled={!input.trim() || isStreaming} className="rounded-xl h-11 w-11 p-0 shrink-0">
+          <Button type="submit" disabled={(!input.trim() && !attachedImage) || isStreaming} className="rounded-xl h-11 w-11 p-0 shrink-0">
             {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : mode === "image" ? <ImageIcon className="w-4 h-4" /> : <Send className="w-4 h-4" />}
           </Button>
         </form>
