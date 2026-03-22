@@ -82,9 +82,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="w-72 bg-card border-r border-border/60 flex flex-col shadow-2xl shadow-black/5 z-20">
         <div className="p-5 border-b border-border/50">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 bg-black text-white rounded-xl flex items-center justify-center shadow-md shadow-black/10 group-hover:scale-105 transition-transform duration-300">
-              <Sparkles className="w-4.5 h-4.5" />
-            </div>
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Limited.Ink" className="w-9 h-9 rounded-xl shadow-md shadow-black/10 group-hover:scale-105 transition-transform duration-300 object-contain" />
             <span className="font-display font-bold text-xl tracking-tight">Limited.Ink</span>
           </Link>
         </div>

@@ -190,9 +190,7 @@ export default function Home() {
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col items-center text-center pt-6 space-y-5"
       >
-        <div className="w-20 h-20 bg-black text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-black/20">
-          <Sparkles className="w-9 h-9" />
-        </div>
+        <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Limited.Ink" className="w-20 h-20 rounded-3xl shadow-2xl shadow-black/20 object-contain" />
         <div className="space-y-2 max-w-lg">
           <h1 className="text-4xl font-display font-bold text-foreground tracking-tight">
             {t("home.welcome")} <span className="underline decoration-2 underline-offset-4 decoration-black/30">Limited.Ink</span>

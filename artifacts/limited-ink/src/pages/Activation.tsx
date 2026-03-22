@@ -66,6 +66,7 @@ export default function Activation() {
         {/* content */}
         <div className="relative z-10 flex flex-col justify-between h-full p-12">
           <div>
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Limited.Ink" className="w-16 h-16 rounded-2xl mb-6 object-contain" />
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-full text-white/70 text-xs font-medium mb-8">
               <Sparkles className="w-3 h-3" />
               {t("activation.platform")}
