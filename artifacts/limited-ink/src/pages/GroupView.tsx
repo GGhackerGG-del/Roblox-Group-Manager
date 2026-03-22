@@ -331,6 +331,14 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
   const [templateFile, setTemplateFile] = useState<{ file: File; preview: string; b64: string } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const templateRef = useRef<HTMLInputElement | null>(null);
+  const [altAccounts, setAltAccounts] = useState<AltAccount[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<string>("main");
+
+  useEffect(() => {
+    apiFetch<{ accounts: AltAccount[] }>("/api/roblox/alt")
+      .then(d => setAltAccounts(d.accounts || []))
+      .catch(() => {});
+  }, []);
 
   const addFiles = (fl: FileList | null) => {
     if (!fl) return;
@@ -414,17 +422,21 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
           }
         }
 
-        const data = await apiFetch<{ assetId: number; message: string }>(`/api/clothing/upload`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const uploadBody: Record<string, unknown> = {
             imageBase64: b64,
             name: f.name,
             description: bulkDescription,
             groupId,
             clothingType: f.type,
             price: Math.max(f.price, 5),
-          }),
+          };
+        if (selectedAccount !== "main") {
+          uploadBody.altIndex = parseInt(selectedAccount, 10);
+        }
+        const data = await apiFetch<{ assetId: number; message: string }>(`/api/clothing/upload`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(uploadBody),
         });
         newResults.push({ name: f.name, success: true, assetId: data.assetId });
       } catch (e: unknown) {
@@ -491,6 +503,30 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
             )}
           </div>
         </div>
+
+        {altAccounts.length > 0 && (
+          <div className="rounded-xl border border-border/50 p-3 bg-muted/30 space-y-1.5">
+            <Label className="text-xs font-medium">{t("group.uploadAccount")}</Label>
+            <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+              <SelectTrigger className="rounded-lg text-xs h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="main">
+                  <span className="flex items-center gap-2">{t("group.mainAccount")}</span>
+                </SelectItem>
+                {altAccounts.map(acc => (
+                  <SelectItem key={acc.index} value={String(acc.index)}>
+                    <span className="flex items-center gap-2">
+                      {acc.avatarUrl && <img src={acc.avatarUrl} alt="" className="w-4 h-4 rounded-full inline-block" />}
+                      {acc.displayName} (@{acc.name})
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {files.length > 0 && (
           <div className="space-y-3">

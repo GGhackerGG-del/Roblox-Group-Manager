@@ -588,17 +588,28 @@ async function pollOperation(operationId: string, cookie: string, csrf: string):
 }
 
 router.post("/clothing/upload", async (req, res): Promise<void> => {
-  const cookie = req.session.robloxCookie;
-  if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
+  const mainCookie = req.session.robloxCookie;
+  if (!mainCookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
 
-  const { imageBase64, name, description, groupId, clothingType, price } = req.body as {
+  const { imageBase64, name, description, groupId, clothingType, price, altIndex } = req.body as {
     imageBase64?: string;
     name?: string;
     description?: string;
     groupId?: number;
     clothingType?: string;
     price?: number;
+    altIndex?: number;
   };
+
+  let cookie = mainCookie;
+  if (altIndex !== undefined && altIndex !== null) {
+    if (!Number.isInteger(altIndex) || altIndex < 0) {
+      res.status(400).json({ error: "Invalid altIndex." }); return;
+    }
+    const alt = req.session.altAccounts?.[altIndex];
+    if (!alt) { res.status(400).json({ error: "Alt account not found." }); return; }
+    cookie = alt.cookie;
+  }
 
   if (!imageBase64) { res.status(400).json({ error: "Image required." }); return; }
   if (!name || !name.trim()) { res.status(400).json({ error: "Name required." }); return; }
