@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { usePageCache } from "@/contexts/PageCacheContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,13 +95,70 @@ function parseBoldItalic(text: string, baseKey: number): React.ReactNode[] {
 
 export default function Assistant() {
   const { t } = useLanguage();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const cache = usePageCache();
+  const [messages, setMessages] = useState<Message[]>(() => cache.get<Message[]>("assistant_messages") || []);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [mode, setMode] = useState<"chat" | "image">("chat");
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesRef = useRef<Message[]>(messages);
+  const scrollPosRef = useRef<number>(0);
+  const isVisibleRef = useRef(true);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+    if (messages.length > 0) {
+      cache.set("assistant_messages", messages);
+    } else {
+      cache.set("assistant_messages", null);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const wasVisible = isVisibleRef.current;
+        isVisibleRef.current = entries[0].isIntersecting;
+
+        if (!wasVisible && entries[0].isIntersecting) {
+          requestAnimationFrame(() => {
+            if (scrollRef.current) {
+              scrollRef.current.scrollTop = scrollPosRef.current;
+            }
+          });
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      if (isVisibleRef.current) {
+        scrollPosRef.current = el.scrollTop;
+      }
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (isVisibleRef.current && scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, [messages]);
 
   const handleImageAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -115,19 +173,14 @@ export default function Assistant() {
     e.target.value = "";
   };
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
-
-  async function generateImage(prompt: string) {
+  const generateImage = useCallback(async (prompt: string) => {
     const userMsg: Message = { role: "user", content: `🖼 ${prompt}` };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+    setMessages(prev => {
+      const updated = [...prev, userMsg];
+      return [...updated, { role: "assistant" as const, content: t("assistant.generating") || "Generating image..." }];
+    });
     setInput("");
     setIsStreaming(true);
-
-    const loadingMsg: Message = { role: "assistant", content: t("assistant.generating") || "Generating image..." };
-    setMessages([...newMessages, loadingMsg]);
 
     try {
       const { token, fingerprint } = getAuthCredentials();
@@ -164,9 +217,9 @@ export default function Assistant() {
     } finally {
       setIsStreaming(false);
     }
-  }
+  }, [t]);
 
-  async function sendMessage(text?: string) {
+  const sendMessage = useCallback(async (text?: string) => {
     const content = (text || input).trim();
     if (isStreaming) return;
     if (!content && !attachedImage) return;
@@ -178,14 +231,11 @@ export default function Assistant() {
 
     const currentImage = attachedImage;
     const userMsg: Message = { role: "user", content, attachedImage: currentImage || undefined };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+
+    setMessages(prev => [...prev, userMsg, { role: "assistant" as const, content: "" }]);
     setInput("");
     setAttachedImage(null);
     setIsStreaming(true);
-
-    const assistantMsg: Message = { role: "assistant", content: "" };
-    setMessages([...newMessages, assistantMsg]);
 
     try {
       const { token, fingerprint } = getAuthCredentials();
@@ -193,7 +243,8 @@ export default function Assistant() {
       if (token) headers["Authorization"] = `Bearer ${token}`;
       if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
 
-      const apiMessages = newMessages.map(m => ({
+      const currentMessages = [...messagesRef.current];
+      const apiMessages = currentMessages.slice(0, -1).map(m => ({
         role: m.role,
         content: m.content,
         ...(m.attachedImage ? { imageBase64: m.attachedImage } : {}),
@@ -231,9 +282,10 @@ export default function Assistant() {
             if (data.done) break;
             if (data.content) {
               fullContent += data.content;
+              const fc = fullContent;
               setMessages(prev => {
                 const updated = [...prev];
-                updated[updated.length - 1] = { role: "assistant", content: fullContent };
+                updated[updated.length - 1] = { role: "assistant", content: fc };
                 return updated;
               });
             }
@@ -249,7 +301,12 @@ export default function Assistant() {
     } finally {
       setIsStreaming(false);
     }
-  }
+  }, [input, isStreaming, attachedImage, mode, generateImage, t]);
+
+  const clearChat = useCallback(() => {
+    setMessages([]);
+    cache.set("assistant_messages", null);
+  }, [cache]);
 
   return (
     <div className="flex flex-col h-full">
@@ -263,7 +320,7 @@ export default function Assistant() {
             <p className="text-xs text-muted-foreground">{t("assistant.desc")}</p>
           </div>
           {messages.length > 0 && (
-            <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={() => setMessages([])}>
+            <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={clearChat}>
               <Trash2 className="w-4 h-4 mr-1" /> {t("assistant.clear")}
             </Button>
           )}
