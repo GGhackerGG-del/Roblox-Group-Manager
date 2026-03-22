@@ -219,7 +219,7 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
   const rawMax = parseInt(String(req.query.maxPrice || ""), 10);
   const minPrice = !isNaN(rawMin) && rawMin >= 0 ? String(rawMin) : "";
   const maxPrice = !isNaN(rawMax) && rawMax >= 0 ? String(rawMax) : "";
-  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || "120"), 10) || 120, 120));
+  const limit = 30;
 
   const ck = `cs_${keyword}_${subcategory}_${sortType}_${sortAggregation}_${minPrice}_${maxPrice}_${creatorId}`;
   const cached = cacheGet<unknown>(ck);
@@ -383,7 +383,7 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
       let pages = 0;
 
       while (pages < 30) {
-        const url = `${CATALOG_API}/v1/search/items/details?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=120${cursor ? `&cursor=${cursor}` : ""}`;
+        const url = `${CATALOG_API}/v1/search/items/details?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=30${cursor ? `&cursor=${cursor}` : ""}`;
         console.log(`[Clothing] Group items URL: ${url}`);
         let resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
 

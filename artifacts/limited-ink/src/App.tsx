@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -61,69 +61,49 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const STATIC_PAGES = [
+  { path: "/", key: "home" },
+  { path: "/profile", key: "profile" },
+  { path: "/community", key: "community" },
+  { path: "/settings", key: "settings" },
+  { path: "/assistant", key: "assistant" },
+  { path: "/competitors", key: "competitors" },
+  { path: "/sniper", key: "sniper" },
+];
+
+function PersistentPages() {
+  const [location] = useLocation();
+
+  const groupMatch = location.match(/^\/group\/(\d+)/);
+  const groupId = groupMatch ? groupMatch[1] : null;
+
+  const isStaticPage = STATIC_PAGES.some(p => p.path === location);
+  const isGroupPage = !!groupId;
+  const isKnownPage = isStaticPage || isGroupPage;
+
+  if (!isKnownPage) {
+    return <NotFound />;
+  }
+
+  return (
+    <DashboardLayout>
+      <div className={location === "/" ? "block" : "hidden"}><Home /></div>
+      <div className={location === "/profile" ? "block" : "hidden"}><Profile /></div>
+      <div className={location === "/community" ? "block" : "hidden"}><Community /></div>
+      <div className={location === "/settings" ? "block" : "hidden"}><Settings /></div>
+      <div className={location === "/assistant" ? "block" : "hidden"}><Assistant /></div>
+      <div className={location === "/competitors" ? "block" : "hidden"}><Competitors /></div>
+      <div className={location === "/sniper" ? "block" : "hidden"}><Sniper /></div>
+      {isGroupPage && <GroupView id={groupId!} />}
+    </DashboardLayout>
+  );
+}
+
 function Router() {
   return (
-    <Switch>
-      <Route path="/">
-        <RequireAuth>
-          <DashboardLayout>
-            <Home />
-          </DashboardLayout>
-        </RequireAuth>
-      </Route>
-      <Route path="/profile">
-        <RequireAuth>
-          <DashboardLayout>
-            <Profile />
-          </DashboardLayout>
-        </RequireAuth>
-      </Route>
-      <Route path="/community">
-        <RequireAuth>
-          <DashboardLayout>
-            <Community />
-          </DashboardLayout>
-        </RequireAuth>
-      </Route>
-      <Route path="/settings">
-        <RequireAuth>
-          <DashboardLayout>
-            <Settings />
-          </DashboardLayout>
-        </RequireAuth>
-      </Route>
-      <Route path="/assistant">
-        <RequireAuth>
-          <DashboardLayout>
-            <Assistant />
-          </DashboardLayout>
-        </RequireAuth>
-      </Route>
-      <Route path="/competitors">
-        <RequireAuth>
-          <DashboardLayout>
-            <Competitors />
-          </DashboardLayout>
-        </RequireAuth>
-      </Route>
-      <Route path="/sniper">
-        <RequireAuth>
-          <DashboardLayout>
-            <Sniper />
-          </DashboardLayout>
-        </RequireAuth>
-      </Route>
-      <Route path="/group/:id">
-        {(params) => (
-          <RequireAuth>
-            <DashboardLayout>
-              <GroupView id={params.id} />
-            </DashboardLayout>
-          </RequireAuth>
-        )}
-      </Route>
-      <Route component={NotFound} />
-    </Switch>
+    <RequireAuth>
+      <PersistentPages />
+    </RequireAuth>
   );
 }
 
