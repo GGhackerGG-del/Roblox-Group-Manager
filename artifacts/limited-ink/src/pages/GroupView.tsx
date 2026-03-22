@@ -17,7 +17,7 @@ import {
   Loader2, Users,
   UserPlus, Trash2, RefreshCw,
   ChevronRight, DollarSign,
-  Search, Copy, Upload, Download, FolderDown
+  Search, Copy, Upload, Download, FolderDown, Layers, ImageIcon
 } from "lucide-react";
 import { playClick, playSuccess, playError, playTabSwitch } from "@/hooks/useSounds";
 import PnL from "./PnL";
@@ -104,8 +104,16 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDownloading, setBulkDownloading] = useState(false);
 
+  const lastSearchTime = useRef(0);
+
   const search = async () => {
     if (!keyword.trim()) return;
+    const now = Date.now();
+    if (now - lastSearchTime.current < 3000) {
+      toast({ title: "Slow down", description: "Wait a few seconds between searches to avoid rate limits.", variant: "destructive" });
+      return;
+    }
+    lastSearchTime.current = now;
     playClick();
     setLoading(true);
     setSelected(new Set());
@@ -284,12 +292,41 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
 
 // ─── Upload Clothing Tab ─────────────────────────────────────────────────────
 
+function compositeWithTemplate(clothingB64: string, templateB64: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 585;
+    canvas.height = 559;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { reject(new Error("Canvas not supported")); return; }
+
+    const clothingImg = new Image();
+    clothingImg.onload = () => {
+      ctx.drawImage(clothingImg, 0, 0, 585, 559);
+
+      const templateImg = new Image();
+      templateImg.onload = () => {
+        ctx.drawImage(templateImg, 0, 0, 585, 559);
+        const dataUrl = canvas.toDataURL("image/png");
+        resolve(dataUrl.split(",")[1]);
+      };
+      templateImg.onerror = () => reject(new Error("Failed to load template image"));
+      templateImg.src = `data:image/png;base64,${templateB64}`;
+    };
+    clothingImg.onerror = () => reject(new Error("Failed to load clothing image"));
+    clothingImg.src = `data:image/png;base64,${clothingB64}`;
+  });
+}
+
 function UploadClothingTab({ groupId }: { groupId: number }) {
   const { toast } = useToast();
   const [files, setFiles] = useState<Array<{ file: File; preview: string; name: string; type: string; price: number }>>([]);
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<Array<{ name: string; success: boolean; assetId?: number; error?: string }>>([]);
+  const [bulkDescription, setBulkDescription] = useState("Uploaded via Limited.Ink");
+  const [templateFile, setTemplateFile] = useState<{ file: File; preview: string; b64: string } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const templateRef = useRef<HTMLInputElement | null>(null);
 
   const addFiles = (fl: FileList | null) => {
     if (!fl) return;
@@ -315,6 +352,40 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
     setFiles(prev => prev.map((f, i) => i === idx ? { ...f, [field]: value } : f));
   };
 
+  const handleTemplate = async (fl: FileList | null) => {
+    if (!fl || !fl[0]) return;
+    const f = fl[0];
+    if (f.type !== "image/png") {
+      toast({ title: "PNG only", description: "Template must be a PNG file.", variant: "destructive" });
+      return;
+    }
+    const b64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => { const r = reader.result as string; resolve(r.split(",")[1]); };
+      reader.onerror = () => reject(new Error("Failed to read"));
+      reader.readAsDataURL(f);
+    });
+    setTemplateFile({ file: f, preview: URL.createObjectURL(f), b64 });
+  };
+
+  const removeTemplate = () => {
+    if (templateFile) URL.revokeObjectURL(templateFile.preview);
+    setTemplateFile(null);
+  };
+
+  const applyBulkName = (prefix: string) => {
+    if (!prefix.trim()) return;
+    setFiles(prev => prev.map((f, i) => ({ ...f, name: `${prefix.trim()} ${i + 1}` })));
+  };
+
+  const applyBulkType = (type: string) => {
+    setFiles(prev => prev.map(f => ({ ...f, type })));
+  };
+
+  const applyBulkPrice = (price: number) => {
+    setFiles(prev => prev.map(f => ({ ...f, price: Math.max(price, 5) })));
+  };
+
   const uploadAll = async () => {
     if (!files.length) return;
     playClick();
@@ -324,19 +395,28 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
 
     for (const f of files) {
       try {
-        const b64 = await new Promise<string>((resolve, reject) => {
+        let b64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => { const r = reader.result as string; resolve(r.split(",")[1]); };
           reader.onerror = () => reject(new Error("Failed to read file"));
           reader.readAsDataURL(f.file);
         });
+
+        if (templateFile) {
+          try {
+            b64 = await compositeWithTemplate(b64, templateFile.b64);
+          } catch (e) {
+            console.error("Template composite failed:", e);
+          }
+        }
+
         const data = await apiFetch<{ assetId: number; message: string }>(`/api/clothing/upload`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             imageBase64: b64,
             name: f.name,
-            description: "Uploaded via Limited.Ink",
+            description: bulkDescription,
             groupId,
             clothingType: f.type,
             price: Math.max(f.price, 5),
@@ -347,7 +427,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
         newResults.push({ name: f.name, success: false, error: e instanceof Error ? e.message : "Upload failed" });
       }
       setResults([...newResults]);
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 2000));
     }
 
     const ok = newResults.filter(r => r.success).length;
@@ -358,6 +438,9 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
     setUploading(false);
   };
 
+  const [bulkNamePrefix, setBulkNamePrefix] = useState("");
+  const [bulkPrice, setBulkPrice] = useState(5);
+
   return (
     <Card className="rounded-2xl border-border/50 shadow-sm">
       <CardHeader>
@@ -365,23 +448,91 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
         <CardDescription>Upload PNG clothing templates to your group. Each upload costs 10 R$.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <input ref={fileRef} type="file" accept="image/png" multiple className="hidden" onChange={e => addFiles(e.target.files)} />
-        <div
-          className="border-2 border-dashed border-border/60 rounded-xl p-8 text-center cursor-pointer hover:bg-accent/20 transition-colors"
-          onClick={() => fileRef.current?.click()}
-          onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("bg-accent/30"); }}
-          onDragLeave={e => e.currentTarget.classList.remove("bg-accent/30")}
-          onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove("bg-accent/30"); addFiles(e.dataTransfer.files); }}
-        >
-          <FolderDown className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">Click or drag PNG files here</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <input ref={fileRef} type="file" accept="image/png" multiple className="hidden" onChange={e => addFiles(e.target.files)} />
+            <div
+              className="border-2 border-dashed border-border/60 rounded-xl p-6 text-center cursor-pointer hover:bg-accent/20 transition-colors"
+              onClick={() => fileRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("bg-accent/30"); }}
+              onDragLeave={e => e.currentTarget.classList.remove("bg-accent/30")}
+              onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove("bg-accent/30"); addFiles(e.dataTransfer.files); }}
+            >
+              <FolderDown className="w-7 h-7 mx-auto text-muted-foreground mb-1.5" />
+              <p className="text-xs text-muted-foreground">Click or drag PNG clothing files</p>
+            </div>
+          </div>
+
+          <div>
+            <input ref={templateRef} type="file" accept="image/png" className="hidden" onChange={e => handleTemplate(e.target.files)} />
+            {templateFile ? (
+              <div className="border rounded-xl p-3 bg-card flex items-center gap-3">
+                <img src={templateFile.preview} alt="Template" className="w-12 h-12 rounded-lg object-cover shrink-0 border" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium flex items-center gap-1"><Layers className="w-3 h-3" /> Template overlay</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{templateFile.file.name}</p>
+                  <p className="text-[10px] text-green-600 dark:text-green-400">Will be applied on top of each clothing PNG</p>
+                </div>
+                <Button size="sm" variant="ghost" className="shrink-0 h-7 w-7 p-0" onClick={removeTemplate}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                className="border-2 border-dashed border-primary/30 rounded-xl p-6 text-center cursor-pointer hover:bg-primary/5 transition-colors"
+                onClick={() => templateRef.current?.click()}
+              >
+                <Layers className="w-7 h-7 mx-auto text-primary/50 mb-1.5" />
+                <p className="text-xs text-muted-foreground">Template overlay (optional)</p>
+                <p className="text-[10px] text-muted-foreground">Composited on top of each clothing</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {files.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="rounded-xl border border-border/50 p-3 bg-muted/30 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Bulk settings</p>
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="space-y-0.5">
+                  <Label className="text-[10px]">Name prefix</Label>
+                  <div className="flex gap-1">
+                    <Input value={bulkNamePrefix} onChange={e => setBulkNamePrefix(e.target.value)} placeholder="e.g. Design" className="w-28 rounded-lg text-xs h-7" />
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkName(bulkNamePrefix)}>Apply</Button>
+                  </div>
+                </div>
+                <div className="space-y-0.5">
+                  <Label className="text-[10px]">Type</Label>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkType("Shirt")}>All Shirts</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkType("Pants")}>All Pants</Button>
+                  </div>
+                </div>
+                <div className="space-y-0.5">
+                  <Label className="text-[10px]">Price R$</Label>
+                  <div className="flex gap-1">
+                    <Input type="number" min={5} value={bulkPrice} onChange={e => setBulkPrice(parseInt(e.target.value) || 5)} className="w-16 rounded-lg text-[10px] h-7" />
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkPrice(bulkPrice)}>Apply</Button>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-0.5">
+                <Label className="text-[10px]">Description (all items)</Label>
+                <Input value={bulkDescription} onChange={e => setBulkDescription(e.target.value)} className="rounded-lg text-xs h-7" placeholder="Description for all uploads" />
+              </div>
+            </div>
+
             {files.map((f, i) => (
               <div key={i} className="flex items-center gap-3 rounded-xl border border-border/50 p-2 bg-card">
-                <img src={f.preview} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                <div className="relative shrink-0">
+                  <img src={f.preview} alt="" className="w-14 h-14 rounded-lg object-cover" />
+                  {templateFile && (
+                    <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center">
+                      <Layers className="w-2.5 h-2.5" />
+                    </div>
+                  )}
+                </div>
                 <div className="flex-1 min-w-0 space-y-1">
                   <Input value={f.name} onChange={e => updateFile(i, "name", e.target.value)} className="rounded-lg text-xs h-7" placeholder="Name" />
                   <div className="flex gap-2">
@@ -404,7 +555,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
 
             <Button onClick={uploadAll} disabled={uploading || !files.length} className="rounded-xl w-full gap-2">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              Upload {files.length} item{files.length !== 1 ? "s" : ""}
+              Upload {files.length} item{files.length !== 1 ? "s" : ""}{templateFile ? " (with template)" : ""}
             </Button>
           </div>
         )}

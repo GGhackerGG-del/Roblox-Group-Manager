@@ -21,7 +21,11 @@ interface LimitedItem {
 
 let cachedItems: LimitedItem[] | null = null;
 let cacheTime = 0;
-const CACHE_TTL = 3 * 60_000;
+const CACHE_TTL = 5 * 60_000;
+
+const thumbnailCache = new Map<number, string>();
+let thumbCacheTime = 0;
+const THUMB_CACHE_TTL = 30 * 60_000;
 
 async function fetchRolimonsItems(): Promise<LimitedItem[]> {
   if (cachedItems && Date.now() - cacheTime < CACHE_TTL) return cachedItems;
@@ -44,18 +48,22 @@ async function fetchRolimonsItems(): Promise<LimitedItem[]> {
 
   if (!data.success || !data.items) throw new Error("Invalid Rolimons response");
 
-  const items: LimitedItem[] = Object.entries(data.items).map(([id, arr]) => ({
-    id: parseInt(id, 10),
-    name: arr[0],
-    acronym: arr[1],
-    rap: arr[2],
-    value: arr[3],
-    demand: arr[5],
-    trend: arr[6],
-    projected: arr[7],
-    hyped: arr[8],
-    rare: arr[9],
-  }));
+  const items: LimitedItem[] = Object.entries(data.items).map(([id, arr]) => {
+    const numId = parseInt(id, 10);
+    return {
+      id: numId,
+      name: arr[0],
+      acronym: arr[1],
+      rap: arr[2],
+      value: arr[3],
+      demand: arr[5],
+      trend: arr[6],
+      projected: arr[7],
+      hyped: arr[8],
+      rare: arr[9],
+      thumbnailUrl: thumbnailCache.get(numId) || null,
+    };
+  });
 
   console.log(`[Sniper] Got ${items.length} items from Rolimons`);
   cachedItems = items;
@@ -64,21 +72,53 @@ async function fetchRolimonsItems(): Promise<LimitedItem[]> {
 }
 
 async function addThumbnails(items: LimitedItem[]): Promise<void> {
-  const needThumb = items.filter(i => !i.thumbnailUrl).slice(0, 200);
-  if (!needThumb.length) return;
+  if (Date.now() - thumbCacheTime > THUMB_CACHE_TTL) {
+    thumbnailCache.clear();
+    thumbCacheTime = Date.now();
+  }
+
+  const needThumb = items.filter(i => !i.thumbnailUrl && !thumbnailCache.has(i.id)).slice(0, 200);
+  if (!needThumb.length) {
+    for (const item of items) {
+      if (!item.thumbnailUrl && thumbnailCache.has(item.id)) {
+        item.thumbnailUrl = thumbnailCache.get(item.id)!;
+      }
+    }
+    return;
+  }
 
   for (let i = 0; i < needThumb.length; i += 100) {
     const batch = needThumb.slice(i, i + 100);
-    try {
-      const r = await fetch(`${THUMBNAILS_API}/v1/assets?assetIds=${batch.map(b => b.id).join(",")}&size=420x420&format=Png&isCircular=false`);
-      if (r.ok) {
-        const d = await r.json() as { data: Array<{ targetId: number; imageUrl: string }> };
-        const map = new Map(d.data.map(t => [t.targetId, t.imageUrl]));
-        for (const item of batch) {
-          if (map.has(item.id)) item.thumbnailUrl = map.get(item.id)!;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await fetch(`${THUMBNAILS_API}/v1/assets?assetIds=${batch.map(b => b.id).join(",")}&size=420x420&format=Png&isCircular=false`);
+        if (r.ok) {
+          const d = await r.json() as { data: Array<{ targetId: number; imageUrl: string; state: string }> };
+          for (const t of d.data) {
+            if (t.state === "Completed" && t.imageUrl) {
+              thumbnailCache.set(t.targetId, t.imageUrl);
+            }
+          }
+          break;
+        } else if (r.status === 429) {
+          console.log(`[Sniper] Thumbnail API rate limited (attempt ${attempt + 1}), waiting...`);
+          await new Promise(resolve => setTimeout(resolve, 4000 * (attempt + 1)));
+          continue;
+        } else {
+          console.log(`[Sniper] Thumbnail API status=${r.status}`);
+          break;
         }
+      } catch (e) {
+        console.error("[Sniper] Thumbnail fetch error:", e);
+        break;
       }
-    } catch {}
+    }
+  }
+
+  for (const item of items) {
+    if (!item.thumbnailUrl && thumbnailCache.has(item.id)) {
+      item.thumbnailUrl = thumbnailCache.get(item.id)!;
+    }
   }
 }
 

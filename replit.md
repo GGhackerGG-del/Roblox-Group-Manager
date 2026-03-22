@@ -17,7 +17,7 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `RobloxLogin.tsx` — Roblox cookie entry (sessionStorage only, never persisted in DB)
 - `DashboardLayout.tsx` — Sidebar with owner groups list, user profile, license info, Tools section (AI Assistant, Competitors, Limited Sniper), Community & Settings links
 - `Home.tsx` — Empty state when no group selected
-- `GroupView.tsx` — 5-tab view: P&L, Catalog (search marketplace clothing by keyword/sort/price, copy to group or download template), Clothing (browse group's own clothing, download templates), Upload (multi-file PNG drag-and-drop queue with name/type/price per item, auto-release on sale), Alt Accounts. Tab state persisted per group in localStorage. Default tab is P&L.
+- `GroupView.tsx` — 5-tab view: P&L, Catalog (search marketplace clothing by keyword/sort/price/group filter, copy to group or download template, bulk download, 3s search debounce), Clothing (browse group's own clothing with search filter, download templates), Upload (multi-file PNG drag-and-drop with template overlay compositing, bulk name/type/price/description settings, uses Open Cloud API with operation polling), Alt Accounts. Tab state persisted per group in localStorage. Default tab is P&L.
 - `Community.tsx` — Social hub: Feed (posts/likes/comments), Forum (Suggestions/Off-topic/Q&A with voting & replies), Discover (find developers), Friends (requests, chat), Chat (DMs)
 - `Settings.tsx` — Profile bio, Theme (light/dark/system), Notifications, Privacy (with Cookie Security info), Data export, License info, About. Side-nav layout.
 - `Assistant.tsx` — AI chat assistant for Roblox development help (Lua scripts, moderation policies, clothing strategies, Discord posts). Uses SSE streaming. Supports markdown rendering (**bold**, *italic*, `code`, # ## ### headers).
@@ -124,7 +124,10 @@ CREATE TABLE licenses (
 - Dark mode ready (CSS variables)
 
 ## Known Limitations / Pending Work
-- Roblox clothing upload: tries 3 endpoints in order (v1/avatar-assets, v2/avatar-assets, legacy Data/Upload.ashx). Price/release via POST itemconfiguration.roblox.com/v1/assets/{id}/release.
+- Roblox clothing upload uses `apis.roblox.com/assets/user-auth/v1/assets` (Open Cloud API) with multipart form: `fileContent` (PNG binary) + `request` (JSON metadata with displayName, assetType, creationContext). Returns operationId that is polled at `/operations/{id}` for completion. Price set via `itemconfiguration.roblox.com/v1/assets/{id}/release`.
+- Upload tab supports Template Overlay: user can upload a template PNG that gets composited on top of each clothing image via HTML5 Canvas (585x559 px) before upload. Also has bulk name/type/price/description settings.
+- Rate limit mitigation: throttledFetch (350ms min gap), search cache 30min TTL, group cache 15min TTL, exponential backoff on 429, thumbnail retry on rate limit, frontend 3s search debounce.
+- Sniper thumbnails use persistent `thumbnailCache` Map (30min TTL) separate from Rolimons item cache (5min TTL).
 - Telegram bot for selling license codes is included but basic
 - License expiry checks work via DB `expires_at` field, but UI doesn't show countdown
 - Limited Sniper is a scanner/monitor only, not an autobuyer
