@@ -86,7 +86,7 @@ interface FullStats {
 
 // ─── Copy Clothing Tab ─────────────────────────────────────────────────────────
 
-function CopyClothingTab({ groupId }: { groupId: number }) {
+function CopyClothingTab({ groupId, active }: { groupId: number; active: boolean }) {
   const { toast } = useToast();
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,10 +133,15 @@ function CopyClothingTab({ groupId }: { groupId: number }) {
     }
   }, [toast, startRetryCountdown]);
 
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+
   useEffect(() => {
-    fetchClothing(String(groupId));
-    apiFetch<{ accounts: AltAccount[] }>("/api/roblox/alt").then(d => setAlts(d.accounts)).catch(() => {});
-  }, [groupId, fetchClothing]);
+    if (active && !hasLoadedOnce) {
+      setHasLoadedOnce(true);
+      fetchClothing(String(groupId));
+      apiFetch<{ accounts: AltAccount[] }>("/api/roblox/alt").then(d => setAlts(d.accounts)).catch(() => {});
+    }
+  }, [active, hasLoadedOnce, groupId, fetchClothing]);
 
   const handleDownloadItem = async (item: ClothingItem) => {
     setDownloading(item.id);
@@ -387,6 +392,8 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   const [downloading, setDownloading] = useState<number | null>(null);
   const [altIndex, setAltIndex] = useState<number | null>(null);
   const [alts, setAlts] = useState<AltAccount[]>([]);
+  const [subcategory, setSubcategory] = useState("");
+  const [sortType, setSortType] = useState("0");
 
   useEffect(() => {
     apiFetch<{ accounts: AltAccount[] }>("/api/roblox/alt").then(d => setAlts(d.accounts)).catch(() => {});
@@ -400,8 +407,13 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
     setItems([]);
     setRateLimited(false);
     try {
+      const params = new URLSearchParams();
+      params.set("keyword", keyword.trim());
+      params.set("limit", "120");
+      if (subcategory) params.set("subcategory", subcategory);
+      if (sortType !== "0") params.set("sortType", sortType);
       const data = await apiFetch<{ items: Array<ClothingItem & { creatorName?: string }> }>(
-        `/api/roblox/catalog/search?keyword=${encodeURIComponent(keyword)}&limit=30`
+        `/api/roblox/catalog/search?${params}`
       );
       setItems(data.items);
       if (data.items.length === 0) {
@@ -480,6 +492,32 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
             <Button onClick={handleSearch} disabled={loading || !keyword.trim()} className="rounded-xl px-5">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             </Button>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <select
+              value={subcategory}
+              onChange={e => setSubcategory(e.target.value)}
+              className="h-8 rounded-lg border border-input bg-background px-2 text-xs"
+            >
+              <option value="">All Clothing</option>
+              <option value="ClassicShirts">Shirts</option>
+              <option value="ClassicPants">Pants</option>
+            </select>
+            <select
+              value={sortType}
+              onChange={e => setSortType(e.target.value)}
+              className="h-8 rounded-lg border border-input bg-background px-2 text-xs"
+            >
+              <option value="0">Relevance</option>
+              <option value="1">Most Favourited</option>
+              <option value="2">Best Selling</option>
+              <option value="3">Recently Updated</option>
+              <option value="4">Price: Low to High</option>
+              <option value="5">Price: High to Low</option>
+            </select>
+            {items.length > 0 && (
+              <span className="text-xs text-muted-foreground self-center ml-auto">{items.length} results</span>
+            )}
           </div>
           {alts.length > 0 && (
             <div className="flex gap-2 flex-wrap items-center">
@@ -1084,19 +1122,19 @@ export default function GroupView({ id }: { id: string }) {
         </TabsList>
 
         <div className="mt-6">
-          <TabsContent value="pnl" className="mt-0">
+          <TabsContent value="pnl" className="mt-0 data-[state=inactive]:hidden" forceMount>
             <PnL groupId={String(stats.id)} />
           </TabsContent>
-          <TabsContent value="copy" className="mt-0">
-            <CopyClothingTab groupId={stats.id} />
+          <TabsContent value="copy" className="mt-0 data-[state=inactive]:hidden" forceMount>
+            <CopyClothingTab groupId={stats.id} active={activeTab === "copy"} />
           </TabsContent>
-          <TabsContent value="catalog" className="mt-0">
+          <TabsContent value="catalog" className="mt-0 data-[state=inactive]:hidden" forceMount>
             <CatalogSearchTab groupId={stats.id} />
           </TabsContent>
-          <TabsContent value="upload" className="mt-0">
+          <TabsContent value="upload" className="mt-0 data-[state=inactive]:hidden" forceMount>
             <UploadClothingTab groupId={stats.id} />
           </TabsContent>
-          <TabsContent value="alts" className="mt-0">
+          <TabsContent value="alts" className="mt-0 data-[state=inactive]:hidden" forceMount>
             <AltAccountsTab />
           </TabsContent>
         </div>

@@ -458,25 +458,20 @@ async function releaseAndPriceClothing(
   cookie: string,
   assetId: number,
   price: number,
-  name: string,
-  description: string,
-  groupId: number
+  _name: string,
+  _description: string,
+  _groupId: number
 ): Promise<{ success: boolean; error?: string }> {
   const salePrice = Math.max(price, 5);
+  const MAX_ATTEMPTS = 4;
+  const DELAYS = [2000, 5000, 10000, 15000];
 
-  const publisherUserId = await getAuthenticatedUserId(cookie);
-  if (!publisherUserId) {
-    console.log(`[Upload] Could not get publisher user ID for asset ${assetId}`);
-    return { success: false, error: "Failed to get authenticated user ID" };
-  }
-
-  const MAX_PUBLISH_ATTEMPTS = 3;
-  const DELAYS = [8000, 15000, 25000];
-
-  for (let attempt = 0; attempt < MAX_PUBLISH_ATTEMPTS; attempt++) {
-    const delay = attempt === 0 ? DELAYS[0] : DELAYS[attempt] || 25000;
-    console.log(`[Upload] Publish attempt ${attempt + 1}/${MAX_PUBLISH_ATTEMPTS} for asset ${assetId}: ${salePrice} R$ (waiting ${delay / 1000}s)...`);
-    await new Promise(r => setTimeout(r, delay));
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      const delay = DELAYS[attempt] || 15000;
+      console.log(`[Upload] Waiting ${delay / 1000}s before release attempt ${attempt + 1}...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
 
     const csrfToken = await getRobloxCsrf(cookie);
     if (!csrfToken) {
@@ -484,96 +479,67 @@ async function releaseAndPriceClothing(
       continue;
     }
 
-    const requestData = {
-      isRentalOptIn: false,
-      idempotencyToken: crypto.randomUUID(),
-      agreedPublishingFee: 0,
-      creatorGroupId: groupId,
-      description: description || "Created with Limited.Ink",
-      isFree: false,
-      name: name || `Clothing ${assetId}`,
-      optOutFromRegionalPricing: false,
-      priceInRobux: salePrice,
-      priceOffset: 0,
-      publisherUserId: publisherUserId,
-      publishingType: 2,
-      quantity: 0,
-      quantityLimitPerUser: 0,
-      resaleRestriction: 2,
-      saleLocationConfiguration: {
-        saleLocationType: 1,
-        places: [],
-      },
-      targetId: assetId.toString(),
-      targetType: 0,
+    const releaseUrl = `https://itemconfiguration.roblox.com/v1/assets/${assetId}/release`;
+    const releaseBody = {
+      price: salePrice,
+      priceConfiguration: { priceInRobux: salePrice },
+      saleStatus: "OnSale",
     };
 
     try {
-      const resp = await fetch("https://itemconfiguration.roblox.com/v1/collectibles", {
+      let resp = await fetch(releaseUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Cookie": `.ROBLOSECURITY=${cookie}`,
           "X-CSRF-TOKEN": csrfToken,
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Origin": "https://create.roblox.com",
-          "Referer": "https://create.roblox.com/",
         },
-        body: JSON.stringify(requestData),
+        body: JSON.stringify(releaseBody),
       });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        console.log(`[Upload] Price ${salePrice} R$ set for asset ${assetId} via collectibles API (attempt ${attempt + 1})`, JSON.stringify(data).slice(0, 200));
-        return { success: true };
-      }
-
-      const text = await resp.text();
-      console.log(`[Upload] collectibles API attempt ${attempt + 1} failed (${resp.status}): ${text.slice(0, 500)}`);
 
       if (resp.status === 403) {
         const csrf2 = await getRobloxCsrf(cookie);
         if (csrf2) {
-          requestData.idempotencyToken = crypto.randomUUID();
-          const retry = await fetch("https://itemconfiguration.roblox.com/v1/collectibles", {
+          resp = await fetch(releaseUrl, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Cookie": `.ROBLOSECURITY=${cookie}`,
               "X-CSRF-TOKEN": csrf2,
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              "Origin": "https://create.roblox.com",
-              "Referer": "https://create.roblox.com/",
             },
-            body: JSON.stringify(requestData),
+            body: JSON.stringify(releaseBody),
           });
-
-          if (retry.ok) {
-            const retryData = await retry.json();
-            console.log(`[Upload] Price ${salePrice} R$ set for asset ${assetId} (CSRF retry, attempt ${attempt + 1})`, JSON.stringify(retryData).slice(0, 200));
-            return { success: true };
-          }
         }
       }
 
-      if (resp.status === 500 && text.includes("Gateway could not publish")) {
-        console.log(`[Upload] Item ${assetId} not ready yet (still processing/moderating), will retry...`);
+      if (resp.ok) {
+        console.log(`[Upload] Price ${salePrice} R$ set for asset ${assetId} via release API (attempt ${attempt + 1})`);
+        return { success: true };
+      }
+
+      const text = await resp.text();
+      console.log(`[Upload] Release API attempt ${attempt + 1} failed (${resp.status}): ${text.slice(0, 500)}`);
+
+      if (resp.status === 400 || resp.status === 500) {
+        console.log(`[Upload] Item ${assetId} may still be processing, will retry...`);
         continue;
       }
 
-      if (attempt === MAX_PUBLISH_ATTEMPTS - 1) {
-        return { success: false, error: `Price setting failed after ${MAX_PUBLISH_ATTEMPTS} attempts (${resp.status}): ${text.slice(0, 200)}` };
+      if (attempt === MAX_ATTEMPTS - 1) {
+        return { success: false, error: `Price setting failed after ${MAX_ATTEMPTS} attempts (${resp.status}): ${text.slice(0, 200)}` };
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.log(`[Upload] Error setting price attempt ${attempt + 1} for asset ${assetId}:`, msg);
-      if (attempt === MAX_PUBLISH_ATTEMPTS - 1) {
+      console.log(`[Upload] Error setting price attempt ${attempt + 1}:`, msg);
+      if (attempt === MAX_ATTEMPTS - 1) {
         return { success: false, error: msg };
       }
     }
   }
 
-  return { success: false, error: `Could not publish asset ${assetId} after ${MAX_PUBLISH_ATTEMPTS} attempts. The item may still be processing on Roblox. Try publishing manually from create.roblox.com.` };
+  return { success: false, error: `Could not set price for asset ${assetId} after ${MAX_ATTEMPTS} attempts. Try setting the price manually on create.roblox.com.` };
 }
 
 async function uploadViaCookie(
@@ -583,25 +549,21 @@ async function uploadViaCookie(
   description: string,
   imageBuffer: Buffer,
   clothingType: string,
-  price?: number
+  _price?: number
 ): Promise<{ assetId: number | null; error?: string }> {
   const csrfToken = await getRobloxCsrf(cookie);
   if (!csrfToken) {
     return { assetId: null, error: "Failed to get CSRF token. Your Roblox cookie may be expired — re-login in Settings." };
   }
 
-  const assetType = clothingType === "Pants" ? "Pants" : "Shirt";
-  const expectedPrice = Math.max(10, price || 10);
-  console.log(`[Upload] Cookie upload via user-auth API: type=${assetType} group=${groupId} name="${name}" price=${price ?? "default"}`);
+  const assetTypeId = clothingType === "Pants" ? 12 : 11;
+  console.log(`[Upload] Cookie upload via avatar-assets API: typeId=${assetTypeId} group=${groupId} name="${name}"`);
 
-  const requestData = JSON.stringify({
-    displayName: name,
+  const configJson = JSON.stringify({
+    name: name || "Clothing",
     description: description || "Uploaded via Limited.Ink",
-    assetType: assetType,
-    creationContext: {
-      creator: { groupId: groupId },
-      expectedPrice: expectedPrice,
-    },
+    creatorTargetId: String(groupId),
+    creatorType: "Group",
   });
 
   const boundary = `----FormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;
@@ -610,20 +572,20 @@ async function uploadViaCookie(
   const parts: Buffer[] = [];
   parts.push(Buffer.from(
     `--${boundary}${crlf}` +
-    `Content-Disposition: form-data; name="request"${crlf}` +
+    `Content-Disposition: form-data; name="config"; filename="config.json"${crlf}` +
     `Content-Type: application/json${crlf}${crlf}` +
-    requestData + crlf, "utf8"
+    configJson + crlf, "utf8"
   ));
   parts.push(Buffer.from(
     `--${boundary}${crlf}` +
-    `Content-Disposition: form-data; name="fileContent"; filename="clothing.png"${crlf}` +
+    `Content-Disposition: form-data; name="media"; filename="clothing.png"${crlf}` +
     `Content-Type: image/png${crlf}${crlf}`, "utf8"
   ));
   parts.push(imageBuffer);
   parts.push(Buffer.from(`${crlf}--${boundary}--${crlf}`, "utf8"));
 
   const body = Buffer.concat(parts);
-  const uploadUrl = "https://apis.roblox.com/assets/user-auth/v1/assets";
+  const uploadUrl = `https://itemconfiguration.roblox.com/v1/avatar-assets/${assetTypeId}/upload`;
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const currentCsrf = attempt === 0 ? csrfToken : await getRobloxCsrf(cookie);
@@ -632,18 +594,15 @@ async function uploadViaCookie(
       method: "POST",
       headers: {
         "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "X-CSRF-TOKEN": currentCsrf,
+        "X-CSRF-TOKEN": currentCsrf || "",
         "Content-Type": `multipart/form-data; boundary=${boundary}`,
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Origin": "https://create.roblox.com",
-        "Referer": "https://create.roblox.com/",
       },
       body,
     });
 
     if (resp.status === 403) {
-      const newCsrf = resp.headers.get("x-csrf-token");
-      if (newCsrf && attempt === 0) {
+      if (attempt === 0) {
         console.log("[Upload] CSRF refreshed, retrying...");
         continue;
       }
@@ -653,82 +612,107 @@ async function uploadViaCookie(
     const text = await resp.text();
 
     if (!resp.ok) {
-      console.log(`[Upload] user-auth failed: status=${resp.status} body=${text.slice(0, 400)}`);
+      console.log(`[Upload] avatar-assets failed: status=${resp.status} body=${text.slice(0, 400)}`);
       if (resp.status === 401) return { assetId: null, error: "Roblox cookie expired. Re-login in Settings." };
       if (resp.status === 429) return { assetId: null, error: "Roblox rate limit. Wait and try again." };
       let errorMsg = `Upload failed (${resp.status})`;
       try {
-        const e = JSON.parse(text) as { message?: string; error?: string };
-        if (e.message) errorMsg += `: ${e.message}`;
-        else if (e.error) errorMsg += `: ${e.error}`;
+        const e = JSON.parse(text) as { errors?: Array<{ code: number; message?: string }>; message?: string };
+        const errors = e.errors || [];
+        if (errors.length > 0) {
+          const code = errors[0].code;
+          const msg = errors[0].message || "";
+          if (code === 0) return { assetId: null, error: "Roblox rate limit. Wait and try again." };
+          if (code === 6) return { assetId: null, error: "Not enough Robux (need 10 R$ per upload)." };
+          if (code === 7) return { assetId: null, error: "Invalid template image." };
+          if (code === 8) return { assetId: null, error: "Invalid file type. Use PNG." };
+          if (code === 9) return { assetId: null, error: "No permission to upload to this group." };
+          if (code === 11 || code === 16) return { assetId: null, error: "Clothing name or description not allowed by Roblox." };
+          errorMsg += `: ${msg}`;
+        } else if (e.message) {
+          errorMsg += `: ${e.message}`;
+        }
       } catch {}
       return { assetId: null, error: errorMsg };
     }
 
-    let uploadData: { operationId?: string; done?: boolean; response?: { assetId?: string }; path?: string };
-    try { uploadData = JSON.parse(text); } catch {
+    try {
+      const data = JSON.parse(text) as {
+        assetId?: number | string;
+        operationId?: string;
+        done?: boolean;
+        response?: { assetId?: string };
+        path?: string;
+      };
+
+      if (data.assetId) {
+        const assetId = parseInt(String(data.assetId), 10);
+        if (!isNaN(assetId)) {
+          console.log(`[Upload] Success: assetId=${assetId}`);
+          return { assetId };
+        }
+      }
+
+      if (data.done && data.response?.assetId) {
+        const assetId = parseInt(data.response.assetId, 10);
+        if (!isNaN(assetId)) {
+          console.log(`[Upload] Immediate done: assetId=${assetId}`);
+          return { assetId };
+        }
+      }
+
+      const operationId = data.operationId || data.path;
+      if (operationId) {
+        console.log(`[Upload] Got operation ID, polling: ${operationId}`);
+        const statusUrl = operationId.startsWith("http")
+          ? operationId
+          : operationId.startsWith("/")
+            ? `https://apis.roblox.com${operationId}`
+            : `https://apis.roblox.com/assets/user-auth/v1/operations/${operationId}`;
+
+        for (let poll = 0; poll < 30; poll++) {
+          await new Promise(r => setTimeout(r, 2000));
+          try {
+            const pollResp = await fetch(statusUrl, {
+              headers: {
+                "Cookie": `.ROBLOSECURITY=${cookie}`,
+                "X-CSRF-TOKEN": currentCsrf || "",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              },
+            });
+            if (pollResp.ok) {
+              const pollData = await pollResp.json() as {
+                done?: boolean;
+                response?: { assetId?: string };
+                error?: { message?: string };
+              };
+              if (pollData.done) {
+                if (pollData.response?.assetId) {
+                  const assetId = parseInt(pollData.response.assetId, 10);
+                  if (!isNaN(assetId)) {
+                    console.log(`[Upload] Poll success: assetId=${assetId}`);
+                    return { assetId };
+                  }
+                }
+                if (pollData.error?.message) {
+                  return { assetId: null, error: `Roblox rejected: ${pollData.error.message}` };
+                }
+                return { assetId: null, error: "Operation completed but no asset ID returned." };
+              }
+            }
+          } catch (e) {
+            console.log(`[Upload] Poll ${poll + 1} error:`, e instanceof Error ? e.message : e);
+          }
+        }
+        return { assetId: null, error: "Upload timed out waiting for Roblox to process." };
+      }
+
+      console.log(`[Upload] No assetId or operationId in response: ${text.slice(0, 300)}`);
+      return { assetId: null, error: "Upload succeeded but no asset ID returned." };
+    } catch {
       console.log(`[Upload] Could not parse response: ${text.slice(0, 200)}`);
       return { assetId: null, error: "Upload returned unparseable response." };
     }
-
-    if (uploadData.done && uploadData.response?.assetId) {
-      const assetId = parseInt(uploadData.response.assetId, 10);
-      if (!isNaN(assetId)) {
-        console.log(`[Upload] Immediate success: assetId=${assetId}`);
-        return { assetId };
-      }
-    }
-
-    const operationId = uploadData.operationId || uploadData.path;
-    if (!operationId) {
-      console.log(`[Upload] No operationId in response: ${text.slice(0, 300)}`);
-      return { assetId: null, error: "Server did not return an operation ID." };
-    }
-
-    console.log(`[Upload] Operation created: ${operationId}, polling...`);
-
-    const statusUrlBase = operationId.startsWith("http")
-      ? operationId
-      : operationId.startsWith("/")
-        ? `https://apis.roblox.com${operationId}`
-        : `https://apis.roblox.com/assets/user-auth/v1/operations/${operationId}`;
-
-    for (let poll = 0; poll < 30; poll++) {
-      await new Promise(r => setTimeout(r, 2000));
-      try {
-        const pollResp = await fetch(statusUrlBase, {
-          headers: {
-            "Cookie": `.ROBLOSECURITY=${cookie}`,
-            "X-CSRF-TOKEN": currentCsrf,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
-        });
-        if (pollResp.ok) {
-          const pollData = await pollResp.json() as {
-            done?: boolean;
-            response?: { assetId?: string };
-            error?: { message?: string };
-          };
-          if (pollData.done) {
-            if (pollData.response?.assetId) {
-              const assetId = parseInt(pollData.response.assetId, 10);
-              if (!isNaN(assetId)) {
-                console.log(`[Upload] Poll success: assetId=${assetId}`);
-                return { assetId };
-              }
-            }
-            if (pollData.error?.message) {
-              return { assetId: null, error: `Roblox rejected: ${pollData.error.message}` };
-            }
-            return { assetId: null, error: "Operation completed but no asset ID returned." };
-          }
-        }
-      } catch (e) {
-        console.log(`[Upload] Poll ${poll + 1} error:`, e instanceof Error ? e.message : e);
-      }
-    }
-
-    return { assetId: null, error: "Upload timed out waiting for Roblox to process the asset." };
   }
 
   return { assetId: null, error: "Upload failed after retries." };

@@ -540,7 +540,7 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
   let firstStatus = 200;
 
   while (pages < MAX_PAGES) {
-    const url = `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=2&creatorTargetId=${groupId}&limit=30${cursor ? `&cursor=${cursor}` : ""}`;
+    const url = `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=2&creatorTargetId=${groupId}&limit=120${cursor ? `&cursor=${cursor}` : ""}`;
     const clothingResp = await fetchRobloxWithRetry(url, cookie, 2);
 
     if (pages === 0) firstStatus = clothingResp.status;
@@ -577,7 +577,7 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
   if (allCatalogItems.length === 0 && pages === 0) {
     console.log(`[Catalog] Primary empty — trying creatorType=1 fallback`);
     const fb1 = await fetchRobloxWithRetry(
-      `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=1&creatorTargetId=${groupId}&limit=30`,
+      `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=1&creatorTargetId=${groupId}&limit=120`,
       cookie, 1
     );
     if (fb1.ok) {
@@ -730,7 +730,9 @@ router.get("/roblox/catalog/search", async (req, res): Promise<void> => {
   }
 
   const keyword = String(req.query.keyword || "").trim();
-  const limit = Math.min(parseInt(String(req.query.limit || "30"), 10), 60);
+  const limit = Math.min(parseInt(String(req.query.limit || "120"), 10), 120);
+  const subcategory = String(req.query.subcategory || "");
+  const sortType = parseInt(String(req.query.sortType || "0"), 10);
 
   if (!keyword) {
     res.status(400).json({ error: "Please provide a search keyword." });
@@ -739,7 +741,7 @@ router.get("/roblox/catalog/search", async (req, res): Promise<void> => {
 
   type CatalogSearchItem = { id: number; name: string; itemType: string; assetType: number; price: number | null; creatorName: string };
 
-  const cacheKey = `catalog_search_${keyword.toLowerCase()}_${limit}`;
+  const cacheKey = `catalog_search_${keyword.toLowerCase()}_${limit}_${subcategory}_${sortType}`;
   const cached = cacheGet<{ items: unknown[] }>(cacheKey);
   if (cached) {
     res.json(cached);
@@ -747,10 +749,11 @@ router.get("/roblox/catalog/search", async (req, res): Promise<void> => {
   }
 
   const kw = encodeURIComponent(keyword);
-  const lim2 = Math.min(limit, 30);
-  console.log(`[CatalogSearch] keyword="${keyword}" limit=${lim2}`);
+  const lim2 = Math.min(limit, 120);
+  console.log(`[CatalogSearch] keyword="${keyword}" limit=${lim2} subcategory="${subcategory}" sortType=${sortType}`);
 
-  const searchUrl = `${ROBLOX_CATALOG_API}/v1/search/items?category=3&keyword=${kw}&limit=${lim2}&sortType=0`;
+  let searchUrl = `${ROBLOX_CATALOG_API}/v1/search/items?category=3&keyword=${kw}&limit=${lim2}&sortType=${sortType}&salesTypeFilter=1`;
+  if (subcategory) searchUrl += `&subcategory=${encodeURIComponent(subcategory)}`;
   let searchResp: Response;
   try {
     searchResp = await fetch(searchUrl, {
@@ -972,7 +975,7 @@ router.get("/roblox/groups/:groupId/analyze", async (req, res): Promise<void> =>
     fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Day`, cookie),
     fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Week`, cookie),
     fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Month`, cookie),
-    fetch(`${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=2&creatorTargetId=${groupId}&limit=30`),
+    fetch(`${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=2&creatorTargetId=${groupId}&limit=120`),
   ]);
 
   if (groupResp.status !== "fulfilled" || !groupResp.value.ok) {

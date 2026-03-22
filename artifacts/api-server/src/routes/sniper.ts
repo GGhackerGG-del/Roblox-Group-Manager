@@ -310,7 +310,7 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
     }
 
     if (dealsFromApi.length === 0) {
-      console.log("[Sniper] Rolimons deals API returned no results, building deals from value vs RAP...");
+      console.log("[Sniper] Rolimons deals API returned no results, fetching real prices from catalog...");
       const allItems = await fetchRolimonsItems();
       const candidates = allItems
         .filter(i => i.rap > 0 && i.value > 0 && i.value < i.rap && i.demand >= 0)
@@ -321,13 +321,52 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
         })
         .slice(0, 100);
 
-      console.log(`[Sniper] Found ${candidates.length} items where Rolimons value < RAP`);
-      dealSource = "rolimons_value";
+      const priceMap = new Map<number, number>();
+      try {
+        const itemBodies = candidates.map(i => ({ itemType: "Asset", id: i.id }));
+        const detailsResp = await fetch("https://catalog.roblox.com/v1/catalog/items/details", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ items: itemBodies }),
+        });
+        if (detailsResp.ok) {
+          const detailsData = await detailsResp.json() as {
+            data: Array<{ id: number; lowestPrice?: number; price?: number }>;
+          };
+          for (const item of detailsData.data || []) {
+            if (item.lowestPrice && item.lowestPrice > 0) {
+              priceMap.set(item.id, item.lowestPrice);
+            }
+          }
+          console.log(`[Sniper] Got real prices for ${priceMap.size} items from catalog details`);
+        }
+      } catch (err) {
+        console.log("[Sniper] Failed to fetch catalog details:", err);
+      }
 
-      const ids = candidates.map(i => i.id);
+      const withPrices = candidates.filter(i => priceMap.has(i.id) && (priceMap.get(i.id) || 0) < i.rap);
+      const withoutPrices = candidates.filter(i => !priceMap.has(i.id));
+
+      const combined = [
+        ...withPrices.map(i => ({
+          ...i,
+          realPrice: priceMap.get(i.id)!,
+          usesRealPrice: true,
+        })),
+        ...withoutPrices.slice(0, Math.max(0, 50 - withPrices.length)).map(i => ({
+          ...i,
+          realPrice: i.value,
+          usesRealPrice: false,
+        })),
+      ];
+
+      dealSource = priceMap.size > 0 ? "catalog_prices" : "rolimons_value";
+      console.log(`[Sniper] ${withPrices.length} items with real prices, ${combined.length - withPrices.length} with estimated values`);
+
+      const ids = combined.map(i => i.id);
       const thumbMap = await batchFetchThumbnails(ids);
 
-      dealsFromApi = candidates.map(i => ({
+      dealsFromApi = combined.map(i => ({
         id: i.id,
         name: i.name,
         acronym: i.acronym,
@@ -340,11 +379,14 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
         projected: i.projected === 1,
         hyped: i.hyped === 1,
         rare: i.rare === 1,
-        discount: Math.round(((i.rap - i.value) / i.rap) * 100),
-        priceDiff: Math.round(((i.value - i.rap) / i.rap) * 100),
+        discount: Math.round(((i.rap - i.realPrice) / i.rap) * 100),
+        priceDiff: Math.round(((i.realPrice - i.rap) / i.rap) * 100),
         thumbnailUrl: thumbMap[i.id] || null,
-        listedPrice: i.value,
+        listedPrice: i.realPrice,
       }));
+
+      dealsFromApi = dealsFromApi.filter(d => d.discount > 0);
+      dealsFromApi.sort((a, b) => b.discount - a.discount);
     }
 
     res.json({ deals: dealsFromApi, total: dealsFromApi.length, source: dealSource });

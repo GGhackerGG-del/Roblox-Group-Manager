@@ -124,6 +124,7 @@ export default function Sniper() {
 
   useEffect(() => {
     if (items.length === 0) fetchItems();
+    if (deals.length === 0) fetchDeals();
   }, []);
 
   const filteredDeals = deals.filter(d => {
@@ -439,7 +440,7 @@ export default function Sniper() {
                                 <span className="font-mono">RAP: <span className="text-foreground font-semibold">{item.rap.toLocaleString()} R$</span></span>
                                 <span className="text-muted-foreground">→</span>
                                 <span className="font-mono text-green-600 font-semibold">
-                                  Value: {bestPrice.toLocaleString()} R$
+                                  Best Price: {bestPrice.toLocaleString()} R$
                                 </span>
                                 <DemandBadge demand={item.demand} label={item.demandLabel} />
                               </div>
