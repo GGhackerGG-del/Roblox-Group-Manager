@@ -124,10 +124,9 @@ router.post("/assistant/generate-image", async (req, res): Promise<void> => {
       prompt: prompt.trim(),
       n: 1,
       size: "1024x1024",
-      response_format: "b64_json",
-    } as any);
+    });
 
-    const b64 = response.data?.[0]?.b64_json;
+    const b64 = (response.data?.[0] as any)?.b64_json;
     if (!b64) {
       res.status(502).json({ error: "No image returned from API." });
       return;
