@@ -3,7 +3,7 @@ import { requireLicense } from "../middleware/requireLicense.js";
 import healthRouter from "./health";
 import licenseRouter from "./license";
 import robloxRouter from "./roblox";
-
+import clothingRouter from "./clothing";
 import socialRouter from "./social";
 import featuredGroupsRouter from "./featuredGroups";
 import competitorRouter from "./competitor";
@@ -31,6 +31,7 @@ router.delete("/roblox/session", (req, res): void => {
 
 router.use("/roblox", requireLicense);
 
+router.use("/clothing", requireLicense);
 router.use("/social", requireLicense);
 router.use("/competitor", requireLicense);
 router.use("/assistant", requireLicense);
@@ -39,7 +40,7 @@ router.use("/sniper", requireLicense);
 router.use("/pnl", requireLicense);
 router.use("/forum", requireLicense);
 router.use(robloxRouter);
-
+router.use(clothingRouter);
 router.use(socialRouter);
 router.use(competitorRouter);
 router.use(assistantRouter);

@@ -17,7 +17,7 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `RobloxLogin.tsx` — Roblox cookie entry (sessionStorage only, never persisted in DB)
 - `DashboardLayout.tsx` — Sidebar with owner groups list, user profile, license info, Tools section (AI Assistant, Competitors, Limited Sniper), Community & Settings links
 - `Home.tsx` — Empty state when no group selected
-- `GroupView.tsx` — 5-tab view: P&L, Copy Clothing (with bulk ZIP download), Catalog (classic shirts/pants only), Upload (multi-file PNG queue + template overlay + alt account selector), Alt Accounts. Tab state persisted per group in localStorage. BanShield pre-upload check on clothing items. Default tab is P&L.
+- `GroupView.tsx` — 5-tab view: P&L, Catalog (search marketplace clothing by keyword/sort/price, copy to group or download template), Clothing (browse group's own clothing, download templates), Upload (multi-file PNG drag-and-drop queue with name/type/price per item, auto-release on sale), Alt Accounts. Tab state persisted per group in localStorage. Default tab is P&L.
 - `Community.tsx` — Social hub: Feed (posts/likes/comments), Forum (Suggestions/Off-topic/Q&A with voting & replies), Discover (find developers), Friends (requests, chat), Chat (DMs)
 - `Settings.tsx` — Profile bio, Theme (light/dark/system), Notifications, Privacy (with Cookie Security info), Data export, License info, About. Side-nav layout.
 - `Assistant.tsx` — AI chat assistant for Roblox development help (Lua scripts, moderation policies, clothing strategies, Discord posts). Uses SSE streaming. Supports markdown rendering (**bold**, *italic*, `code`, # ## ### headers).
@@ -32,7 +32,10 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `POST /api/roblox/auth` — Validate cookie, return user profile
 - `POST /api/roblox/groups` — List groups where user is owner
 - `POST /api/roblox/groups/:groupId/stats` — Group statistics (members, funds, join policy)
-- `POST /api/clothing/upload` — Upload clothing to Roblox group
+- `GET /api/clothing/search?keyword=&subcategory=&sortType=&minPrice=&maxPrice=` — Search Roblox catalog clothing with filters
+- `GET /api/clothing/group/:groupId/items` — List group's clothing items with thumbnails
+- `GET /api/clothing/:itemId/template` — Download clothing template (texture) as base64
+- `POST /api/clothing/upload` — Upload PNG clothing to group + auto-release at price (CSRF, multipart)
 - `GET /api/competitor/analyze/:groupId` — Analyze competitor group (members, clothing paginated up to 10 pages with thumbnails, top items)
 - `POST /api/assistant/chat` — AI assistant chat with SSE streaming (uses OpenAI via Replit AI Integrations)
 - `POST /api/banshield/analyze` — Content moderation pre-check for clothing names/descriptions
