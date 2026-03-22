@@ -685,7 +685,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
       const assetId = typeof parsed.response.assetId === "string" ? parseInt(parsed.response.assetId, 10) : parsed.response.assetId;
       console.log(`[Clothing] Instant upload success, assetId=${assetId}`);
       const salePrice = Math.max(price || 5, 5);
-      const releaseOk = await setPrice(assetId, salePrice, cookie, csrf);
+      const releaseOk = await setPrice(assetId, salePrice, cookie, csrf, groupId, name?.trim(), (description || "Uploaded via Limited.Ink").trim());
       res.json({
         assetId,
         released: releaseOk,
@@ -719,7 +719,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     const assetId = result.assetId!;
     console.log(`[Clothing] Upload complete, assetId=${assetId}, setting price...`);
 
-    const releaseOk = await setPrice(assetId, Math.max(price || 5, 5), cookie, csrf);
+    const releaseOk = await setPrice(assetId, Math.max(price || 5, 5), cookie, csrf, groupId, name?.trim(), (description || "Uploaded via Limited.Ink").trim());
 
     res.json({
       assetId,
@@ -735,7 +735,28 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
   }
 });
 
-async function setPrice(assetId: number, salePrice: number, cookie: string, csrf: string): Promise<boolean> {
+async function getRobloxUserId(cookie: string): Promise<number | null> {
+  try {
+    const resp = await fetch("https://users.roblox.com/v1/users/authenticated", {
+      headers: {
+        Cookie: `.ROBLOSECURITY=${cookie}`,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    if (resp.ok) {
+      const data = await resp.json() as { id: number };
+      return data.id;
+    }
+  } catch {}
+  return null;
+}
+
+async function setPrice(assetId: number, salePrice: number, cookie: string, csrf: string, groupId: number, itemName?: string, itemDesc?: string): Promise<boolean> {
+  const userId = await getRobloxUserId(cookie);
+  if (!userId) {
+    console.log(`[Clothing] Could not get Roblox userId for publishing`);
+  }
+
   for (let attempt = 0; attempt < 5; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, 3000 * attempt));
     const currentCsrf = attempt === 0 ? csrf : await getRobloxCsrf(cookie);
@@ -749,15 +770,31 @@ async function setPrice(assetId: number, salePrice: number, cookie: string, csrf
       "Origin": "https://create.roblox.com",
     };
 
+    const idempotencyToken = crypto.randomUUID();
+
     const collectiblesBody = JSON.stringify({
-      assetId: String(assetId),
-      price: salePrice,
-      isLimited: false,
-      saleLocationType: "ShopAndAllExperiences",
+      targetId: assetId,
+      targetType: 0,
+      creatorGroupId: groupId,
+      publisherUserId: userId || 0,
+      priceInRobux: salePrice,
+      agreedPublishingFee: 10,
+      publishingType: 2,
+      isFree: false,
+      isRentalOptIn: false,
+      quantity: 0,
+      quantityLimitPerUser: 0,
+      resaleRestriction: 2,
+      saleLocationConfiguration: { saleLocationType: 1, places: [] },
+      optOutFromRegionalPricing: false,
+      priceOffset: 0,
+      name: itemName || "",
+      description: itemDesc || "",
+      idempotencyToken,
     });
 
     try {
-      console.log(`[Clothing] Publishing via /v1/collectibles: assetId=${assetId} price=${salePrice}`);
+      console.log(`[Clothing] Publishing via /v1/collectibles: assetId=${assetId} price=${salePrice} group=${groupId} user=${userId}`);
       const releaseResp = await fetch(`${ITEM_CONFIG_API}/v1/collectibles`, {
         method: "POST",
         headers: hdrs,
@@ -778,7 +815,7 @@ async function setPrice(assetId: number, salePrice: number, cookie: string, csrf
           hdrs["X-CSRF-TOKEN"] = newCsrf;
           const retry = await fetch(`${ITEM_CONFIG_API}/v1/collectibles`, {
             method: "POST",
-            headers: hdrs,
+            headers: { ...hdrs, "X-CSRF-TOKEN": newCsrf },
             body: collectiblesBody,
           });
           if (retry.ok) {
