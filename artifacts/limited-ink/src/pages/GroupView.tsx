@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -91,6 +92,7 @@ interface ClothingItem {
 // ─── Catalog Search Tab ──────────────────────────────────────────────────────
 
 function CatalogSearchTab({ groupId }: { groupId: number }) {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [keyword, setKeyword] = useState("");
   const [subcategory, setSubcategory] = useState("ClassicShirts");
@@ -107,10 +109,10 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   const lastSearchTime = useRef(0);
 
   const search = async () => {
-    if (!keyword.trim()) return;
+    if (!keyword.trim() && !creatorId.trim()) return;
     const now = Date.now();
     if (now - lastSearchTime.current < 3000) {
-      toast({ title: "Slow down", description: "Wait a few seconds between searches to avoid rate limits.", variant: "destructive" });
+      toast({ title: t("group.slowDown"), description: t("group.slowDown.desc"), variant: "destructive" });
       return;
     }
     lastSearchTime.current = now;
@@ -118,16 +120,17 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
     setLoading(true);
     setSelected(new Set());
     try {
-      const params = new URLSearchParams({ keyword: keyword.trim(), subcategory, sortType });
+      const params = new URLSearchParams({ subcategory, sortType });
+      if (keyword.trim()) params.set("keyword", keyword.trim());
       if (minPrice) params.set("minPrice", minPrice);
       if (maxPrice) params.set("maxPrice", maxPrice);
       if (creatorId.trim()) params.set("creatorId", creatorId.trim());
       const data = await apiFetch<{ items: ClothingItem[] }>(`/api/clothing/search?${params}`);
       setItems(data.items || []);
-      if (!data.items?.length) toast({ title: "No results", description: "Try a different keyword." });
+      if (!data.items?.length) toast({ title: t("group.noResults"), description: t("group.tryDifferent") });
     } catch (e: unknown) {
       playError();
-      toast({ title: "Search failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      toast({ title: t("group.searchFailed"), description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -193,7 +196,7 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
       toast({ title: "Copied!", description: result.message });
     } catch (e: unknown) {
       playError();
-      toast({ title: "Copy failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      toast({ title: t("group.copyFailed"), description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     } finally {
       setCopying(null);
     }
@@ -217,52 +220,52 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   return (
     <Card className="rounded-2xl border-border/50 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2"><Search className="w-4 h-4" /> Catalog Search</CardTitle>
-        <CardDescription>Search Roblox marketplace clothing, copy or download templates.</CardDescription>
+        <CardTitle className="text-base flex items-center gap-2"><Search className="w-4 h-4" /> {t("group.catalogSearch")}</CardTitle>
+        <CardDescription>{t("group.catalogSearch.desc")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          <Input placeholder="Keyword..." value={keyword} onChange={e => setKeyword(e.target.value)} onKeyDown={e => e.key === "Enter" && search()} className="w-48 rounded-xl text-sm" />
+          <Input placeholder={t("group.keyword")} value={keyword} onChange={e => setKeyword(e.target.value)} onKeyDown={e => e.key === "Enter" && search()} className="w-48 rounded-xl text-sm" />
           <Select value={subcategory} onValueChange={setSubcategory}>
             <SelectTrigger className="w-36 rounded-xl text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="ClassicShirts">Shirts</SelectItem>
-              <SelectItem value="ClassicPants">Pants</SelectItem>
+              <SelectItem value="ClassicShirts">{t("group.shirts")}</SelectItem>
+              <SelectItem value="ClassicPants">{t("group.pants")}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortType} onValueChange={setSortType}>
             <SelectTrigger className="w-40 rounded-xl text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="0">Relevance</SelectItem>
-              <SelectItem value="1">Most Favourited</SelectItem>
-              <SelectItem value="2">Bestselling</SelectItem>
-              <SelectItem value="5">Recently Updated</SelectItem>
+              <SelectItem value="0">{t("group.relevance")}</SelectItem>
+              <SelectItem value="1">{t("group.mostFavourited")}</SelectItem>
+              <SelectItem value="2">{t("group.bestselling")}</SelectItem>
+              <SelectItem value="5">{t("group.recentlyUpdated")}</SelectItem>
             </SelectContent>
           </Select>
           <Input placeholder="Min R$" value={minPrice} onChange={e => setMinPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
           <Input placeholder="Max R$" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
-          <Input placeholder="Group ID filter" value={creatorId} onChange={e => setCreatorId(e.target.value)} className="w-32 rounded-xl text-sm" />
-          <Button onClick={search} disabled={loading || !keyword.trim()} className="rounded-xl gap-1.5">
+          <Input placeholder={t("group.groupIdFilter")} value={creatorId} onChange={e => setCreatorId(e.target.value)} className="w-32 rounded-xl text-sm" />
+          <Button onClick={search} disabled={loading || (!keyword.trim() && !creatorId.trim())} className="rounded-xl gap-1.5">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            Search
+            {t("group.search")}
           </Button>
         </div>
 
         {items.length > 0 && (
           <>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>{items.length} results</span>
+              <span>{items.length} {t("group.results")}</span>
               {selected.size > 0 && (
                 <>
-                  <span>· {selected.size} selected</span>
+                  <span>· {selected.size} {t("group.selected")}</span>
                   <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 gap-1" onClick={bulkDownload} disabled={bulkDownloading}>
                     {bulkDownloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <FolderDown className="w-3 h-3" />}
-                    Download {selected.size}
+                    {t("group.download")} {selected.size}
                   </Button>
-                  <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7" onClick={() => setSelected(new Set())}>Clear</Button>
+                  <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7" onClick={() => setSelected(new Set())}>{t("group.clear")}</Button>
                 </>
               )}
-              <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7" onClick={() => setSelected(new Set(items.map(i => i.id)))}>Select All</Button>
+              <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7" onClick={() => setSelected(new Set(items.map(i => i.id)))}>{t("group.selectAll")}</Button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[600px] overflow-y-auto pr-1">
               {items.map(item => (
@@ -274,7 +277,7 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
                   <div className="flex gap-1 mt-1.5" onClick={e => e.stopPropagation()}>
                     <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 flex-1 gap-1" onClick={() => copyItem(item)} disabled={copying === item.id}>
                       {copying === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Copy className="w-3 h-3" />}
-                      Copy
+                      {t("group.copy")}
                     </Button>
                     <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7 px-2" onClick={() => downloadTemplate(item)} title="Download template">
                       <Download className="w-3 h-3" />
@@ -319,6 +322,7 @@ function compositeWithTemplate(clothingB64: string, templateB64: string): Promis
 }
 
 function UploadClothingTab({ groupId }: { groupId: number }) {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [files, setFiles] = useState<Array<{ file: File; preview: string; name: string; type: string; price: number }>>([]);
   const [uploading, setUploading] = useState(false);
@@ -375,7 +379,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
 
   const applyBulkName = (prefix: string) => {
     if (!prefix.trim()) return;
-    setFiles(prev => prev.map((f, i) => ({ ...f, name: `${prefix.trim()} ${i + 1}` })));
+    setFiles(prev => prev.map(f => ({ ...f, name: prefix.trim() })));
   };
 
   const applyBulkType = (type: string) => {
@@ -424,7 +428,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
         });
         newResults.push({ name: f.name, success: true, assetId: data.assetId });
       } catch (e: unknown) {
-        newResults.push({ name: f.name, success: false, error: e instanceof Error ? e.message : "Upload failed" });
+        newResults.push({ name: f.name, success: false, error: e instanceof Error ? e.message : t("group.uploadFailed") });
       }
       setResults([...newResults]);
       await new Promise(r => setTimeout(r, 2000));
@@ -444,8 +448,8 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
   return (
     <Card className="rounded-2xl border-border/50 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2"><Upload className="w-4 h-4" /> Upload Clothing</CardTitle>
-        <CardDescription>Upload PNG clothing templates to your group. Each upload costs 10 R$.</CardDescription>
+        <CardTitle className="text-base flex items-center gap-2"><Upload className="w-4 h-4" /> {t("group.uploadTab")}</CardTitle>
+        <CardDescription>{t("group.uploadTab.desc")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -493,33 +497,33 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
         {files.length > 0 && (
           <div className="space-y-3">
             <div className="rounded-xl border border-border/50 p-3 bg-muted/30 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">Bulk settings</p>
+              <p className="text-xs font-medium text-muted-foreground">{t("group.bulkName")}</p>
               <div className="flex flex-wrap gap-2 items-end">
                 <div className="space-y-0.5">
-                  <Label className="text-[10px]">Name prefix</Label>
+                  <Label className="text-[10px]">{t("group.uploadName")}</Label>
                   <div className="flex gap-1">
                     <Input value={bulkNamePrefix} onChange={e => setBulkNamePrefix(e.target.value)} placeholder="e.g. Design" className="w-28 rounded-lg text-xs h-7" />
-                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkName(bulkNamePrefix)}>Apply</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkName(bulkNamePrefix)}>{t("group.apply")}</Button>
                   </div>
                 </div>
                 <div className="space-y-0.5">
-                  <Label className="text-[10px]">Type</Label>
+                  <Label className="text-[10px]">{t("group.uploadType")}</Label>
                   <div className="flex gap-1">
-                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkType("Shirt")}>All Shirts</Button>
-                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkType("Pants")}>All Pants</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkType("Shirt")}>{t("group.shirts")}</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkType("Pants")}>{t("group.pants")}</Button>
                   </div>
                 </div>
                 <div className="space-y-0.5">
-                  <Label className="text-[10px]">Price R$</Label>
+                  <Label className="text-[10px]">{t("group.uploadPrice")}</Label>
                   <div className="flex gap-1">
                     <Input type="number" min={5} value={bulkPrice} onChange={e => setBulkPrice(parseInt(e.target.value) || 5)} className="w-16 rounded-lg text-[10px] h-7" />
-                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkPrice(bulkPrice)}>Apply</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg" onClick={() => applyBulkPrice(bulkPrice)}>{t("group.apply")}</Button>
                   </div>
                 </div>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px]">Description (all items)</Label>
-                <Input value={bulkDescription} onChange={e => setBulkDescription(e.target.value)} className="rounded-lg text-xs h-7" placeholder="Description for all uploads" />
+                <Label className="text-[10px]">{t("group.uploadDesc")}</Label>
+                <Input value={bulkDescription} onChange={e => setBulkDescription(e.target.value)} className="rounded-lg text-xs h-7" placeholder={t("group.uploadDesc")} />
               </div>
             </div>
 
@@ -555,7 +559,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
 
             <Button onClick={uploadAll} disabled={uploading || !files.length} className="rounded-xl w-full gap-2">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              Upload {files.length} item{files.length !== 1 ? "s" : ""}{templateFile ? " (with template)" : ""}
+              {t("group.uploadBtn")} {files.length}{templateFile ? " + template" : ""}
             </Button>
           </div>
         )}
@@ -577,6 +581,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
 // ─── Group Clothing Tab ──────────────────────────────────────────────────────
 
 function GroupClothingTab({ groupId }: { groupId: number }) {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -622,27 +627,27 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
     <Card className="rounded-2xl border-border/50 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-base flex items-center gap-2"><FolderDown className="w-4 h-4" /> Group Clothing</CardTitle>
-          <CardDescription>Browse and download clothing templates from this group. {total > 0 && `${total} total items.`}</CardDescription>
+          <CardTitle className="text-base flex items-center gap-2"><FolderDown className="w-4 h-4" /> {t("group.clothingTab")}</CardTitle>
+          <CardDescription>{t("group.clothingTab.desc")} {total > 0 && `${total} total items.`}</CardDescription>
         </div>
         <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={() => load(searchFilter || undefined)} disabled={loading}>
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> {t("group.refreshAlts")}
         </Button>
       </CardHeader>
       <CardContent>
         <div className="flex gap-2 mb-4">
-          <Input placeholder="Search by name or ID..." value={searchFilter} onChange={e => setSearchFilter(e.target.value)} onKeyDown={e => e.key === "Enter" && load(searchFilter || undefined)} className="rounded-xl text-sm" />
+          <Input placeholder={t("group.keyword")} value={searchFilter} onChange={e => setSearchFilter(e.target.value)} onKeyDown={e => e.key === "Enter" && load(searchFilter || undefined)} className="rounded-xl text-sm" />
           <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={() => load(searchFilter || undefined)} disabled={loading}>
-            <Search className="w-3.5 h-3.5" /> Filter
+            <Search className="w-3.5 h-3.5" /> {t("group.search")}
           </Button>
-          {searchFilter && <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => { setSearchFilter(""); load(); }}>Clear</Button>}
+          {searchFilter && <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => { setSearchFilter(""); load(); }}>{t("group.clear")}</Button>}
         </div>
         {loading && !items.length ? (
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
             {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded-xl" />)}
           </div>
         ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">No clothing items found in this group.</p>
+          <p className="text-sm text-muted-foreground text-center py-8">{t("group.noResults")}</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[600px] overflow-y-auto pr-1">
             {items.map(item => (
@@ -666,6 +671,7 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
 // ─── Alt Accounts Tab ─────────────────────────────────────────────────────────
 
 function AltAccountsTab() {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [alts, setAlts] = useState<AltAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -716,8 +722,8 @@ function AltAccountsTab() {
     <div className="space-y-5">
       <Card className="rounded-2xl border border-border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2"><UserPlus className="w-5 h-5" /> Add Alt Account</CardTitle>
-          <CardDescription>Alt accounts are used to upload clothing instead of the main account. Stored only for the current session.</CardDescription>
+          <CardTitle className="text-lg flex items-center gap-2"><UserPlus className="w-5 h-5" /> {t("group.addAlt")}</CardTitle>
+          <CardDescription>{t("group.altsTab.desc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
@@ -731,7 +737,7 @@ function AltAccountsTab() {
           </div>
           <Button onClick={handleAdd} disabled={adding || !newCookie.trim()} className="rounded-xl w-full gap-2">
             {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-            {adding ? "Verifying..." : "Add Account"}
+            {adding ? "..." : t("group.addAlt")}
           </Button>
           <p className="text-xs text-muted-foreground">
             The cookie is not stored permanently — only in server memory for the current session.
@@ -746,7 +752,7 @@ function AltAccountsTab() {
       ) : alts.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <Users className="w-12 h-12 mx-auto mb-3 opacity-30" strokeWidth={1} />
-          <p className="font-medium">No alt accounts added</p>
+          <p className="font-medium">{t("group.noResults")}</p>
           <p className="text-sm mt-1">Add an account cookie above</p>
         </div>
       ) : (
@@ -788,6 +794,7 @@ function AltAccountsTab() {
 // ─── Main GroupView ───────────────────────────────────────────────────────────
 
 export default function GroupView({ id }: { id: string }) {
+  const { t } = useLanguage();
   const [stats, setStats] = useState<FullStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
@@ -838,7 +845,7 @@ export default function GroupView({ id }: { id: string }) {
   }
 
   if (isError || !stats) {
-    return <div className="p-12 text-center text-muted-foreground">Failed to load group stats.</div>;
+    return <div className="p-12 text-center text-muted-foreground">{t("group.failedLoad") || "Failed to load group stats."}</div>;
   }
 
   return (
@@ -851,7 +858,7 @@ export default function GroupView({ id }: { id: string }) {
         <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight text-foreground leading-tight">{stats.name}</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            ID: {stats.id} · {stats.memberCount.toLocaleString()} members
+            ID: {stats.id} · {stats.memberCount.toLocaleString()} {t("group.members")}
           </p>
         </div>
         <a
@@ -868,19 +875,19 @@ export default function GroupView({ id }: { id: string }) {
       <Tabs value={["pnl", "catalog", "clothing", "upload", "alts"].includes(activeTab) ? activeTab : "pnl"} onValueChange={handleTabChange} className="w-full">
         <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto flex-wrap gap-1 w-full">
           <TabsTrigger value="pnl" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5" /> P&L
+            <DollarSign className="w-3.5 h-3.5" /> {t("group.pnl")}
           </TabsTrigger>
           <TabsTrigger value="catalog" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
-            <Search className="w-3.5 h-3.5" /> Catalog
+            <Search className="w-3.5 h-3.5" /> {t("group.catalog")}
           </TabsTrigger>
           <TabsTrigger value="clothing" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
-            <FolderDown className="w-3.5 h-3.5" /> Clothing
+            <FolderDown className="w-3.5 h-3.5" /> {t("group.clothing")}
           </TabsTrigger>
           <TabsTrigger value="upload" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
-            <Upload className="w-3.5 h-3.5" /> Upload
+            <Upload className="w-3.5 h-3.5" /> {t("group.upload")}
           </TabsTrigger>
           <TabsTrigger value="alts" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm px-3 py-2 flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5" /> Alt Accounts
+            <Users className="w-3.5 h-3.5" /> {t("group.alts")}
           </TabsTrigger>
         </TabsList>
 

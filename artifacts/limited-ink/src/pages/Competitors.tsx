@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
 import { usePageCache } from "@/contexts/PageCacheContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { playClick, playSuccess, playTabSwitch } from "@/hooks/useSounds";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ interface CompetitorData {
 }
 
 export default function Competitors() {
+  const { t } = useLanguage();
   const cache = usePageCache();
   const cached = cache.get<{ data: CompetitorData; groupId: string }>("competitors");
 
@@ -135,10 +137,10 @@ export default function Competitors() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Search className="w-6 h-6" /> Competitor Tracker
+          <Search className="w-6 h-6" /> {t("competitors.title")}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Analyze any Roblox group to see their clothing stats and strategy
+          {t("competitors.desc")}
         </p>
       </div>
 
@@ -146,7 +148,7 @@ export default function Competitors() {
         <CardContent className="pt-6">
           <div className="flex gap-3">
             <Input
-              placeholder="Enter competitor Group ID (e.g. 114200141)"
+              placeholder={t("competitors.placeholder")}
               value={groupId}
               onChange={(e) => setGroupId(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && analyze()}
@@ -154,7 +156,7 @@ export default function Competitors() {
             />
             <Button onClick={analyze} disabled={loading || !groupId.trim()} className="shrink-0">
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
-              Analyze
+              {t("competitors.analyze")}
             </Button>
           </div>
         </CardContent>
@@ -201,7 +203,7 @@ export default function Competitors() {
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{data.group.description}</p>
                 </div>
                 <Badge variant={data.group.publicEntryAllowed ? "default" : "secondary"} className="shrink-0">
-                  {data.group.publicEntryAllowed ? "Open" : "Closed"}
+                  {data.group.publicEntryAllowed ? t("competitors.open") : t("competitors.closed")}
                 </Badge>
               </div>
             </CardContent>
@@ -212,28 +214,28 @@ export default function Competitors() {
               <CardContent className="pt-4 pb-4 text-center">
                 <Users className="w-5 h-5 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-2xl font-bold">{data.group.memberCount.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Members</p>
+                <p className="text-xs text-muted-foreground">{t("competitors.members")}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
                 <ShoppingBag className="w-5 h-5 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-2xl font-bold">{data.clothing.totalCount}</p>
-                <p className="text-xs text-muted-foreground">Clothing Items</p>
+                <p className="text-xs text-muted-foreground">{t("competitors.clothingItems")}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
                 <DollarSign className="w-5 h-5 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-2xl font-bold">{data.clothing.averagePrice} R$</p>
-                <p className="text-xs text-muted-foreground">Avg Price</p>
+                <p className="text-xs text-muted-foreground">{t("competitors.avgPrice")}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
                 <Heart className="w-5 h-5 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-2xl font-bold">{data.clothing.totalFavorites.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Total Favorites</p>
+                <p className="text-xs text-muted-foreground">{t("competitors.totalFavorites")}</p>
               </CardContent>
             </Card>
           </div>
@@ -243,22 +245,22 @@ export default function Competitors() {
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <Shirt className="w-4 h-4" /> Clothing Breakdown
+                    <Shirt className="w-4 h-4" /> {t("competitors.breakdown")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="text-center p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
                       <p className="text-lg font-bold text-blue-600">{data.clothing.shirts}</p>
-                      <p className="text-xs text-muted-foreground">Shirts</p>
+                      <p className="text-xs text-muted-foreground">{t("competitors.shirts")}</p>
                     </div>
                     <div className="text-center p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
                       <p className="text-lg font-bold text-purple-600">{data.clothing.pants}</p>
-                      <p className="text-xs text-muted-foreground">Pants</p>
+                      <p className="text-xs text-muted-foreground">{t("competitors.pants")}</p>
                     </div>
                     <div className="text-center p-3 rounded-xl bg-green-500/5 border border-green-500/20">
                       <p className="text-lg font-bold text-green-600">{data.clothing.tshirts}</p>
-                      <p className="text-xs text-muted-foreground">T-Shirts</p>
+                      <p className="text-xs text-muted-foreground">{t("competitors.tshirts")}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -268,33 +270,33 @@ export default function Competitors() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4" /> Price Analytics
+                  <BarChart3 className="w-4 h-4" /> {t("competitors.priceAnalytics")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Avg Price</span>
+                    <span className="text-muted-foreground">{t("competitors.avgPrice")}</span>
                     <span className="font-semibold">{data.clothing.averagePrice} R$</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Median Price</span>
+                    <span className="text-muted-foreground">{t("competitors.medianPrice")}</span>
                     <span className="font-semibold">{data.clothing.medianPrice} R$</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Min Price</span>
+                    <span className="text-muted-foreground">{t("competitors.minPrice")}</span>
                     <span className="font-semibold">{data.clothing.minPrice} R$</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Max Price</span>
+                    <span className="text-muted-foreground">{t("competitors.maxPrice")}</span>
                     <span className="font-semibold">{data.clothing.maxPrice} R$</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Avg Favorites</span>
+                    <span className="text-muted-foreground">{t("competitors.avgFavorites")}</span>
                     <span className="font-semibold">{data.clothing.avgFavorites}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Created</span>
+                    <span className="text-muted-foreground">{t("competitors.created")}</span>
                     <span className="font-semibold">{new Date(data.group.created).toLocaleDateString("ru-RU", { month: "short", year: "numeric" })}</span>
                   </div>
                 </div>
@@ -306,7 +308,7 @@ export default function Competitors() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Percent className="w-4 h-4" /> Free vs Paid
+                  <Percent className="w-4 h-4" /> {t("competitors.freeVsPaid")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -314,7 +316,7 @@ export default function Competitors() {
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-muted-foreground">Paid</span>
+                        <span className="text-muted-foreground">{t("competitors.paid")}</span>
                         <span className="font-semibold">{data.clothing.paidCount} ({data.clothing.totalCount > 0 ? Math.round(data.clothing.paidCount / data.clothing.totalCount * 100) : 0}%)</span>
                       </div>
                       <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -325,7 +327,7 @@ export default function Competitors() {
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-muted-foreground">Free / Off-sale</span>
+                        <span className="text-muted-foreground">{t("competitors.freeOffsale")}</span>
                         <span className="font-semibold">{data.clothing.freeCount} ({data.clothing.totalCount > 0 ? Math.round(data.clothing.freeCount / data.clothing.totalCount * 100) : 0}%)</span>
                       </div>
                       <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -340,13 +342,13 @@ export default function Competitors() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Target className="w-4 h-4" /> Price Distribution
+                  <Target className="w-4 h-4" /> {t("competitors.priceDist")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-1.5">
                   {[
-                    { label: "Free", count: data.clothing.priceRanges.free, color: "bg-gray-400" },
+                    { label: t("competitors.free"), count: data.clothing.priceRanges.free, color: "bg-gray-400" },
                     { label: "< 10 R$", count: data.clothing.priceRanges.under10, color: "bg-blue-400" },
                     { label: "10–50 R$", count: data.clothing.priceRanges.r10to50, color: "bg-green-400" },
                     { label: "51–100 R$", count: data.clothing.priceRanges.r51to100, color: "bg-yellow-500" },
@@ -373,7 +375,7 @@ export default function Competitors() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Award className="w-4 h-4" /> Top 5 Most Popular
+                  <Award className="w-4 h-4" /> {t("competitors.top5")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -401,7 +403,7 @@ export default function Competitors() {
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <TrendingUp className="w-4 h-4" />
-                  {showAll ? `All Clothing (${filteredItems.length})` : `Top Clothing Items`}
+                  {showAll ? `${t("competitors.allClothing")} (${filteredItems.length})` : t("competitors.topClothing")}
                   {data.clothing.truncated && (
                     <Badge variant="outline" className="text-[10px]">truncated</Badge>
                   )}
@@ -415,7 +417,7 @@ export default function Competitors() {
                       onClick={() => { playTabSwitch(); setShowAll(!showAll); setVisibleCount(50); }}
                     >
                       {showAll ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                      {showAll ? "Show Top 15" : `Show All (${allItems.length})`}
+                      {showAll ? t("competitors.showTop15") : `${t("competitors.showAll")} (${allItems.length})`}
                     </Button>
                   )}
                 </div>
@@ -423,13 +425,13 @@ export default function Competitors() {
               {showAll && (
                 <div className="flex gap-2 flex-wrap mt-2">
                   <div className="flex gap-1">
-                    {(["all", "Shirt", "Pants", "T-Shirt"] as const).map(t => (
+                    {(["all", "Shirt", "Pants", "T-Shirt"] as const).map(ft => (
                       <button
-                        key={t}
-                        onClick={() => { playClick(); setFilterType(t); setVisibleCount(50); }}
-                        className={`px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${filterType === t ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                        key={ft}
+                        onClick={() => { playClick(); setFilterType(ft); setVisibleCount(50); }}
+                        className={`px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${filterType === ft ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-secondary"}`}
                       >
-                        {t === "all" ? "All" : t}
+                        {ft === "all" ? t("competitors.all") : ft}
                       </button>
                     ))}
                   </div>
@@ -485,12 +487,12 @@ export default function Competitors() {
                       </div>
                     </div>
                     <Badge variant="outline" className="text-xs shrink-0">
-                      {item.price != null && item.price > 0 ? `${item.price} R$` : "Off-sale"}
+                      {item.price != null && item.price > 0 ? `${item.price} R$` : t("competitors.offsale")}
                     </Badge>
                   </a>
                 ))}
                 {displayItems.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-6">No items found</p>
+                  <p className="text-sm text-muted-foreground text-center py-6">{t("competitors.noItems")}</p>
                 )}
               </div>
               {showAll && visibleCount < sortedItems.length && (
@@ -499,7 +501,7 @@ export default function Competitors() {
                   className="w-full mt-3 rounded-xl text-xs"
                   onClick={() => { playClick(); setVisibleCount(v => v + 50); }}
                 >
-                  Load more ({sortedItems.length - visibleCount} remaining)
+                  {t("competitors.loadMore")} ({sortedItems.length - visibleCount} {t("competitors.remaining")})
                 </Button>
               )}
             </CardContent>

@@ -6,19 +6,15 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { getDeviceFingerprint } from "@/lib/fingerprint";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Loader2, Bot, ArrowRight, Sparkles, Copy } from "lucide-react";
-
-const steps = [
-  { num: "1", label: "Open Telegram", desc: "Find our official bot" },
-  { num: "2", label: "Send /activate", desc: "Request your license code" },
-  { num: "3", label: "Enter code below", desc: "Paste and activate" },
-];
 
 export default function Activation() {
   const [code, setCode] = useState("");
   const { mutateAsync: verify, isPending } = useVerifyLicense();
   const { loginLicense } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,10 +24,10 @@ export default function Activation() {
       const fingerprint = await getDeviceFingerprint();
       const res = await verify({ data: { code: code.trim(), deviceFingerprint: fingerprint } });
       await loginLicense(res.token);
-      toast({ title: "License Activated", description: `Welcome! Plan: ${res.plan.toUpperCase()}` });
+      toast({ title: t("activation.success"), description: `Welcome! Plan: ${res.plan.toUpperCase()}` });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Invalid or expired license code.";
-      toast({ variant: "destructive", title: "Activation Failed", description: message });
+      toast({ variant: "destructive", title: t("activation.failed"), description: message });
     }
   };
 
@@ -72,19 +68,19 @@ export default function Activation() {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-full text-white/70 text-xs font-medium mb-8">
               <Sparkles className="w-3 h-3" />
-              Professional Roblox Platform
+              {t("activation.platform")}
             </div>
             <h1 className="text-5xl font-display font-bold text-white leading-tight mb-4">
               Limited<span className="text-white/40">.</span>Ink
             </h1>
             <p className="text-white/50 text-lg leading-relaxed max-w-xs">
-              Catalog management, clothing tools, and sales analytics — all in one place.
+              {t("activation.tagline")}
             </p>
           </div>
 
           {/* feature pills */}
           <div className="space-y-3">
-            {["Catalog Copy Tool", "Sales Analytics", "Alt Account Manager", "Featured Groups"].map((f) => (
+            {[t("activation.features.catalog"), t("activation.features.analytics"), t("activation.features.alts"), t("activation.features.featured")].map((f) => (
               <motion.div
                 key={f}
                 initial={{ opacity: 0, x: -12 }}
@@ -118,13 +114,17 @@ export default function Activation() {
             <div className="inline-flex items-center justify-center w-14 h-14 bg-foreground text-background rounded-2xl shadow-2xl mb-6">
               <Bot className="w-7 h-7" strokeWidth={1.5} />
             </div>
-            <h2 className="text-3xl font-display font-bold text-foreground mb-2">Activate your license</h2>
-            <p className="text-muted-foreground">Get your code from the Telegram bot, then enter it below.</p>
+            <h2 className="text-3xl font-display font-bold text-foreground mb-2">{t("activation.title")}</h2>
+            <p className="text-muted-foreground">{t("activation.desc")}</p>
           </div>
 
           {/* steps */}
           <div className="grid grid-cols-3 gap-3 mb-8">
-            {steps.map((s, i) => (
+            {[
+              { num: "1", label: t("activation.step1"), desc: t("activation.step1.desc") },
+              { num: "2", label: t("activation.step2"), desc: t("activation.step2.desc") },
+              { num: "3", label: t("activation.step3"), desc: t("activation.step3.desc") },
+            ].map((s, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 12 }}
@@ -156,7 +156,7 @@ export default function Activation() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">@limitedink_bot</p>
-                <p className="text-xs text-muted-foreground">Open bot and type /activate</p>
+                <p className="text-xs text-muted-foreground">{t("activation.botLink")}</p>
               </div>
             </div>
             <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
@@ -190,15 +190,15 @@ export default function Activation() {
               disabled={isPending || !code.trim()}
             >
               {isPending ? (
-                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Verifying...</>
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> {t("activation.verifying")}</>
               ) : (
-                <span className="flex items-center gap-2">Activate Device <ArrowRight className="w-4 h-4" /></span>
+                <span className="flex items-center gap-2">{t("activation.activate")} <ArrowRight className="w-4 h-4" /></span>
               )}
             </Button>
           </form>
 
           <p className="text-center text-xs text-muted-foreground mt-6">
-            By activating, you agree to our Terms of Service and Privacy Policy.
+            {t("activation.terms")}
           </p>
         </motion.div>
       </div>

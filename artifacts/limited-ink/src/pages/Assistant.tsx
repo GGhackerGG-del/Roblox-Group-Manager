@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -90,6 +91,7 @@ function parseBoldItalic(text: string, baseKey: number): React.ReactNode[] {
 }
 
 export default function Assistant() {
+  const { t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -162,7 +164,7 @@ export default function Assistant() {
     } catch (err) {
       setMessages(prev => {
         const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content: "An error occurred. Please try again." };
+        updated[updated.length - 1] = { role: "assistant", content: t("assistant.error") };
         return updated;
       });
     } finally {
@@ -178,12 +180,12 @@ export default function Assistant() {
             <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">AI Assistant</h1>
-            <p className="text-xs text-muted-foreground">Roblox expert at your service</p>
+            <h1 className="text-xl font-bold">{t("assistant.title")}</h1>
+            <p className="text-xs text-muted-foreground">{t("assistant.desc")}</p>
           </div>
           {messages.length > 0 && (
             <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={() => setMessages([])}>
-              <Trash2 className="w-4 h-4 mr-1" /> Clear
+              <Trash2 className="w-4 h-4 mr-1" /> {t("assistant.clear")}
             </Button>
           )}
         </div>
@@ -196,9 +198,9 @@ export default function Assistant() {
               <Sparkles className="w-8 h-8 text-violet-500" />
             </div>
             <div className="text-center">
-              <h2 className="text-lg font-bold mb-1">Ask me anything about Roblox</h2>
+              <h2 className="text-lg font-bold mb-1">{t("assistant.askAnything")}</h2>
               <p className="text-sm text-muted-foreground max-w-md">
-                Lua scripts, moderation policies, clothing strategies, Discord posts — I can help with it all.
+                {t("assistant.capabilities")}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 max-w-lg w-full">
@@ -250,7 +252,7 @@ export default function Assistant() {
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything about Roblox..."
+            placeholder={t("assistant.placeholder")}
             className="min-h-[44px] max-h-[120px] resize-none rounded-xl text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }

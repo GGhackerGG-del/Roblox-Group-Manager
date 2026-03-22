@@ -69,6 +69,8 @@ async function fetchItemDetails(ids: number[], cookie: string): Promise<Map<numb
   const map = new Map<number, DetailItem>();
   if (!ids.length) return map;
 
+  const csrf = await getRobloxCsrf(cookie);
+
   for (let i = 0; i < ids.length; i += 120) {
     const batch = ids.slice(i, i + 120);
 
@@ -77,16 +79,39 @@ async function fetchItemDetails(ids: number[], cookie: string): Promise<Map<numb
       if (attempt > 0) await new Promise(r => setTimeout(r, 2000 * attempt));
 
       try {
+        const hdrs: Record<string, string> = {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Cookie": `.ROBLOSECURITY=${cookie}`,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        };
+        if (csrf) hdrs["X-CSRF-TOKEN"] = csrf;
+
         const resp = await throttledFetch(`${CATALOG_API}/v1/catalog/items/details`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Cookie": `.ROBLOSECURITY=${cookie}`,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
+          headers: hdrs,
           body: JSON.stringify({ items: batch.map(id => ({ itemType: "Asset", id })) }),
         });
+
+        if (resp.status === 403) {
+          const newCsrf = resp.headers.get("x-csrf-token");
+          if (newCsrf) {
+            hdrs["X-CSRF-TOKEN"] = newCsrf;
+            const retry = await throttledFetch(`${CATALOG_API}/v1/catalog/items/details`, {
+              method: "POST",
+              headers: hdrs,
+              body: JSON.stringify({ items: batch.map(id => ({ itemType: "Asset", id })) }),
+            });
+            if (retry.ok) {
+              const dd = await retry.json() as { data: DetailItem[] };
+              for (const d of (dd.data || [])) map.set(d.id, d);
+              success = true;
+              break;
+            }
+          }
+          console.log(`[Clothing] Details API 403, CSRF retry failed for batch starting ${batch[0]}`);
+          continue;
+        }
 
         if (resp.status === 429) {
           console.log(`[Clothing] Details API rate limited (attempt ${attempt + 1}), waiting...`);
@@ -100,8 +125,8 @@ async function fetchItemDetails(ids: number[], cookie: string): Promise<Map<numb
           success = true;
           break;
         } else {
-          console.log(`[Clothing] Details API status=${resp.status} for batch starting ${batch[0]}`);
-          if (resp.status >= 400 && resp.status < 500 && resp.status !== 429) break;
+          const text = await resp.text().catch(() => "");
+          console.log(`[Clothing] Details API status=${resp.status} body=${text.slice(0, 200)} for batch starting ${batch[0]}`);
         }
       } catch (e) {
         console.error(`[Clothing] Details fetch error (attempt ${attempt + 1}):`, e);
@@ -109,12 +134,44 @@ async function fetchItemDetails(ids: number[], cookie: string): Promise<Map<numb
     }
 
     if (!success) {
-      console.log(`[Clothing] Failed to get details for batch starting ${batch[0]}, using fallback names`);
+      console.log(`[Clothing] Bulk API failed for batch starting ${batch[0]}, trying economy fallback...`);
+      await fetchItemDetailsEconomyFallback(batch, cookie, map);
     }
 
     if (i + 120 < ids.length) await new Promise(r => setTimeout(r, 800));
   }
   return map;
+}
+
+async function fetchItemDetailsEconomyFallback(ids: number[], cookie: string, map: Map<number, DetailItem>): Promise<void> {
+  const missing = ids.filter(id => !map.has(id));
+  if (!missing.length) return;
+
+  for (const id of missing) {
+    try {
+      const resp = await throttledFetch(`https://economy.roblox.com/v2/assets/${id}/details`, {
+        headers: robloxHeaders(cookie),
+      });
+      if (resp.ok) {
+        const d = await resp.json() as {
+          AssetId: number;
+          Name: string;
+          AssetTypeId: number;
+          PriceInRobux: number | null;
+          IsForSale: boolean;
+          Creator?: { Name: string };
+        };
+        map.set(id, {
+          id: d.AssetId,
+          name: d.Name || `Asset ${id}`,
+          assetType: d.AssetTypeId || 11,
+          price: d.IsForSale ? d.PriceInRobux : null,
+          creatorName: d.Creator?.Name || "",
+        });
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 200));
+  }
 }
 
 async function fetchThumbnails(ids: number[]): Promise<Record<number, string | null>> {
@@ -150,7 +207,9 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
   if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
 
   const keyword = String(req.query.keyword || "").trim();
-  if (!keyword) { res.status(400).json({ error: "Keyword required." }); return; }
+  const creatorId = String(req.query.creatorId || "").trim();
+
+  if (!keyword && !creatorId) { res.status(400).json({ error: "Keyword or Group ID required." }); return; }
 
   const validSub = ["ClassicShirts", "ClassicPants"];
   const subcategory = validSub.includes(String(req.query.subcategory)) ? String(req.query.subcategory) : "ClassicShirts";
@@ -161,14 +220,13 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
   const minPrice = !isNaN(rawMin) && rawMin >= 0 ? String(rawMin) : "";
   const maxPrice = !isNaN(rawMax) && rawMax >= 0 ? String(rawMax) : "";
   const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || "120"), 10) || 120, 120));
-  const creatorId = String(req.query.creatorId || "").trim();
 
   const ck = `cs_${keyword}_${subcategory}_${sortType}_${sortAggregation}_${minPrice}_${maxPrice}_${creatorId}`;
   const cached = cacheGet<unknown>(ck);
   if (cached) { res.json(cached); return; }
 
-  const kw = encodeURIComponent(keyword);
-  let url = `${CATALOG_API}/v1/search/items?category=Clothing&keyword=${kw}&limit=${limit}&salesTypeFilter=1&subcategory=${encodeURIComponent(subcategory)}`;
+  let url = `${CATALOG_API}/v1/search/items?category=Clothing&limit=${limit}&salesTypeFilter=1&subcategory=${encodeURIComponent(subcategory)}`;
+  if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
   if (sortType) url += `&sortType=${sortType}`;
   if (sortAggregation) url += `&sortAggregation=${sortAggregation}`;
   if (minPrice) url += `&minPrice=${minPrice}`;
@@ -478,7 +536,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
       description: (description || "Uploaded via Limited.Ink").trim(),
       assetType: assetTypeName,
       creationContext: {
-        expectedPrice: Math.max(price || 5, 5),
+        expectedPrice: 10,
         creator: {
           groupId: groupId,
         },

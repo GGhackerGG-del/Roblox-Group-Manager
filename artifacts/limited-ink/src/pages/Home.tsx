@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LayoutDashboard, Star, TrendingUp, Search, Sparkles, Users, X, Calendar, Globe, Crown, ExternalLink, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface FeaturedGroup {
   groupId: number;
@@ -25,6 +26,7 @@ interface GroupDetail {
 }
 
 function GroupModal({ groupId, onClose }: { groupId: number; onClose: () => void }) {
+  const { t } = useLanguage();
   const [detail, setDetail] = useState<GroupDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -100,16 +102,16 @@ function GroupModal({ groupId, onClose }: { groupId: number; onClose: () => void
                 <div className="bg-secondary/50 rounded-xl p-3 space-y-1">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Users className="w-3.5 h-3.5" />
-                    <span className="text-[11px] font-medium uppercase tracking-wider">Members</span>
+                    <span className="text-[11px] font-medium uppercase tracking-wider">{t("home.members")}</span>
                   </div>
                   <p className="text-lg font-bold">{detail.memberCount.toLocaleString()}</p>
                 </div>
                 <div className="bg-secondary/50 rounded-xl p-3 space-y-1">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Globe className="w-3.5 h-3.5" />
-                    <span className="text-[11px] font-medium uppercase tracking-wider">Access</span>
+                    <span className="text-[11px] font-medium uppercase tracking-wider">{t("home.access")}</span>
                   </div>
-                  <p className="text-lg font-bold">{detail.publicEntryAllowed === true ? "Public" : detail.publicEntryAllowed === false ? "Private" : "Unknown"}</p>
+                  <p className="text-lg font-bold">{detail.publicEntryAllowed === true ? t("home.public") : detail.publicEntryAllowed === false ? t("home.private") : t("home.unknown")}</p>
                 </div>
               </div>
 
@@ -127,7 +129,7 @@ function GroupModal({ groupId, onClose }: { groupId: number; onClose: () => void
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <Crown className="w-3 h-3 text-amber-500" />
-                      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Owner</span>
+                      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{t("home.owner")}</span>
                     </div>
                     <p className="text-sm font-semibold truncate">{detail.owner.displayName}</p>
                   </div>
@@ -137,7 +139,7 @@ function GroupModal({ groupId, onClose }: { groupId: number; onClose: () => void
               {detail.created && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>Created {new Date(detail.created).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</span>
+                  <span>{t("home.created")} {new Date(detail.created).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</span>
                 </div>
               )}
 
@@ -146,13 +148,13 @@ function GroupModal({ groupId, onClose }: { groupId: number; onClose: () => void
                 onClick={() => window.open(`https://www.roblox.com/groups/${detail.groupId}`, "_blank")}
               >
                 <ExternalLink className="w-4 h-4" />
-                Open on Roblox
+                {t("home.openRoblox")}
               </Button>
             </div>
           </>
         ) : (
           <div className="p-12 text-center text-muted-foreground">
-            <p>Failed to load group info</p>
+            <p>{t("home.failedLoad")}</p>
           </div>
         )}
       </motion.div>
@@ -161,6 +163,7 @@ function GroupModal({ groupId, onClose }: { groupId: number; onClose: () => void
 }
 
 export default function Home() {
+  const { t } = useLanguage();
   const [groups, setGroups] = useState<FeaturedGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
@@ -192,17 +195,17 @@ export default function Home() {
         </div>
         <div className="space-y-2 max-w-lg">
           <h1 className="text-4xl font-display font-bold text-foreground tracking-tight">
-            Welcome to <span className="underline decoration-2 underline-offset-4 decoration-black/30">Limited.Ink</span>
+            {t("home.welcome")} <span className="underline decoration-2 underline-offset-4 decoration-black/30">Limited.Ink</span>
           </h1>
           <p className="text-muted-foreground text-lg leading-relaxed">
-            Select a group from the sidebar to manage it — stats, catalog, analytics and more.
+            {t("home.subtitle")}
           </p>
         </div>
 
         <div className="flex items-center gap-6 pt-2 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5"><LayoutDashboard className="w-4 h-4" /> Group management</span>
-          <span className="flex items-center gap-1.5"><Search className="w-4 h-4" /> Catalog browser</span>
-          <span className="flex items-center gap-1.5"><TrendingUp className="w-4 h-4" /> Sales analytics</span>
+          <span className="flex items-center gap-1.5"><LayoutDashboard className="w-4 h-4" /> {t("home.groupMgmt")}</span>
+          <span className="flex items-center gap-1.5"><Search className="w-4 h-4" /> {t("home.catalogBrowser")}</span>
+          <span className="flex items-center gap-1.5"><TrendingUp className="w-4 h-4" /> {t("home.salesAnalytics")}</span>
         </div>
       </motion.div>
 
@@ -212,8 +215,8 @@ export default function Home() {
             <Star className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight">Featured Groups</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Roblox groups currently running on Limited.Ink</p>
+            <h2 className="text-xl font-bold tracking-tight">{t("home.featured")}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{t("home.featured.desc")}</p>
           </div>
         </div>
 
@@ -262,7 +265,7 @@ export default function Home() {
                       <p className="font-semibold text-sm text-foreground truncate">{group.name}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                         <Users className="w-3 h-3" />
-                        {group.memberCount.toLocaleString()} members
+                        {group.memberCount.toLocaleString()} {t("nav.members")}
                       </p>
                     </div>
                   </CardContent>
@@ -274,8 +277,8 @@ export default function Home() {
           <Card className="rounded-2xl border border-dashed border-border shadow-none">
             <CardContent className="py-16 flex flex-col items-center text-center text-muted-foreground/60 gap-3">
               <Star className="w-10 h-10 opacity-30" strokeWidth={1} />
-              <p className="font-medium text-sm">No featured groups yet</p>
-              <p className="text-xs max-w-xs">Groups that actively use Limited.Ink will appear here.</p>
+              <p className="font-medium text-sm">{t("home.noFeatured")}</p>
+              <p className="text-xs max-w-xs">{t("home.noFeatured.desc")}</p>
             </CardContent>
           </Card>
         )}

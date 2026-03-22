@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { usePageCache } from "@/contexts/PageCacheContext";
 import { playClick, playSuccess } from "@/hooks/useSounds";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +33,7 @@ interface PnLData {
 }
 
 export default function PnL({ groupId }: { groupId: string }) {
+  const { t } = useLanguage();
   const cache = usePageCache();
   const [data, setData] = useState<PnLData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,8 +91,8 @@ export default function PnL({ groupId }: { groupId: string }) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <TrendingDown className="w-8 h-8 mb-3 opacity-30" />
-        <p className="text-sm">{error || "No data available"}</p>
-        <Button variant="outline" size="sm" onClick={fetchData} className="mt-3">Retry</Button>
+        <p className="text-sm">{error || t("pnl.noData")}</p>
+        <Button variant="outline" size="sm" onClick={fetchData} className="mt-3">{t("sniper.refresh")}</Button>
       </div>
     );
   }
@@ -98,9 +100,9 @@ export default function PnL({ groupId }: { groupId: string }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Profit & Loss</h3>
+        <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{t("pnl.title")}</h3>
         <Button variant="ghost" size="sm" onClick={fetchData}>
-          <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
+          <RefreshCw className="w-3.5 h-3.5 mr-1" /> {t("sniper.refresh")}
         </Button>
       </div>
 
@@ -109,7 +111,7 @@ export default function PnL({ groupId }: { groupId: string }) {
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 mb-2">
               <Wallet className="w-4 h-4 text-green-500" />
-              <span className="text-xs text-muted-foreground">Balance</span>
+              <span className="text-xs text-muted-foreground">{t("pnl.balance") || "Balance"}</span>
             </div>
             <p className="text-xl font-bold">{data.balance.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
           </CardContent>
@@ -119,7 +121,7 @@ export default function PnL({ groupId }: { groupId: string }) {
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-4 h-4 text-blue-500" />
-              <span className="text-xs text-muted-foreground">Pending</span>
+              <span className="text-xs text-muted-foreground">{t("pnl.pending") || "Pending"}</span>
             </div>
             <p className="text-xl font-bold">{data.pendingRobux.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
           </CardContent>
@@ -129,10 +131,10 @@ export default function PnL({ groupId }: { groupId: string }) {
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="w-4 h-4 text-emerald-500" />
-              <span className="text-xs text-muted-foreground">Today</span>
+              <span className="text-xs text-muted-foreground">{t("pnl.today") || "Today"}</span>
             </div>
             <p className="text-xl font-bold">{data.todayRevenue.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
-            <p className="text-xs text-muted-foreground">{data.todaySales} sales</p>
+            <p className="text-xs text-muted-foreground">{data.todaySales} {t("pnl.sales")}</p>
           </CardContent>
         </Card>
 
@@ -140,7 +142,7 @@ export default function PnL({ groupId }: { groupId: string }) {
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 mb-2">
               <PiggyBank className="w-4 h-4 text-purple-500" />
-              <span className="text-xs text-muted-foreground">Net (7d)</span>
+              <span className="text-xs text-muted-foreground">{t("pnl.net7d") || "Net (7d)"}</span>
             </div>
             <p className="text-xl font-bold">{data.netRevenue.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
           </CardContent>
@@ -150,19 +152,19 @@ export default function PnL({ groupId }: { groupId: string }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">Week Gross Revenue</p>
+            <p className="text-xs text-muted-foreground mb-1">{t("pnl.weekRevenue") || "Week Gross Revenue"}</p>
             <p className="text-lg font-bold text-green-500">{data.weekRevenue.toLocaleString()} R$</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">Roblox Commission (30%)</p>
+            <p className="text-xs text-muted-foreground mb-1">{t("pnl.commission") || "Roblox Commission (30%)"}</p>
             <p className="text-lg font-bold text-red-500">-{data.robloxCommission.toLocaleString()} R$</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">Net in Fiat</p>
+            <p className="text-xs text-muted-foreground mb-1">{t("pnl.netFiat") || "Net in Fiat"}</p>
             <p className="text-lg font-bold">${data.netUSD} <span className="text-sm text-muted-foreground">/ {data.netRUB.toLocaleString()} ₽</span></p>
           </CardContent>
         </Card>
@@ -172,7 +174,7 @@ export default function PnL({ groupId }: { groupId: string }) {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" /> Top Items by Revenue
+              <BarChart3 className="w-4 h-4" /> {t("pnl.topItems") || "Top Items by Revenue"}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -185,7 +187,7 @@ export default function PnL({ groupId }: { groupId: string }) {
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium truncate flex-1">{item.name}</span>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="outline" className="text-[10px]">{item.count} sales</Badge>
+                        <Badge variant="outline" className="text-[10px]">{item.count} {t("pnl.sales")}</Badge>
                         <span className="font-mono font-semibold text-green-600">{item.revenue.toLocaleString()} R$</span>
                       </div>
                     </div>
@@ -204,7 +206,7 @@ export default function PnL({ groupId }: { groupId: string }) {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Coins className="w-4 h-4" /> Recent Transactions
+              <Coins className="w-4 h-4" /> {t("pnl.recentTx") || "Recent Transactions"}
             </CardTitle>
           </CardHeader>
           <CardContent>

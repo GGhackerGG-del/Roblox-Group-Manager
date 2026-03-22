@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +90,9 @@ function ItemCard({ item, onWatch, watching }: { item: LimitedItem; onWatch: (i:
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
             <span>RAP: <strong className="text-foreground">{formatRobux(item.rap)}</strong></span>
             <span>Value: <strong className="text-foreground">{formatRobux(item.value)}</strong></span>
+            {item.rap > 0 && item.value > 0 && item.value > item.rap && (
+              <span className="text-green-600 font-semibold">+{Math.round((item.value / item.rap - 1) * 100)}%</span>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-1">
             <Badge variant="outline" className="text-[9px] h-5">{demandLabels[item.demand] || "?"}</Badge>
@@ -115,6 +119,7 @@ function ItemCard({ item, onWatch, watching }: { item: LimitedItem; onWatch: (i:
 
 export default function Sniper() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [tab, setTab] = useState("browse");
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<LimitedItem[]>([]);
@@ -222,29 +227,29 @@ export default function Sniper() {
       <div className="flex items-center gap-3">
         <Crosshair className="w-7 h-7 text-foreground" />
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Limited Sniper</h1>
-          <p className="text-sm text-muted-foreground">Monitor and snipe Roblox limited items</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("sniper.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("sniper.desc")}</p>
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={t => { playTabSwitch(); setTab(t); if (t === "deals" && !deals.length) fetchDeals(); }}>
+      <Tabs value={tab} onValueChange={v => { playTabSwitch(); setTab(v); if (v === "deals" && !deals.length) fetchDeals(); }}>
         <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1">
           <TabsTrigger value="browse" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 gap-1.5">
-            <Search className="w-3.5 h-3.5" /> Browse
+            <Search className="w-3.5 h-3.5" /> {t("sniper.browse")}
           </TabsTrigger>
           <TabsTrigger value="deals" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5" /> Deals
+            <TrendingUp className="w-3.5 h-3.5" /> {t("sniper.deals")}
           </TabsTrigger>
           <TabsTrigger value="watchlist" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 gap-1.5">
-            <Eye className="w-3.5 h-3.5" /> Watchlist ({watchlist.length})
+            <Eye className="w-3.5 h-3.5" /> {t("sniper.watchlist")} ({watchlist.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="browse" className="mt-4 space-y-4">
           <div className="flex gap-2">
-            <Input placeholder="Search limiteds..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSearch()} className="rounded-xl" />
+            <Input placeholder={t("sniper.search")} value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSearch()} className="rounded-xl" />
             <Button onClick={handleSearch} disabled={loading} className="rounded-xl gap-1.5">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Search
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} {t("sniper.searchBtn")}
             </Button>
           </div>
           {loading ? (
@@ -262,9 +267,9 @@ export default function Sniper() {
 
         <TabsContent value="deals" className="mt-4 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Items with value higher than RAP or projected to rise</p>
+            <p className="text-sm text-muted-foreground">{t("sniper.deals.desc")}</p>
             <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={fetchDeals} disabled={dealsLoading}>
-              <RefreshCw className={`w-3.5 h-3.5 ${dealsLoading ? "animate-spin" : ""}`} /> Refresh
+              <RefreshCw className={`w-3.5 h-3.5 ${dealsLoading ? "animate-spin" : ""}`} /> {t("sniper.refresh")}
             </Button>
           </div>
           {dealsLoading ? (
@@ -284,17 +289,17 @@ export default function Sniper() {
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-base flex items-center gap-2"><Eye className="w-4 h-4" /> Watchlist</CardTitle>
-                <CardDescription>Track items and check live prices to snipe deals.</CardDescription>
+                <CardTitle className="text-base flex items-center gap-2"><Eye className="w-4 h-4" /> {t("sniper.watchlist.title")}</CardTitle>
+                <CardDescription>{t("sniper.watchlist.desc")}</CardDescription>
               </div>
               <Button size="sm" className="rounded-xl gap-1.5" onClick={checkLivePrices} disabled={monitoring || !watchlist.length}>
                 {monitoring ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                Check Prices
+                {t("sniper.checkPrices")}
               </Button>
             </CardHeader>
             <CardContent>
               {watchlist.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Add items from Browse or Deals to watch them.</p>
+                <p className="text-sm text-muted-foreground text-center py-8">{t("sniper.addItems")}</p>
               ) : (
                 <div className="space-y-2">
                   {watchlist.map(entry => (
@@ -307,13 +312,13 @@ export default function Sniper() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate">{entry.name}</p>
                         <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
-                          <span>Target: <strong>{formatRobux(entry.maxPrice)}</strong></span>
+                          <span>{t("sniper.target")}: <strong>{formatRobux(entry.maxPrice)}</strong></span>
                           {entry.livePrice !== undefined && entry.livePrice !== null && (
                             <span className={entry.livePrice <= entry.maxPrice ? "text-green-600 font-bold" : ""}>
-                              Live: <strong>{formatRobux(entry.livePrice)}</strong>
+                              {t("sniper.live")}: <strong>{formatRobux(entry.livePrice)}</strong>
                             </span>
                           )}
-                          {entry.available === false && <span className="text-amber-500">Not for sale</span>}
+                          {entry.available === false && <span className="text-amber-500">{t("sniper.notForSale")}</span>}
                         </div>
                       </div>
                       <div className="flex gap-1 shrink-0">
@@ -329,7 +334,7 @@ export default function Sniper() {
                         {entry.available && entry.livePrice && entry.livePrice <= entry.maxPrice && (
                           <Button size="sm" className="rounded-lg h-8 gap-1 bg-green-600 hover:bg-green-700" onClick={() => handleBuy(entry)} disabled={buying === entry.assetId}>
                             {buying === entry.assetId ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShoppingCart className="w-3 h-3" />}
-                            Buy
+                            {t("sniper.buy")}
                           </Button>
                         )}
                         <a href={`https://www.roblox.com/catalog/${entry.assetId}`} target="_blank" rel="noreferrer">

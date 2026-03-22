@@ -4,6 +4,8 @@ const router: IRouter = Router();
 
 const ROLIMONS_API = "https://www.rolimons.com/itemapi/itemdetails";
 const THUMBNAILS_API = "https://thumbnails.roblox.com";
+const ECONOMY_API = "https://economy.roblox.com";
+const CATALOG_API = "https://catalog.roblox.com";
 
 interface LimitedItem {
   id: number;
@@ -181,33 +183,59 @@ router.get("/sniper/live/:assetId", async (req, res): Promise<void> => {
   const assetId = parseInt(req.params.assetId, 10);
   if (isNaN(assetId)) { res.status(400).json({ error: "Invalid asset ID." }); return; }
 
-  try {
-    const pageResp = await fetch(`https://www.roblox.com/catalog/${assetId}`, {
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "text/html",
-      },
-    });
+  const rHeaders = {
+    "Cookie": `.ROBLOSECURITY=${cookie}`,
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/json",
+  };
 
-    if (!pageResp.ok) {
-      res.status(502).json({ error: `Catalog page fetch failed (${pageResp.status})` });
-      return;
+  try {
+    let productId: number | null = null;
+    let price: number | null = null;
+    let sellerId: number | null = null;
+    let userAssetId: number | null = null;
+
+    const [economyResp, resellersResp] = await Promise.all([
+      fetch(`${ECONOMY_API}/v2/assets/${assetId}/details`, { headers: rHeaders }),
+      fetch(`${ECONOMY_API}/v1/assets/${assetId}/resellers?limit=1&sortOrder=Asc`, { headers: rHeaders }),
+    ]);
+
+    if (economyResp.ok) {
+      const eData = await economyResp.json() as {
+        ProductId?: number;
+        PriceInRobux?: number | null;
+        IsForSale?: boolean;
+      };
+      productId = eData.ProductId || null;
+      if (eData.IsForSale && eData.PriceInRobux) {
+        price = eData.PriceInRobux;
+      }
     }
 
-    const html = await pageResp.text();
+    if (resellersResp.ok) {
+      const rData = await resellersResp.json() as {
+        data?: Array<{
+          userAssetId: number;
+          price: number;
+          seller: { id: number; name?: string };
+        }>;
+      };
+      if (rData.data?.[0]) {
+        const reseller = rData.data[0];
+        price = reseller.price;
+        sellerId = reseller.seller.id;
+        userAssetId = reseller.userAssetId;
+      }
+    }
 
-    const priceMatch = html.match(/data-expected-price="(\d+)"/);
-    const sellerMatch = html.match(/data-expected-seller-id="(\d+)"/);
-    const uaMatch = html.match(/data-lowest-private-sale-userasset-id="(\d+)"/);
-    const prodMatch = html.match(/data-product-id="(\d+)"/);
-
-    const price = priceMatch ? parseInt(priceMatch[1], 10) : null;
-    const sellerId = sellerMatch ? parseInt(sellerMatch[1], 10) : null;
-    const userAssetId = uaMatch ? parseInt(uaMatch[1], 10) : null;
-    const productId = prodMatch ? parseInt(prodMatch[1], 10) : null;
-
-    res.json({ assetId, price, sellerId, userAssetId, productId, available: price !== null && productId !== null });
+    res.json({
+      assetId,
+      price,
+      sellerId,
+      userAssetId,
+      productId,
+      available: price !== null && productId !== null,
+    });
   } catch (err) {
     console.error("[Sniper] Live error:", err);
     res.status(502).json({ error: "Failed to fetch live price." });
@@ -223,26 +251,36 @@ router.post("/sniper/buy", async (req, res): Promise<void> => {
     res.status(400).json({ error: "assetId and maxPrice required." }); return;
   }
 
+  const rHeaders = {
+    "Cookie": `.ROBLOSECURITY=${cookie}`,
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/json",
+  };
+
   try {
-    const pageResp = await fetch(`https://www.roblox.com/catalog/${assetId}`, {
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "text/html",
-      },
-    });
-    if (!pageResp.ok) { res.status(502).json({ error: "Could not verify item listing." }); return; }
+    const [economyResp, resellersResp] = await Promise.all([
+      fetch(`${ECONOMY_API}/v2/assets/${assetId}/details`, { headers: rHeaders }),
+      fetch(`${ECONOMY_API}/v1/assets/${assetId}/resellers?limit=1&sortOrder=Asc`, { headers: rHeaders }),
+    ]);
 
-    const html = await pageResp.text();
-    const priceMatch = html.match(/data-expected-price="(\d+)"/);
-    const sellerMatch = html.match(/data-expected-seller-id="(\d+)"/);
-    const uaMatch = html.match(/data-lowest-private-sale-userasset-id="(\d+)"/);
-    const prodMatch = html.match(/data-product-id="(\d+)"/);
+    let productId: number | null = null;
+    let livePrice: number | null = null;
+    let sellerId = 0;
+    let userAssetId = 0;
 
-    const livePrice = priceMatch ? parseInt(priceMatch[1], 10) : null;
-    const productId = prodMatch ? parseInt(prodMatch[1], 10) : null;
-    const sellerId = sellerMatch ? parseInt(sellerMatch[1], 10) : 0;
-    const userAssetId = uaMatch ? parseInt(uaMatch[1], 10) : 0;
+    if (economyResp.ok) {
+      const eData = await economyResp.json() as { ProductId?: number };
+      productId = eData.ProductId || null;
+    }
+
+    if (resellersResp.ok) {
+      const rData = await resellersResp.json() as { data?: Array<{ userAssetId: number; price: number; seller: { id: number } }> };
+      if (rData.data?.[0]) {
+        livePrice = rData.data[0].price;
+        sellerId = rData.data[0].seller.id;
+        userAssetId = rData.data[0].userAssetId;
+      }
+    }
 
     if (!livePrice || !productId) {
       res.status(400).json({ error: "Item not currently available for purchase." }); return;

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1155,7 +1156,7 @@ function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUser
         method: "POST",
         body: JSON.stringify({ value }),
       });
-      setTopics(prev => prev.map(t => t.id === topicId ? { ...t, votesUp: data.votesUp, votesDown: data.votesDown, myVote: data.myVote } : t));
+      setTopics(prev => prev.map(tp => tp.id === topicId ? { ...tp, votesUp: data.votesUp, votesDown: data.votesDown, myVote: data.myVote } : tp));
       if (selectedTopic?.id === topicId) {
         setSelectedTopic(prev => prev ? { ...prev, votesUp: data.votesUp, votesDown: data.votesDown, myVote: data.myVote } : prev);
       }
@@ -1197,7 +1198,7 @@ function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUser
       });
       setReplies(prev => [...prev, data.reply]);
       setReplyText("");
-      setTopics(prev => prev.map(t => t.id === selectedTopic.id ? { ...t, repliesCount: t.repliesCount + 1 } : t));
+      setTopics(prev => prev.map(tp => tp.id === selectedTopic.id ? { ...tp, repliesCount: tp.repliesCount + 1 } : tp));
     } catch (err) {
       toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed" });
     } finally { setSendingReply(false); }
@@ -1658,6 +1659,7 @@ function MyProfileBanner({ myUser, onEdit }: { myUser: PlatformUser; onEdit: () 
 
 export default function Community() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [myUser, setMyUser] = useState<PlatformUser | null>(null);
   const [registering, setRegistering] = useState(true);
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem("limitedink_community_tab") || "feed");
@@ -1693,9 +1695,9 @@ export default function Community() {
       });
       setMyUser(updated);
       setEditingBio(false);
-      toast({ title: "Bio updated!" });
+      toast({ title: t("profile.bio.saved") });
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to save bio" });
+      toast({ variant: "destructive", title: t("assistant.error"), description: "Failed to save bio" });
     } finally { setSavingBio(false); }
   };
 
@@ -1704,7 +1706,7 @@ export default function Community() {
       <div className="p-8 flex items-center justify-center min-h-[400px]">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="w-8 h-8 animate-spin" />
-          <p className="text-sm font-medium">Setting up your community profile...</p>
+          <p className="text-sm font-medium">{t("community.loading") || "Setting up your community profile..."}</p>
         </div>
       </div>
     );
@@ -1713,8 +1715,8 @@ export default function Community() {
   return (
     <div className="p-6 lg:p-10 w-full max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Community</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Connect with other Roblox developers, share your work, and grow together.</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t("community.title")}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">{t("community.desc")}</p>
       </div>
 
       {/* Profile banner for current user */}
@@ -1725,19 +1727,19 @@ export default function Community() {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1 flex-wrap">
           <TabsTrigger value="feed" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Globe className="w-3.5 h-3.5" /> Feed
+            <Globe className="w-3.5 h-3.5" /> {t("community.feed")}
           </TabsTrigger>
           <TabsTrigger value="forum" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <MessageCircleQuestion className="w-3.5 h-3.5" /> Forum
+            <MessageCircleQuestion className="w-3.5 h-3.5" /> {t("community.forum") || "Forum"}
           </TabsTrigger>
           <TabsTrigger value="discover" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Search className="w-3.5 h-3.5" /> Discover
+            <Search className="w-3.5 h-3.5" /> {t("community.discover")}
           </TabsTrigger>
           <TabsTrigger value="friends" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5" /> Friends
+            <Users className="w-3.5 h-3.5" /> {t("community.friends")}
           </TabsTrigger>
           <TabsTrigger value="chat" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <MessageSquare className="w-3.5 h-3.5" /> Chat
+            <MessageSquare className="w-3.5 h-3.5" /> {t("community.chat")}
           </TabsTrigger>
         </TabsList>
 
@@ -1784,7 +1786,7 @@ export default function Community() {
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-lg">Edit Bio</h3>
+                <h3 className="font-bold text-lg">{t("community.editBio") || "Edit Bio"}</h3>
                 <button onClick={() => setEditingBio(false)} className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
                   <X className="w-4 h-4" />
                 </button>
@@ -1792,7 +1794,7 @@ export default function Community() {
               <Textarea
                 value={bioText}
                 onChange={e => setBioText(e.target.value)}
-                placeholder="Tell other developers about yourself — your skills, what groups you manage, what you're building..."
+                placeholder={t("profile.bio.placeholder")}
                 className="min-h-[120px] resize-none rounded-xl"
                 maxLength={250}
               />
@@ -1800,7 +1802,7 @@ export default function Community() {
                 <p className="text-xs text-muted-foreground">{bioText.length}/250</p>
                 <Button onClick={handleSaveBio} disabled={savingBio} className="rounded-xl gap-2">
                   {savingBio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  Save
+                  {t("profile.bio.save")}
                 </Button>
               </div>
             </motion.div>

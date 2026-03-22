@@ -5,13 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Loader2, ShieldCheck, Eye, EyeOff, ArrowRight, Lock, Monitor, FolderOpen, Cookie } from "lucide-react";
-
-const cookieSteps = [
-  { icon: Monitor, label: "Open Roblox", desc: "Go to roblox.com and log in" },
-  { icon: FolderOpen, label: "F12 → Application", desc: 'Open DevTools, click "Application"' },
-  { icon: Cookie, label: "Find .ROBLOSECURITY", desc: "Cookies → roblox.com → copy value" },
-];
 
 export default function RobloxLogin() {
   const [cookie, setCookie] = useState("");
@@ -19,6 +14,7 @@ export default function RobloxLogin() {
   const { mutateAsync: authenticate, isPending } = useRobloxAuth();
   const { loginRoblox } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,10 +23,10 @@ export default function RobloxLogin() {
     try {
       const res = await authenticate({ data: { cookie: cookie.trim() } });
       loginRoblox(res);
-      toast({ title: "Connected!", description: `Signed in as ${res.displayName || res.name}` });
+      toast({ title: t("roblox.connected"), description: `${t("roblox.connectedAs")} ${res.displayName || res.name}` });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Invalid or expired cookie.";
-      toast({ variant: "destructive", title: "Connection failed", description: message });
+      toast({ variant: "destructive", title: t("roblox.failed"), description: message });
     }
   };
 
@@ -51,19 +47,23 @@ export default function RobloxLogin() {
             <div className="inline-flex items-center justify-center w-14 h-14 bg-foreground text-background rounded-2xl shadow-2xl mb-6">
               <ShieldCheck className="w-7 h-7" strokeWidth={1.5} />
             </div>
-            <h2 className="text-3xl font-display font-bold text-foreground mb-2">Connect Roblox</h2>
+            <h2 className="text-3xl font-display font-bold text-foreground mb-2">{t("roblox.connect")}</h2>
             <p className="text-muted-foreground text-sm leading-relaxed">
-              Your session cookie lets us manage groups and upload clothing on your behalf.
+              {t("roblox.desc")}
             </p>
           </div>
 
           {/* how-to steps */}
           <div className="mb-7 p-4 rounded-2xl bg-secondary/50 border border-border/50">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              How to get your cookie
+              {t("roblox.howTo")}
             </p>
             <div className="space-y-3">
-              {cookieSteps.map((s, i) => (
+              {[
+                { icon: Monitor, label: t("roblox.step1"), desc: t("roblox.step1.desc") },
+                { icon: FolderOpen, label: t("roblox.step2"), desc: t("roblox.step2.desc") },
+                { icon: Cookie, label: t("roblox.step3"), desc: t("roblox.step3.desc") },
+              ].map((s, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-background border border-border flex items-center justify-center shrink-0">
                     <s.icon className="w-3.5 h-3.5 text-foreground" />
@@ -72,7 +72,7 @@ export default function RobloxLogin() {
                     <p className="text-xs font-semibold text-foreground">{s.label}</p>
                     <p className="text-xs text-muted-foreground">{s.desc}</p>
                   </div>
-                  {i < cookieSteps.length - 1 && (
+                  {i < 2 && (
                     <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
                   )}
                 </div>
@@ -118,9 +118,9 @@ export default function RobloxLogin() {
               disabled={isPending || !cookie.trim()}
             >
               {isPending ? (
-                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Connecting...</>
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> {t("roblox.connecting")}</>
               ) : (
-                <span className="flex items-center gap-2">Connect Account <ArrowRight className="w-4 h-4" /></span>
+                <span className="flex items-center gap-2">{t("roblox.connectBtn")} <ArrowRight className="w-4 h-4" /></span>
               )}
             </Button>
           </form>
@@ -129,7 +129,7 @@ export default function RobloxLogin() {
           <div className="mt-5 flex items-start gap-2.5 p-3.5 rounded-2xl bg-green-50/80 dark:bg-green-950/20 border border-green-200/60 dark:border-green-800/30">
             <Lock className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
             <p className="text-xs text-green-700 dark:text-green-400 leading-relaxed">
-              Your cookie is sent directly to our server and never stored in the browser. Session expires automatically in 7 days.
+              {t("roblox.security")}
             </p>
           </div>
         </motion.div>
@@ -163,20 +163,20 @@ export default function RobloxLogin() {
               <ShieldCheck className="w-10 h-10 text-white/80" strokeWidth={1} />
             </div>
             <h3 className="text-4xl font-display font-bold text-white leading-tight mb-4">
-              Your data stays private.
+              {t("roblox.privacy.title")}
             </h3>
             <p className="text-white/50 leading-relaxed text-base">
-              We only request the minimum permissions needed to manage your Roblox groups and upload clothing assets.
+              {t("roblox.privacy.desc")}
             </p>
           </motion.div>
 
           {/* trust points */}
           <div className="space-y-4">
             {[
-              "Cookie never stored in your browser",
-              "Encrypted server-side session",
-              "Automatically expires in 7 days",
-              "Revoke access anytime from Settings",
+              t("roblox.privacy.1"),
+              t("roblox.privacy.2"),
+              t("roblox.privacy.3"),
+              t("roblox.privacy.4"),
             ].map((point, i) => (
               <motion.div
                 key={i}

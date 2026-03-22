@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ interface ProfileData {
 
 export default function Profile() {
   useAuth();
+  const { t } = useLanguage();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export default function Profile() {
   }
 
   if (error || !profileData) {
-    return <div className="p-12 text-center text-muted-foreground">{error || "Failed to load profile."}</div>;
+    return <div className="p-12 text-center text-muted-foreground">{error || t("profile.failedLoad")}</div>;
   }
 
   const createdDate = new Date(profileData.created).toLocaleDateString("en-US", {
@@ -63,9 +65,9 @@ export default function Profile() {
   });
 
   const stats = [
-    { label: "Friends", value: profileData.friendsCount.toLocaleString(), icon: Users },
-    { label: "Followers", value: profileData.followersCount.toLocaleString(), icon: Eye },
-    { label: "Following", value: profileData.followingCount.toLocaleString(), icon: UserCheck },
+    { label: t("profile.friends"), value: profileData.friendsCount.toLocaleString(), icon: Users },
+    { label: t("profile.followers"), value: profileData.followersCount.toLocaleString(), icon: Eye },
+    { label: t("profile.following"), value: profileData.followingCount.toLocaleString(), icon: UserCheck },
   ];
 
   return (
@@ -86,12 +88,12 @@ export default function Profile() {
                   <h1 className="text-3xl font-bold tracking-tight">{profileData.displayName}</h1>
                   {profileData.hasVerifiedBadge && (
                     <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/20 flex items-center gap-1 text-xs">
-                      <Star className="w-3 h-3" /> Verified
+                      <Star className="w-3 h-3" /> {t("profile.verified")}
                     </Badge>
                   )}
                   {profileData.isBanned && (
                     <Badge variant="destructive" className="text-xs flex items-center gap-1">
-                      <Shield className="w-3 h-3" /> Banned
+                      <Shield className="w-3 h-3" /> {t("profile.banned")}
                     </Badge>
                   )}
                 </div>
@@ -103,13 +105,13 @@ export default function Profile() {
                 rel="noopener noreferrer"
                 className="text-xs font-semibold px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/70 transition-colors border border-border shrink-0"
               >
-                Open in Roblox ↗
+                {t("profile.openRoblox")}
               </a>
             </div>
 
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="w-4 h-4 shrink-0" />
-              <span>Account created {createdDate}</span>
+              <span>{t("profile.created")} {createdDate}</span>
             </div>
           </CardContent>
         </Card>
@@ -135,7 +137,7 @@ export default function Profile() {
         {profileData.description && (
           <Card className="rounded-2xl border border-border shadow-md mt-6">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold">About</CardTitle>
+              <CardTitle className="text-base font-bold">{t("profile.about")}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{profileData.description}</p>
