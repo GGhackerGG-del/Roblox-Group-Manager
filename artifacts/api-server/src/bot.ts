@@ -7,10 +7,10 @@ const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const ADMIN_ID = 7506471937;
 
 if (!TOKEN) {
-  throw new Error("TELEGRAM_BOT_TOKEN environment variable is required.");
+  console.warn("[TelegramBot] TELEGRAM_BOT_TOKEN not set — bot disabled.");
 }
 
-const bot = new TelegramBot(TOKEN, { polling: true });
+const bot = TOKEN ? new TelegramBot(TOKEN, { polling: true }) : null;
 
 function addDays(days: number): Date {
   const d = new Date();
@@ -64,168 +64,170 @@ const planKeyboard = {
   },
 };
 
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from?.id;
-
-  if (!userId || !isAdmin(userId)) {
-    await bot.sendMessage(chatId,
-      "👋 Добро пожаловать в *Limited.Ink*!\n\n" +
-      "Здесь вы можете управлять лицензиями для сервиса управления Roblox-группами.\n\n" +
-      "Если у вас уже есть код активации — введите его на сайте.",
-      { parse_mode: "Markdown" }
-    );
-    return;
-  }
-
-  await bot.sendMessage(chatId,
-    "👑 *Панель администратора Limited.Ink*\n\n" +
-    "Выберите действие:",
-    { parse_mode: "Markdown", ...adminKeyboard }
-  );
-});
-
-bot.onText(/\/admin/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from?.id;
-
-  if (!userId || !isAdmin(userId)) {
-    await bot.sendMessage(chatId, "⛔ Доступ запрещён.");
-    return;
-  }
-
-  await bot.sendMessage(chatId,
-    "👑 *Панель администратора Limited.Ink*\n\nВыберите действие:",
-    { parse_mode: "Markdown", ...adminKeyboard }
-  );
-});
-
 const pendingCheck: Set<number> = new Set();
 
-bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from?.id;
-  const text = msg.text;
+if (bot) {
+  bot.onText(/\/start/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from?.id;
 
-  if (!text || !userId) return;
-  if (text.startsWith("/")) return;
-
-  if (!isAdmin(userId)) return;
-
-  if (text === "➕ Выдать подписку") {
-    await bot.sendMessage(chatId, "Выберите план подписки:", planKeyboard);
-    return;
-  }
-
-  if (text === "📋 Список лицензий") {
-    const licenses = await db
-      .select()
-      .from(licensesTable)
-      .orderBy(licensesTable.createdAt)
-      .limit(20);
-
-    if (licenses.length === 0) {
-      await bot.sendMessage(chatId, "Лицензий ещё нет.");
+    if (!userId || !isAdmin(userId)) {
+      await bot!.sendMessage(chatId,
+        "👋 Добро пожаловать в *Limited.Ink*!\n\n" +
+        "Здесь вы можете управлять лицензиями для сервиса управления Roblox-группами.\n\n" +
+        "Если у вас уже есть код активации — введите его на сайте.",
+        { parse_mode: "Markdown" }
+      );
       return;
     }
 
-    const lines = licenses.map((l, i) => {
-      const status = l.activated ? "✅ Активирована" : "⏳ Не активирована";
-      const exp = formatDate(l.expiresAt);
-      return `${i + 1}. \`${l.code}\` — ${planLabel(l.plan)}\n   ${status} | До: ${exp}`;
-    });
-
-    const total = licenses.length;
-    const activated = licenses.filter((l) => l.activated).length;
-
-    await bot.sendMessage(chatId,
-      `📋 *Лицензии (последние 20):*\n\n${lines.join("\n\n")}\n\n` +
-      `Активировано: ${activated}/${total}`,
-      { parse_mode: "Markdown" }
+    await bot!.sendMessage(chatId,
+      "👑 *Панель администратора Limited.Ink*\n\n" +
+      "Выберите действие:",
+      { parse_mode: "Markdown", ...adminKeyboard }
     );
-    return;
-  }
+  });
 
-  if (text === "🔍 Проверить код") {
-    pendingCheck.add(userId);
-    await bot.sendMessage(chatId, "Введите код лицензии для проверки:");
-    return;
-  }
+  bot.onText(/\/admin/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from?.id;
 
-  if (pendingCheck.has(userId)) {
-    pendingCheck.delete(userId);
-    const code = text.trim().toUpperCase();
-    const [license] = await db
-      .select()
-      .from(licensesTable)
-      .where(eq(licensesTable.code, code));
-
-    if (!license) {
-      await bot.sendMessage(chatId, `❌ Код \`${code}\` не найден.`, { parse_mode: "Markdown" });
+    if (!userId || !isAdmin(userId)) {
+      await bot!.sendMessage(chatId, "⛔ Доступ запрещён.");
       return;
     }
 
-    const status = license.activated ? "✅ Активирована" : "⏳ Не активирована";
-    const exp = formatDate(license.expiresAt);
-    const activatedAt = license.activatedAt
-      ? formatDate(license.activatedAt)
-      : "Ещё не активирована";
-
-    await bot.sendMessage(chatId,
-      `🔍 *Информация о лицензии*\n\n` +
-      `Код: \`${license.code}\`\n` +
-      `План: ${planLabel(license.plan)}\n` +
-      `Статус: ${status}\n` +
-      `Истекает: ${exp}\n` +
-      `Активирована: ${activatedAt}`,
-      { parse_mode: "Markdown" }
+    await bot!.sendMessage(chatId,
+      "👑 *Панель администратора Limited.Ink*\n\nВыберите действие:",
+      { parse_mode: "Markdown", ...adminKeyboard }
     );
-    return;
-  }
-});
+  });
 
-bot.on("callback_query", async (query) => {
-  const chatId = query.message?.chat.id;
-  const userId = query.from.id;
-  const data = query.data;
+  bot.on("message", async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from?.id;
+    const text = msg.text;
 
-  if (!chatId || !data) return;
+    if (!text || !userId) return;
+    if (text.startsWith("/")) return;
 
-  await bot.answerCallbackQuery(query.id);
+    if (!isAdmin(userId)) return;
 
-  if (!isAdmin(userId)) {
-    await bot.sendMessage(chatId, "⛔ Доступ запрещён.");
-    return;
-  }
+    if (text === "➕ Выдать подписку") {
+      await bot!.sendMessage(chatId, "Выберите план подписки:", planKeyboard);
+      return;
+    }
 
-  const planMap: Record<string, "week" | "month" | "lifetime"> = {
-    plan_week: "week",
-    plan_month: "month",
-    plan_lifetime: "lifetime",
-  };
+    if (text === "📋 Список лицензий") {
+      const licenses = await db
+        .select()
+        .from(licensesTable)
+        .orderBy(licensesTable.createdAt)
+        .limit(20);
 
-  const plan = planMap[data];
-  if (!plan) return;
+      if (licenses.length === 0) {
+        await bot!.sendMessage(chatId, "Лицензий ещё нет.");
+        return;
+      }
 
-  try {
-    const code = await createLicense(plan);
-    await bot.sendMessage(chatId,
-      `✅ *Лицензия создана!*\n\n` +
-      `Код активации:\n\`\`\`\n${code}\n\`\`\`\n\n` +
-      `План: ${planLabel(plan)}\n\n` +
-      `Передайте этот код пользователю. Он вводится при первом входе на сайте.`,
-      { parse_mode: "Markdown" }
-    );
-  } catch (err) {
-    console.error("Failed to create license:", err);
-    await bot.sendMessage(chatId, "❌ Ошибка при создании лицензии. Попробуйте снова.");
-  }
-});
+      const lines = licenses.map((l, i) => {
+        const status = l.activated ? "✅ Активирована" : "⏳ Не активирована";
+        const exp = formatDate(l.expiresAt);
+        return `${i + 1}. \`${l.code}\` — ${planLabel(l.plan)}\n   ${status} | До: ${exp}`;
+      });
 
-bot.on("polling_error", (err) => {
-  console.error("[TelegramBot] Polling error:", err.message);
-});
+      const total = licenses.length;
+      const activated = licenses.filter((l) => l.activated).length;
 
-console.log("[TelegramBot] Bot started successfully.");
+      await bot!.sendMessage(chatId,
+        `📋 *Лицензии (последние 20):*\n\n${lines.join("\n\n")}\n\n` +
+        `Активировано: ${activated}/${total}`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (text === "🔍 Проверить код") {
+      pendingCheck.add(userId);
+      await bot!.sendMessage(chatId, "Введите код лицензии для проверки:");
+      return;
+    }
+
+    if (pendingCheck.has(userId)) {
+      pendingCheck.delete(userId);
+      const code = text.trim().toUpperCase();
+      const [license] = await db
+        .select()
+        .from(licensesTable)
+        .where(eq(licensesTable.code, code));
+
+      if (!license) {
+        await bot!.sendMessage(chatId, `❌ Код \`${code}\` не найден.`, { parse_mode: "Markdown" });
+        return;
+      }
+
+      const status = license.activated ? "✅ Активирована" : "⏳ Не активирована";
+      const exp = formatDate(license.expiresAt);
+      const activatedAt = license.activatedAt
+        ? formatDate(license.activatedAt)
+        : "Ещё не активирована";
+
+      await bot!.sendMessage(chatId,
+        `🔍 *Информация о лицензии*\n\n` +
+        `Код: \`${license.code}\`\n` +
+        `План: ${planLabel(license.plan)}\n` +
+        `Статус: ${status}\n` +
+        `Истекает: ${exp}\n` +
+        `Активирована: ${activatedAt}`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+  });
+
+  bot.on("callback_query", async (query) => {
+    const chatId = query.message?.chat.id;
+    const userId = query.from.id;
+    const data = query.data;
+
+    if (!chatId || !data) return;
+
+    await bot!.answerCallbackQuery(query.id);
+
+    if (!isAdmin(userId)) {
+      await bot!.sendMessage(chatId, "⛔ Доступ запрещён.");
+      return;
+    }
+
+    const planMap: Record<string, "week" | "month" | "lifetime"> = {
+      plan_week: "week",
+      plan_month: "month",
+      plan_lifetime: "lifetime",
+    };
+
+    const plan = planMap[data];
+    if (!plan) return;
+
+    try {
+      const code = await createLicense(plan);
+      await bot!.sendMessage(chatId,
+        `✅ *Лицензия создана!*\n\n` +
+        `Код активации:\n\`\`\`\n${code}\n\`\`\`\n\n` +
+        `План: ${planLabel(plan)}\n\n` +
+        `Передайте этот код пользователю. Он вводится при первом входе на сайте.`,
+        { parse_mode: "Markdown" }
+      );
+    } catch (err) {
+      console.error("Failed to create license:", err);
+      await bot!.sendMessage(chatId, "❌ Ошибка при создании лицензии. Попробуйте снова.");
+    }
+  });
+
+  bot.on("polling_error", (err) => {
+    console.error("[TelegramBot] Polling error:", err.message);
+  });
+
+  console.log("[TelegramBot] Bot started successfully.");
+}
 
 export default bot;
