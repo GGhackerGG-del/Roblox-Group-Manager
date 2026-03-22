@@ -732,28 +732,63 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
 });
 
 async function setPrice(assetId: number, salePrice: number, cookie: string, csrf: string): Promise<boolean> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 3000 * attempt));
     const currentCsrf = attempt === 0 ? csrf : await getRobloxCsrf(cookie);
+
+    const hdrs: Record<string, string> = {
+      "Cookie": `.ROBLOSECURITY=${cookie}`,
+      "X-CSRF-TOKEN": currentCsrf,
+      "Content-Type": "application/json",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "Referer": "https://www.roblox.com/",
+      "Origin": "https://www.roblox.com",
+    };
+
+    const body = JSON.stringify({
+      priceConfiguration: { priceInRobux: salePrice },
+    });
+
     try {
       const releaseResp = await fetch(`${ITEM_CONFIG_API}/v1/assets/${assetId}/release`, {
         method: "POST",
-        headers: {
-          "Cookie": `.ROBLOSECURITY=${cookie}`,
-          "X-CSRF-TOKEN": currentCsrf,
-          "Content-Type": "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Referer": "https://www.roblox.com/",
-        },
-        body: JSON.stringify({
-          price: salePrice,
-          priceConfiguration: { priceInRobux: salePrice },
-          saleStatus: "OnSale",
-        }),
+        headers: hdrs,
+        body,
       });
-      if (releaseResp.ok) return true;
-      console.log(`[Clothing] Release attempt ${attempt + 1} failed: ${releaseResp.status}`);
-    } catch {}
+
+      if (releaseResp.ok) {
+        console.log(`[Clothing] Release success for asset ${assetId} at ${salePrice} R$`);
+        return true;
+      }
+
+      const respText = await releaseResp.text().catch(() => "");
+      console.log(`[Clothing] Release attempt ${attempt + 1} failed: status=${releaseResp.status} body=${respText.slice(0, 300)}`);
+
+      if (releaseResp.status === 403) {
+        const newCsrf = releaseResp.headers.get("x-csrf-token");
+        if (newCsrf) {
+          hdrs["X-CSRF-TOKEN"] = newCsrf;
+          const retry = await fetch(`${ITEM_CONFIG_API}/v1/assets/${assetId}/release`, {
+            method: "POST",
+            headers: hdrs,
+            body,
+          });
+          if (retry.ok) {
+            console.log(`[Clothing] Release success on CSRF retry for asset ${assetId}`);
+            return true;
+          }
+          const retryText = await retry.text().catch(() => "");
+          console.log(`[Clothing] Release CSRF retry failed: status=${retry.status} body=${retryText.slice(0, 300)}`);
+        }
+      }
+
+      if (releaseResp.status === 429) {
+        console.log("[Clothing] Release rate limited, waiting longer...");
+        await new Promise(r => setTimeout(r, 5000 * (attempt + 1)));
+      }
+    } catch (err) {
+      console.error(`[Clothing] Release error attempt ${attempt + 1}:`, err);
+    }
   }
   return false;
 }
