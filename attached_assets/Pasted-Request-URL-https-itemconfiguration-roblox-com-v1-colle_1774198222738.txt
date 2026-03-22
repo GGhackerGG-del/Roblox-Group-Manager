@@ -1,0 +1,94 @@
+Request URL
+https://itemconfiguration.roblox.com/v1/collectibles
+Request Method
+POST
+Status Code
+200 OK
+Remote Address
+128.116.13.3:443
+Referrer Policy
+strict-origin-when-cross-origin
+access-control-allow-credentials
+true
+access-control-allow-origin
+https://create.roblox.com
+cache-control
+no-cache
+content-encoding
+gzip
+content-type
+application/json; charset=utf-8
+date
+Sun, 22 Mar 2026 16:49:21 GMT
+nel
+{"report_to":"network-errors","max_age":604800,"success_fraction":0.001,"failure_fraction":1}
+report-to
+{"group":"network-errors","max_age":604800,"endpoints":[{"url":"https://ncs.roblox.com/upload"}]}
+roblox-machine-id
+4e77963f-a1f3-2150-2a9d-1aa5c2e8a618
+server
+public-gateway
+strict-transport-security
+max-age=31536000
+strict-transport-security
+max-age=3600
+vary
+Origin,Accept-Encoding
+x-envoy-upstream-service-time
+911
+x-frame-options
+SAMEORIGIN
+x-ratelimit-limit
+1, 1;w=1, 1;w=1, 1;w=1
+x-ratelimit-remaining
+0
+x-ratelimit-reset
+1
+x-roblox-edge
+c112
+x-roblox-region
+us-central_rbx
+x-terms-message
+Terms apply https://rblx.co/TOU.
+:authority
+itemconfiguration.roblox.com
+:method
+POST
+:path
+/v1/collectibles
+:scheme
+https
+accept
+*/*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7
+content-length
+459
+content-type
+application/json
+cookie
+GuestData=UserID=-1729060124; RBXcb=RBXViralAcquisition%3Dtrue%26RBXSource%3Dtrue%26GoogleAnalytics%3Dtrue; RBXSource=rbx_acquisition_time=02/27/2026 11:30:11&rbx_acquisition_referrer=https://www.roblox.com/&rbx_medium=Social&rbx_source=www.roblox.com&rbx_campaign=&rbx_adgroup=&rbx_keyword=&rbx_matchtype=&rbx_send_info=0; __utmc=200924205; _ga=GA1.1.597163282.1772280862; .RBXIDCHECK=e9a6a58e-d081-4761-997b-f87597795e71; RBXSessionTracker=sessionid=68cfb54d-c2ae-4320-9b6d-d921113f7bbe; _ga_F8VP9T1NT3=GS2.1.s1774172572$o31$g0$t1774172572$j60$l0$h0; rbx-ip2=rbx-ip2; RBXEventTrackerV2=CreateDate=03/22/2026 11:48:38&rbxid=7967555604&browserid=1772191802923006; .ROBLOSECURITY=_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDE1NjY1Njg1MDk3ODA1NzUyOTkwKAM.yWLcb3TGH0HBZEFHeHboIe7Ti5yNcESi4Tqhm3aaxtrDj74mzG6NU8vFusko-tBLYl4TIazV3RJ_6_6TIC30KIiYfeYHQMC2FhBfpOJWXe_kwhwb03Iw5D1MIkxJEKtzxLKjn2sTZxwCpPXAvRSe2a9BpgGA4YV8tuzwrWAC5qSy4nI8UJdxvDEKiQ3Fq5J04725Knop8B2UB9CL21lG0Gdmp20phyumbj9izePN9Uaq6nmvwiMNRM1Sw-1ph4kW5hSCNsf19Sgviuq_CLVgXVjuSct2FvSZShtbjzStdarMr5DlIYpayFwnNXQ19-DomWu6fiwOvV0so-YRduxvIYik09C_IM66YhCK9pLBOknfXnw3of_p_YcTX3Jf_lqjXiUZQjXUxHr0JS8vpExUtkXrXNyhiMmtS55qL_og_sDwsdjkZE3AY4jOH-Q8Lx2wEVLitMbOqdtPzNcdBPk5oibmwHoUo-Yyplt1toNyTuuLUe2E7XB0DQq30I3HmYh-82F5IssAKTWySwAYxKB4wBHM6yWXaRNgbFVUf2yzZijAp-eU0gjpmAHe0VuV70KmCzPFxlWgaRGQ4LFIGERmyDa1QEgAqpxeieEKR4bpA0c-Ckn0w-dOQJGtfnPvOY29Phnr8S93wNPTd-XzlOk9RUtkk--FcmW3w9lDJpaS4VbjP02N7KHzH-itFAzroqm0ixWSY5J3-g6s6sytG6pt6UPKX5AWc1Le2QETjguZAWkBOEQMK99w15p0km0qjDz-klPam8fEQD_OwcTJldZ9o9zOcPC5IptFNO3qUd0iPuPqWwxbe93td2HL9rwQp1ziAhQ0AqJ1Oz53IkFB4gyJnUDF9Q9IWuO1TJ2DENs9Y-nC6tWdRmZWfExW44eTvkWced8sLcdqP6fOv_OpvGWf66IKhO-ZbL_Ciq1cOZCg59gP32xz; RBXPaymentsFlowContext=915abc70-247c-47a5-a23a-c8205057d8e9,; __utma=200924205.661920284.1772191813.1774194089.1774198122.114; __utmz=200924205.1774198122.114.10.utmcsr=create.roblox.com|utmccn=(referral)|utmcmd=referral|utmcct=/; __utmt_b=1; rbxas=85d2cffdb73ef588becd1707aa077dba538d7444fef7fd0199c032de5db682cc; __utmb=200924205.12.10.1774198122; UnifiedLoggerSession=CreatorHub%3D%7B%22sessionId%22%3A%22731eb79f-8aa7-4fe7-abb7-5ec507fba5d6%22%2C%22lastActivity%22%3A1774198158872%7D%26Authorize%3D%7B%22sessionId%22%3A%229e784133-c496-4a81-8da4-07fc1fdffc33%22%2C%22lastActivity%22%3A1773945524799%7D
+origin
+https://create.roblox.com
+priority
+u=1, i
+referer
+https://create.roblox.com/
+sec-ch-ua
+"Chromium";v="146", "Not-A.Brand";v="24", "Google Chrome";v="146"
+sec-ch-ua-mobile
+?0
+sec-ch-ua-platform
+"Windows"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-site
+user-agent
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36
+x-csrf-token
+Gug5HL717N1a

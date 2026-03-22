@@ -382,6 +382,7 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
       let cursor: string | null = null;
       let pages = 0;
 
+      let catalogFailed = false;
       while (pages < 30) {
         const url = `${CATALOG_API}/v1/search/items/details?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=30${cursor ? `&cursor=${cursor}` : ""}`;
         console.log(`[Clothing] Group items URL: ${url}`);
@@ -396,14 +397,7 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
         if (!resp.ok) {
           const errBody = await resp.text().catch(() => "");
           console.error(`[Clothing] Group items API error status=${resp.status} body=${errBody.slice(0, 300)}`);
-
-          if (pages === 0 && rawItems.length === 0) {
-            console.log("[Clothing] Trying Item Configuration API as fallback...");
-            const fallbackItems = await fetchGroupItemsViaItemConfig(groupId, cookie);
-            if (fallbackItems.length > 0) {
-              rawItems.push(...fallbackItems);
-            }
-          }
+          catalogFailed = true;
           break;
         }
 
@@ -413,6 +407,13 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
         if (!cursor) break;
         pages++;
         await new Promise(r => setTimeout(r, 600));
+      }
+
+      if ((catalogFailed || rawItems.length === 0) && rawItems.length === 0) {
+        console.log("[Clothing] Catalog API failed or empty, using Item Configuration API as fallback...");
+        const fallbackItems = await fetchGroupItemsViaItemConfig(groupId, cookie);
+        console.log(`[Clothing] ItemConfig fallback returned ${fallbackItems.length} items`);
+        rawItems.push(...fallbackItems);
       }
 
       const ids = rawItems.map(i => i.id);
@@ -427,7 +428,10 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
         thumbnailUrl: thumbMap[d.id] || null,
       }));
 
-      cacheSet(ck, allItems);
+      if (allItems.length > 0) {
+        cacheSet(ck, allItems);
+      }
+      console.log(`[Clothing] Group ${groupId}: found ${allItems.length} items`);
     } catch (err) {
       console.error("[Clothing] Group items error:", err);
       res.status(502).json({ error: "Failed to fetch group clothing." });

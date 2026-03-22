@@ -124,6 +124,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       agentName: string;
       description: string;
       assetId: number | null;
+      isPending: boolean;
     }> = [];
 
     let txCursor: string | null = null;
@@ -162,7 +163,9 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
         nextPageCursor?: string | null;
         data: Array<{
           id: number;
+          idHash?: string;
           created: string;
+          isPending?: boolean;
           currency: { amount: number; type?: string };
           agent?: { id?: number; type?: string; name: string };
           details?: { id?: number; name: string; type?: string };
@@ -174,13 +177,15 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       }
 
       for (const tx of d.data || []) {
+        const txId = tx.idHash || (tx.id > 0 ? String(tx.id) : `${tx.created}_${tx.details?.id ?? ""}_${tx.currency?.amount ?? 0}`);
         transactions.push({
-          id: String(tx.id),
+          id: txId,
           created: tx.created,
           revenue: Math.abs(tx.currency?.amount ?? 0),
           agentName: tx.agent?.name ?? "Unknown",
           description: tx.details?.name ?? "Sale",
           assetId: tx.details?.id ?? null,
+          isPending: tx.isPending ?? false,
         });
       }
 
