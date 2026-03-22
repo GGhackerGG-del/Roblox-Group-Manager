@@ -170,11 +170,26 @@ async function resizeImageBase64(b64: string, w: number, h: number): Promise<str
 
 async function getRobloxCsrf(cookie: string): Promise<string> {
   try {
-    const csrfResp = await fetch("https://auth.roblox.com/v2/logout", {
+    const resp1 = await fetch("https://auth.roblox.com/", {
       method: "POST",
-      headers: { Cookie: `.ROBLOSECURITY=${cookie}` },
+      headers: {
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "Content-Length": "0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
     });
-    return csrfResp.headers.get("x-csrf-token") || "";
+    const token = resp1.headers.get("x-csrf-token");
+    if (!token) return "";
+    const resp2 = await fetch("https://auth.roblox.com/", {
+      method: "POST",
+      headers: {
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "X-CSRF-TOKEN": token,
+        "Content-Length": "0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    return resp2.headers.get("x-csrf-token") || token;
   } catch {
     return "";
   }
@@ -464,12 +479,13 @@ async function releaseAndPriceClothing(
 ): Promise<{ success: boolean; error?: string }> {
   const salePrice = Math.max(price, 5);
   const MAX_ATTEMPTS = 5;
-  const DELAYS = [5000, 5000, 8000, 12000, 15000];
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const delay = DELAYS[attempt] || 15000;
-    console.log(`[Upload] Waiting ${delay / 1000}s before release attempt ${attempt + 1}...`);
-    await new Promise(r => setTimeout(r, delay));
+    if (attempt > 0) {
+      const wait = attempt === 1 ? 3000 : attempt === 2 ? 5000 : 8000;
+      console.log(`[Upload] Waiting ${wait / 1000}s before release retry ${attempt + 1}...`);
+      await new Promise(r => setTimeout(r, wait));
+    }
 
     const csrfToken = await getRobloxCsrf(cookie);
     if (!csrfToken) {

@@ -540,7 +540,7 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
   let firstStatus = 200;
 
   while (pages < MAX_PAGES) {
-    const url = `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=2&creatorTargetId=${groupId}&limit=120${cursor ? `&cursor=${cursor}` : ""}`;
+    const url = `${ROBLOX_CATALOG_API}/v1/search/items?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=120${cursor ? `&cursor=${cursor}` : ""}`;
     const clothingResp = await fetchRobloxWithRetry(url, cookie, 2);
 
     if (pages === 0) firstStatus = clothingResp.status;
@@ -577,7 +577,7 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
   if (allCatalogItems.length === 0 && pages === 0) {
     console.log(`[Catalog] Primary empty — trying creatorType=1 fallback`);
     const fb1 = await fetchRobloxWithRetry(
-      `${ROBLOX_CATALOG_API}/v1/search/items?category=3&creatorType=1&creatorTargetId=${groupId}&limit=120`,
+      `${ROBLOX_CATALOG_API}/v1/search/items?category=Clothing&creatorType=User&creatorTargetId=${groupId}&limit=120`,
       cookie, 1
     );
     if (fb1.ok) {
@@ -752,8 +752,9 @@ router.get("/roblox/catalog/search", async (req, res): Promise<void> => {
   const lim2 = Math.min(limit, 120);
   console.log(`[CatalogSearch] keyword="${keyword}" limit=${lim2} subcategory="${subcategory}" sortType=${sortType}`);
 
-  let searchUrl = `${ROBLOX_CATALOG_API}/v1/search/items?category=3&keyword=${kw}&limit=${lim2}&sortType=${sortType}&salesTypeFilter=1`;
+  let searchUrl = `${ROBLOX_CATALOG_API}/v1/search/items?category=Clothing&keyword=${kw}&limit=${lim2}&sortType=${sortType}&salesTypeFilter=1`;
   if (subcategory) searchUrl += `&subcategory=${encodeURIComponent(subcategory)}`;
+  else searchUrl += `&subcategory=ClassicShirts`;
   let searchResp: Response;
   try {
     searchResp = await fetch(searchUrl, {

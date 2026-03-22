@@ -398,7 +398,7 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
 
 async function getRobloxCsrfSniper(cookie: string): Promise<string | null> {
   try {
-    const resp = await fetch("https://auth.roblox.com/v2/logout", {
+    const resp1 = await fetch("https://auth.roblox.com/", {
       method: "POST",
       headers: {
         "Cookie": `.ROBLOSECURITY=${cookie}`,
@@ -406,10 +406,60 @@ async function getRobloxCsrfSniper(cookie: string): Promise<string | null> {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
     });
-    const token = resp.headers.get("x-csrf-token");
-    return token || null;
+    const token = resp1.headers.get("x-csrf-token");
+    if (!token) return null;
+    const resp2 = await fetch("https://auth.roblox.com/", {
+      method: "POST",
+      headers: {
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "X-CSRF-TOKEN": token,
+        "Content-Length": "0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    return resp2.headers.get("x-csrf-token") || token;
   } catch {
     return null;
+  }
+}
+
+async function scrapeCatalogPage(assetId: number): Promise<{
+  price: number | null;
+  sellerId: number | null;
+  userAssetId: number | null;
+  productId: number | null;
+  name: string | null;
+}> {
+  try {
+    const resp = await fetch(`https://www.roblox.com/catalog/${assetId}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+    if (!resp.ok) return { price: null, sellerId: null, userAssetId: null, productId: null, name: null };
+    const html = await resp.text();
+
+    const parseAttr = (attr: string): number | null => {
+      const m = html.match(new RegExp(`${attr}="(\\d+)"`));
+      return m ? parseInt(m[1], 10) : null;
+    };
+    const parseTitleAttr = (): string | null => {
+      const m = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/);
+      if (m) return m[1];
+      const m2 = html.match(/<title[^>]*>([^<]+)<\/title>/);
+      return m2 ? m2[1].split("|")[0].trim() : null;
+    };
+
+    return {
+      price: parseAttr("data-expected-price"),
+      sellerId: parseAttr("data-expected-seller-id"),
+      userAssetId: parseAttr("data-lowest-private-sale-userasset-id"),
+      productId: parseAttr("data-product-id"),
+      name: parseTitleAttr(),
+    };
+  } catch {
+    return { price: null, sellerId: null, userAssetId: null, productId: null, name: null };
   }
 }
 
@@ -421,29 +471,14 @@ router.get("/sniper/live/:assetId", async (req, res): Promise<void> => {
   }
 
   try {
-    const allItems = await fetchRolimonsItems();
+    const [allItems, scraped, thumbMap] = await Promise.all([
+      fetchRolimonsItems().catch(() => [] as RolimonsItem[]),
+      scrapeCatalogPage(assetId),
+      batchFetchThumbnails([assetId]),
+    ]);
+
     const rolimonsItem = allItems.find(i => i.id === assetId);
-
-    let lowestPrice: number | null = null;
-    let itemName = rolimonsItem?.name || `Item #${assetId}`;
-
-    try {
-      const detailsResp = await fetch("https://catalog.roblox.com/v1/catalog/items/details", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({ items: [{ itemType: "Asset", id: assetId }] }),
-      });
-      if (detailsResp.ok) {
-        const details = await detailsResp.json() as { data: Array<{ id: number; name?: string; lowestPrice?: number; price?: number }> };
-        const item = details.data?.[0];
-        if (item) {
-          if (item.name) itemName = item.name;
-          lowestPrice = item.lowestPrice ?? item.price ?? null;
-        }
-      }
-    } catch {}
-
-    const thumbMap = await batchFetchThumbnails([assetId]);
+    const itemName = scraped.name || rolimonsItem?.name || `Item #${assetId}`;
 
     res.json({
       assetId,
@@ -454,7 +489,10 @@ router.get("/sniper/live/:assetId", async (req, res): Promise<void> => {
       demandLabel: rolimonsItem ? getDemandLabel(rolimonsItem.demand) : "Unknown",
       trend: rolimonsItem?.trend ?? 0,
       trendLabel: rolimonsItem ? getTrendLabel(rolimonsItem.trend) : "Unknown",
-      lowestPrice,
+      lowestPrice: scraped.price,
+      productId: scraped.productId,
+      sellerId: scraped.sellerId,
+      userAssetId: scraped.userAssetId,
       thumbnailUrl: thumbMap[assetId] || null,
     });
   } catch (err) {
@@ -472,6 +510,9 @@ router.post("/sniper/buy", async (req, res): Promise<void> => {
 
   const assetId = typeof req.body.assetId === "number" ? req.body.assetId : parseInt(String(req.body.assetId), 10);
   const maxPrice = typeof req.body.maxPrice === "number" ? req.body.maxPrice : null;
+  const bodyProductId = req.body.productId ? parseInt(String(req.body.productId), 10) : null;
+  const bodySellerId = req.body.sellerId ? parseInt(String(req.body.sellerId), 10) : null;
+  const bodyUserAssetId = req.body.userAssetId ? parseInt(String(req.body.userAssetId), 10) : null;
 
   if (isNaN(assetId) || assetId <= 0) {
     res.status(400).json({ error: "Invalid asset ID" });
@@ -479,48 +520,28 @@ router.post("/sniper/buy", async (req, res): Promise<void> => {
   }
 
   try {
-    console.log(`[Sniper] Fetching lowest seller for asset ${assetId}...`);
-    const sellersResp = await fetch(
-      `https://economy.roblox.com/v1/assets/${assetId}/lowest-sale-sellers`,
-      {
-        headers: {
-          "Cookie": `.ROBLOSECURITY=${cookie}`,
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "application/json",
-        },
+    let price: number;
+    let productId: number;
+    let sellerId: number;
+    let userAssetId: number;
+
+    if (bodyProductId && bodySellerId && bodyUserAssetId && maxPrice !== null) {
+      console.log(`[Sniper] Using pre-scraped data for asset ${assetId}`);
+      price = maxPrice;
+      productId = bodyProductId;
+      sellerId = bodySellerId;
+      userAssetId = bodyUserAssetId;
+    } else {
+      console.log(`[Sniper] Scraping catalog page for asset ${assetId}...`);
+      const scraped = await scrapeCatalogPage(assetId);
+      if (!scraped.price || !scraped.productId || !scraped.sellerId || !scraped.userAssetId) {
+        res.status(404).json({ error: "No sellers available — item may not be for sale or page format changed" });
+        return;
       }
-    );
-
-    if (!sellersResp.ok) {
-      const text = await sellersResp.text();
-      console.error(`[Sniper] Sellers API error ${sellersResp.status}: ${text.slice(0, 200)}`);
-      res.status(400).json({ error: `Failed to get sellers (${sellersResp.status})` });
-      return;
-    }
-
-    const sellersData = await sellersResp.json() as {
-      data?: Array<{
-        seller?: { id: number };
-        price?: number;
-        product_id?: number;
-        user_asset_id?: number;
-      }>;
-    };
-
-    const seller = sellersData.data?.[0];
-    if (!seller) {
-      res.status(404).json({ error: "No sellers available for this item" });
-      return;
-    }
-
-    const price = seller.price ?? 0;
-    const productId = seller.product_id;
-    const sellerId = seller.seller?.id;
-    const userAssetId = seller.user_asset_id;
-
-    if (!productId || !sellerId || !userAssetId) {
-      res.status(400).json({ error: "Incomplete seller data from Roblox" });
-      return;
+      price = scraped.price;
+      productId = scraped.productId;
+      sellerId = scraped.sellerId;
+      userAssetId = scraped.userAssetId;
     }
 
     if (maxPrice !== null && price > maxPrice) {

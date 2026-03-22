@@ -51,6 +51,9 @@ interface WatchlistItem {
   buying: boolean;
   bought: boolean;
   error: string | null;
+  productId: number | null;
+  sellerId: number | null;
+  userAssetId: number | null;
 }
 
 const WATCHLIST_KEY = "limitedink_watchlist_v2";
@@ -118,6 +121,7 @@ function WatchlistTab() {
 
   const fetchLivePrice = useCallback(async (assetId: number): Promise<{
     name: string; rap: number; currentPrice: number | null; thumbnailUrl: string | null;
+    productId: number | null; sellerId: number | null; userAssetId: number | null;
   } | null> => {
     try {
       const resp = await fetch(`${BASE}/api/sniper/live/${assetId}`, {
@@ -127,12 +131,16 @@ function WatchlistTab() {
       if (!resp.ok) return null;
       const data = await resp.json() as {
         name: string; rap: number; lowestPrice: number | null; thumbnailUrl: string | null;
+        productId: number | null; sellerId: number | null; userAssetId: number | null;
       };
       return {
         name: data.name,
         rap: data.rap,
         currentPrice: data.lowestPrice,
         thumbnailUrl: data.thumbnailUrl,
+        productId: data.productId ?? null,
+        sellerId: data.sellerId ?? null,
+        userAssetId: data.userAssetId ?? null,
       };
     } catch {
       return null;
@@ -161,6 +169,9 @@ function WatchlistTab() {
           thumbnailUrl: live.thumbnailUrl || item.thumbnailUrl,
           lastChecked: Date.now(),
           error: null,
+          productId: live.productId ?? item.productId,
+          sellerId: live.sellerId ?? item.sellerId,
+          userAssetId: live.userAssetId ?? item.userAssetId,
         };
       }
     }
@@ -223,6 +234,9 @@ function WatchlistTab() {
         buying: false,
         bought: false,
         error: null,
+        productId: live?.productId ?? null,
+        sellerId: live?.sellerId ?? null,
+        userAssetId: live?.userAssetId ?? null,
       };
       updateWatchlist(prev => [...prev, newItem]);
       setAddAssetId("");
@@ -251,7 +265,13 @@ function WatchlistTab() {
         method: "POST",
         credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ assetId, maxPrice }),
+        body: JSON.stringify({
+          assetId,
+          maxPrice,
+          productId: watchlist.find(w => w.assetId === assetId)?.productId ?? undefined,
+          sellerId: watchlist.find(w => w.assetId === assetId)?.sellerId ?? undefined,
+          userAssetId: watchlist.find(w => w.assetId === assetId)?.userAssetId ?? undefined,
+        }),
       });
       const data = await resp.json() as { success?: boolean; error?: string; price?: number; message?: string };
 
