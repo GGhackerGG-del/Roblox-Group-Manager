@@ -225,7 +225,7 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
   const cached = cacheGet<unknown>(ck);
   if (cached) { res.json(cached); return; }
 
-  let url = `${CATALOG_API}/v1/search/items?category=Clothing&limit=${limit}&salesTypeFilter=1&subcategory=${encodeURIComponent(subcategory)}`;
+  let url = `${CATALOG_API}/v1/search/items/details?category=Clothing&limit=${limit}&salesTypeFilter=1&subcategory=${encodeURIComponent(subcategory)}`;
   if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
   if (sortType) url += `&sortType=${sortType}`;
   if (sortAggregation) url += `&sortAggregation=${sortAggregation}`;
@@ -258,31 +258,37 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
       return;
     }
 
-    const raw = await resp.json() as { data: Array<{ id: number }> };
-    const ids = (raw.data || []).map(i => i.id);
+    type CatalogDetailItem = {
+      id: number;
+      name?: string;
+      assetType?: number;
+      price?: number | null;
+      lowestPrice?: number | null;
+      creatorName?: string;
+      creatorType?: string;
+    };
+    const raw = await resp.json() as { data: CatalogDetailItem[] };
+    const dataItems = raw.data || [];
 
-    if (ids.length === 0) {
+    if (dataItems.length === 0) {
       const payload = { items: [] };
       cacheSet(ck, payload);
       res.json(payload);
       return;
     }
 
-    const detailMap = await fetchItemDetails(ids, cookie);
+    const ids = dataItems.map(i => i.id);
     const thumbMap = await fetchThumbnails(ids);
 
-    const items = ids.map(id => {
-      const d = detailMap.get(id);
-      return {
-        id,
-        name: d?.name || `Asset ${id}`,
-        assetType: d?.assetType === 12 ? "Pants" : "Shirt",
-        assetTypeId: d?.assetType || 11,
-        price: d?.price ?? d?.lowestPrice ?? null,
-        creatorName: d?.creatorName || "",
-        thumbnailUrl: thumbMap[id] || null,
-      };
-    });
+    const items = dataItems.map(d => ({
+      id: d.id,
+      name: d.name || `Asset ${d.id}`,
+      assetType: d.assetType === 12 ? "Pants" : "Shirt",
+      assetTypeId: d.assetType || 11,
+      price: d.price ?? d.lowestPrice ?? null,
+      creatorName: d.creatorName || "",
+      thumbnailUrl: thumbMap[d.id] || null,
+    }));
 
     const payload = { items };
     cacheSet(ck, payload);
@@ -307,12 +313,13 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
 
   if (!allItems) {
     try {
-      const rawIds: number[] = [];
+      type GroupDetailItem = { id: number; name?: string; assetType?: number; price?: number | null; lowestPrice?: number | null; creatorName?: string };
+      const rawItems: GroupDetailItem[] = [];
       let cursor: string | null = null;
       let pages = 0;
 
       while (pages < 30) {
-        const url = `${CATALOG_API}/v1/search/items?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=120&salesTypeFilter=1${cursor ? `&cursor=${cursor}` : ""}`;
+        const url = `${CATALOG_API}/v1/search/items/details?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=120&salesTypeFilter=1${cursor ? `&cursor=${cursor}` : ""}`;
         const resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
 
         if (resp.status === 429) {
@@ -320,8 +327,8 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
           await new Promise(r => setTimeout(r, 6000));
           const retry = await throttledFetch(url, { headers: robloxHeaders(cookie) });
           if (!retry.ok) break;
-          const retryData = await retry.json() as { data: Array<{ id: number }>; nextPageCursor?: string };
-          rawIds.push(...(retryData.data || []).map(i => i.id));
+          const retryData = await retry.json() as { data: GroupDetailItem[]; nextPageCursor?: string };
+          rawItems.push(...(retryData.data || []));
           cursor = retryData.nextPageCursor || null;
           if (!cursor) break;
           pages++;
@@ -330,28 +337,25 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
 
         if (!resp.ok) break;
 
-        const data = await resp.json() as { data: Array<{ id: number }>; nextPageCursor?: string };
-        rawIds.push(...(data.data || []).map(i => i.id));
+        const data = await resp.json() as { data: GroupDetailItem[]; nextPageCursor?: string };
+        rawItems.push(...(data.data || []));
         cursor = data.nextPageCursor || null;
         if (!cursor) break;
         pages++;
         await new Promise(r => setTimeout(r, 600));
       }
 
-      const detailMap = await fetchItemDetails(rawIds, cookie);
-      const thumbMap = await fetchThumbnails(rawIds);
+      const ids = rawItems.map(i => i.id);
+      const thumbMap = await fetchThumbnails(ids);
 
-      allItems = rawIds.map(id => {
-        const d = detailMap.get(id);
-        return {
-          id,
-          name: d?.name || `Asset ${id}`,
-          assetType: (d?.assetType ?? 11) === 12 ? "Pants" : "Shirt",
-          assetTypeId: d?.assetType || 11,
-          price: d?.price ?? d?.lowestPrice ?? null,
-          thumbnailUrl: thumbMap[id] || null,
-        };
-      });
+      allItems = rawItems.map(d => ({
+        id: d.id,
+        name: d.name || `Asset ${d.id}`,
+        assetType: (d.assetType ?? 11) === 12 ? "Pants" : "Shirt",
+        assetTypeId: d.assetType || 11,
+        price: d.price ?? d.lowestPrice ?? null,
+        thumbnailUrl: thumbMap[d.id] || null,
+      }));
 
       cacheSet(ck, allItems);
     } catch (err) {
