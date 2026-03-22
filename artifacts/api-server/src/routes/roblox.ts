@@ -22,9 +22,9 @@ async function fetchRobloxWithRetry(url: string, cookie: string, retries = 2): P
   for (let i = 0; i <= retries; i++) {
     const resp = await fetchRoblox(url, cookie);
     if (resp.status !== 429) return resp;
-    if (i < retries) await new Promise(r => setTimeout(r, 600 * (i + 1)));
+    if (i < retries) await new Promise(r => setTimeout(r, 2000 * (i + 1)));
   }
-  return fetchRoblox(url, cookie); // final attempt
+  return fetchRoblox(url, cookie);
 }
 
 const ROBLOX_USERS_API = "https://users.roblox.com";
@@ -548,7 +548,9 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
     if (!clothingResp.ok) {
       if (clothingResp.status === 429 && retryCount < MAX_RETRIES) {
         retryCount++;
-        await new Promise(r => setTimeout(r, 2000 * retryCount));
+        const waitTime = 3000 * retryCount;
+        console.log(`[Catalog] Rate limited on page ${pages + 1}, waiting ${waitTime / 1000}s (retry ${retryCount}/${MAX_RETRIES})...`);
+        await new Promise(r => setTimeout(r, waitTime));
         continue;
       }
       break;
@@ -564,7 +566,7 @@ router.get("/roblox/groups/:groupId/clothing", async (req, res): Promise<void> =
       cursor = data.nextPageCursor || null;
       if (!cursor) break;
       pages++;
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 500));
     } catch {
       break;
     }
@@ -748,21 +750,22 @@ router.get("/roblox/catalog/search", async (req, res): Promise<void> => {
   const lim2 = Math.min(limit, 30);
   console.log(`[CatalogSearch] keyword="${keyword}" limit=${lim2}`);
 
-  // The Roblox catalog search is a PUBLIC API — no cookie needed.
-  // Using a cookie can actually cause issues if it's expired.
   const searchUrl = `${ROBLOX_CATALOG_API}/v1/search/items?category=3&keyword=${kw}&limit=${lim2}&sortType=0`;
   let searchResp: Response;
   try {
-    // Try public (no-cookie) fetch first for catalog search
     searchResp = await fetch(searchUrl, {
       headers: { "Accept": "application/json" },
     });
     console.log(`[CatalogSearch] public status=${searchResp.status}`);
 
-    // If public fails, try with cookie
-    if (!searchResp.ok && searchResp.status !== 429) {
+    if (searchResp.status === 429) {
+      console.log(`[CatalogSearch] public rate limited, waiting 3s and retrying with cookie...`);
+      await new Promise(r => setTimeout(r, 3000));
+      searchResp = await fetchRobloxWithRetry(searchUrl, cookie, 3);
+      console.log(`[CatalogSearch] retry status=${searchResp.status}`);
+    } else if (!searchResp.ok) {
       console.log(`[CatalogSearch] public failed, trying with cookie...`);
-      searchResp = await fetchRobloxWithRetry(searchUrl, cookie, 1);
+      searchResp = await fetchRobloxWithRetry(searchUrl, cookie, 2);
       console.log(`[CatalogSearch] auth status=${searchResp.status}`);
     }
   } catch (e) {

@@ -310,93 +310,24 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
     }
 
     if (dealsFromApi.length === 0) {
-      console.log("[Sniper] Rolimons deals API returned no results, fetching real best prices from Roblox...");
+      console.log("[Sniper] Rolimons deals API returned no results, building deals from value vs RAP...");
       const allItems = await fetchRolimonsItems();
       const candidates = allItems
-        .filter(i => i.rap > 0 && i.value > 0 && i.demand >= 0)
-        .sort((a, b) => b.rap - a.rap)
-        .slice(0, 150);
-
-      const robloxCookie = req.session.robloxCookie || "";
-      const bestPrices: Record<number, number> = {};
-      const now = Date.now();
-      let fetchCount = 0;
-      let cacheHits = 0;
-
-      const toFetch = candidates.filter(item => {
-        const cached = bestPriceCache[item.id];
-        if (cached && now - cached.ts < BEST_PRICE_TTL) {
-          bestPrices[item.id] = cached.price;
-          cacheHits++;
-          return false;
-        }
-        return true;
-      });
-
-      for (let i = 0; i < toFetch.length; i += 10) {
-        const batch = toFetch.slice(i, i + 10);
-        const pricePromises = batch.map(async (item) => {
-          try {
-            if (robloxCookie) {
-              const resp = await fetch(
-                `https://economy.roblox.com/v1/assets/${item.id}/resellers?limit=1&sortOrder=Asc`,
-                {
-                  headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Accept": "application/json",
-                    "Cookie": `.ROBLOSECURITY=${robloxCookie}`,
-                  },
-                }
-              );
-              if (resp.ok) {
-                const data = await resp.json() as { data?: Array<{ price?: number }> };
-                if (data.data && data.data.length > 0 && data.data[0].price && data.data[0].price > 0) {
-                  bestPrices[item.id] = data.data[0].price;
-                  bestPriceCache[item.id] = { price: data.data[0].price, ts: now };
-                  fetchCount++;
-                  return;
-                }
-              }
-            }
-            const resaleResp = await fetch(
-              `https://economy.roblox.com/v1/assets/${item.id}/resale-data`,
-              {
-                headers: {
-                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                  "Accept": "application/json",
-                },
-              }
-            );
-            if (resaleResp.ok) {
-              const data = await resaleResp.json() as { recentAveragePrice?: number };
-              if (data.recentAveragePrice && data.recentAveragePrice > 0) {
-                bestPrices[item.id] = data.recentAveragePrice;
-                bestPriceCache[item.id] = { price: data.recentAveragePrice, ts: now };
-                fetchCount++;
-              }
-            }
-          } catch {}
-        });
-        await Promise.all(pricePromises);
-        if (i + 10 < toFetch.length) await new Promise(r => setTimeout(r, 300));
-      }
-
-      console.log(`[Sniper] Best prices: ${fetchCount} fetched, ${cacheHits} cached (cookie: ${robloxCookie ? "yes" : "no, using RAP"})`);
-      dealSource = "roblox_best_price";
-
-      const withDeals = candidates
-        .filter(i => bestPrices[i.id] && bestPrices[i.id] < i.rap)
+        .filter(i => i.rap > 0 && i.value > 0 && i.value < i.rap && i.demand >= 0)
         .sort((a, b) => {
-          const aDeal = (a.rap - bestPrices[a.id]) / a.rap;
-          const bDeal = (b.rap - bestPrices[b.id]) / b.rap;
+          const aDeal = (a.rap - a.value) / a.rap;
+          const bDeal = (b.rap - b.value) / b.rap;
           return bDeal - aDeal;
         })
         .slice(0, 100);
 
-      const ids = withDeals.map(i => i.id);
+      console.log(`[Sniper] Found ${candidates.length} items where Rolimons value < RAP`);
+      dealSource = "rolimons_value";
+
+      const ids = candidates.map(i => i.id);
       const thumbMap = await batchFetchThumbnails(ids);
 
-      dealsFromApi = withDeals.map(i => ({
+      dealsFromApi = candidates.map(i => ({
         id: i.id,
         name: i.name,
         acronym: i.acronym,
@@ -409,10 +340,10 @@ router.get("/sniper/deals", async (req, res): Promise<void> => {
         projected: i.projected === 1,
         hyped: i.hyped === 1,
         rare: i.rare === 1,
-        discount: Math.round(((i.rap - bestPrices[i.id]) / i.rap) * 100),
-        priceDiff: Math.round(((bestPrices[i.id] - i.rap) / i.rap) * 100),
+        discount: Math.round(((i.rap - i.value) / i.rap) * 100),
+        priceDiff: Math.round(((i.value - i.rap) / i.rap) * 100),
         thumbnailUrl: thumbMap[i.id] || null,
-        listedPrice: bestPrices[i.id],
+        listedPrice: i.value,
       }));
     }
 

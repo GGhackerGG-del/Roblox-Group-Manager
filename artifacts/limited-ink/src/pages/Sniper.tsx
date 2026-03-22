@@ -439,7 +439,7 @@ export default function Sniper() {
                                 <span className="font-mono">RAP: <span className="text-foreground font-semibold">{item.rap.toLocaleString()} R$</span></span>
                                 <span className="text-muted-foreground">→</span>
                                 <span className="font-mono text-green-600 font-semibold">
-                                  Best Price: {bestPrice.toLocaleString()} R$
+                                  Value: {bestPrice.toLocaleString()} R$
                                 </span>
                                 <DemandBadge demand={item.demand} label={item.demandLabel} />
                               </div>

@@ -464,104 +464,116 @@ async function releaseAndPriceClothing(
 ): Promise<{ success: boolean; error?: string }> {
   const salePrice = Math.max(price, 5);
 
-  console.log(`[Upload] Setting price for asset ${assetId}: ${salePrice} R$ (waiting 5s for Roblox to process)...`);
-  await new Promise(r => setTimeout(r, 5000));
-
-  const csrfToken = await getRobloxCsrf(cookie);
-  if (!csrfToken) {
-    console.log(`[Upload] Could not get CSRF to publish asset ${assetId}`);
-    return { success: false, error: "Failed to get CSRF token" };
-  }
-
   const publisherUserId = await getAuthenticatedUserId(cookie);
   if (!publisherUserId) {
     console.log(`[Upload] Could not get publisher user ID for asset ${assetId}`);
     return { success: false, error: "Failed to get authenticated user ID" };
   }
 
-  const requestData = {
-    isRentalOptIn: false,
-    idempotencyToken: crypto.randomUUID(),
-    agreedPublishingFee: 0,
-    creatorGroupId: groupId,
-    description: description || "Created with Limited.Ink",
-    isFree: false,
-    name: name || `Clothing ${assetId}`,
-    optOutFromRegionalPricing: false,
-    priceInRobux: salePrice,
-    priceOffset: 0,
-    publisherUserId: publisherUserId,
-    publishingType: 2,
-    quantity: 0,
-    quantityLimitPerUser: 0,
-    resaleRestriction: 2,
-    saleLocationConfiguration: {
-      saleLocationType: 1,
-      places: [],
-    },
-    targetId: assetId.toString(),
-    targetType: 0,
-  };
+  const MAX_PUBLISH_ATTEMPTS = 3;
+  const DELAYS = [8000, 15000, 25000];
 
-  console.log(`[Upload] POST itemconfiguration.roblox.com/v1/collectibles for asset ${assetId}, user ${publisherUserId}, group ${groupId}`);
+  for (let attempt = 0; attempt < MAX_PUBLISH_ATTEMPTS; attempt++) {
+    const delay = attempt === 0 ? DELAYS[0] : DELAYS[attempt] || 25000;
+    console.log(`[Upload] Publish attempt ${attempt + 1}/${MAX_PUBLISH_ATTEMPTS} for asset ${assetId}: ${salePrice} R$ (waiting ${delay / 1000}s)...`);
+    await new Promise(r => setTimeout(r, delay));
 
-  try {
-    const resp = await fetch("https://itemconfiguration.roblox.com/v1/collectibles", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "X-CSRF-TOKEN": csrfToken,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Origin": "https://create.roblox.com",
-        "Referer": "https://create.roblox.com/",
-      },
-      body: JSON.stringify(requestData),
-    });
-
-    if (resp.ok) {
-      const data = await resp.json();
-      console.log(`[Upload] Price ${salePrice} R$ set for asset ${assetId} via collectibles API`, JSON.stringify(data).slice(0, 200));
-      return { success: true };
+    const csrfToken = await getRobloxCsrf(cookie);
+    if (!csrfToken) {
+      console.log(`[Upload] Could not get CSRF token (attempt ${attempt + 1})`);
+      continue;
     }
 
-    const text = await resp.text();
-    console.log(`[Upload] collectibles API failed (${resp.status}): ${text.slice(0, 500)}`);
+    const requestData = {
+      isRentalOptIn: false,
+      idempotencyToken: crypto.randomUUID(),
+      agreedPublishingFee: 0,
+      creatorGroupId: groupId,
+      description: description || "Created with Limited.Ink",
+      isFree: false,
+      name: name || `Clothing ${assetId}`,
+      optOutFromRegionalPricing: false,
+      priceInRobux: salePrice,
+      priceOffset: 0,
+      publisherUserId: publisherUserId,
+      publishingType: 2,
+      quantity: 0,
+      quantityLimitPerUser: 0,
+      resaleRestriction: 2,
+      saleLocationConfiguration: {
+        saleLocationType: 1,
+        places: [],
+      },
+      targetId: assetId.toString(),
+      targetType: 0,
+    };
 
-    if (resp.status === 403) {
-      const csrf2 = await getRobloxCsrf(cookie);
-      if (csrf2) {
-        requestData.idempotencyToken = crypto.randomUUID();
-        const retry = await fetch("https://itemconfiguration.roblox.com/v1/collectibles", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Cookie": `.ROBLOSECURITY=${cookie}`,
-            "X-CSRF-TOKEN": csrf2,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Origin": "https://create.roblox.com",
-            "Referer": "https://create.roblox.com/",
-          },
-          body: JSON.stringify(requestData),
-        });
+    try {
+      const resp = await fetch("https://itemconfiguration.roblox.com/v1/collectibles", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": `.ROBLOSECURITY=${cookie}`,
+          "X-CSRF-TOKEN": csrfToken,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Origin": "https://create.roblox.com",
+          "Referer": "https://create.roblox.com/",
+        },
+        body: JSON.stringify(requestData),
+      });
 
-        if (retry.ok) {
-          const retryData = await retry.json();
-          console.log(`[Upload] Price ${salePrice} R$ set for asset ${assetId} (CSRF retry)`, JSON.stringify(retryData).slice(0, 200));
-          return { success: true };
+      if (resp.ok) {
+        const data = await resp.json();
+        console.log(`[Upload] Price ${salePrice} R$ set for asset ${assetId} via collectibles API (attempt ${attempt + 1})`, JSON.stringify(data).slice(0, 200));
+        return { success: true };
+      }
+
+      const text = await resp.text();
+      console.log(`[Upload] collectibles API attempt ${attempt + 1} failed (${resp.status}): ${text.slice(0, 500)}`);
+
+      if (resp.status === 403) {
+        const csrf2 = await getRobloxCsrf(cookie);
+        if (csrf2) {
+          requestData.idempotencyToken = crypto.randomUUID();
+          const retry = await fetch("https://itemconfiguration.roblox.com/v1/collectibles", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Cookie": `.ROBLOSECURITY=${cookie}`,
+              "X-CSRF-TOKEN": csrf2,
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              "Origin": "https://create.roblox.com",
+              "Referer": "https://create.roblox.com/",
+            },
+            body: JSON.stringify(requestData),
+          });
+
+          if (retry.ok) {
+            const retryData = await retry.json();
+            console.log(`[Upload] Price ${salePrice} R$ set for asset ${assetId} (CSRF retry, attempt ${attempt + 1})`, JSON.stringify(retryData).slice(0, 200));
+            return { success: true };
+          }
         }
-        const retryText = await retry.text();
-        console.log(`[Upload] collectibles CSRF retry failed (${retry.status}): ${retryText.slice(0, 500)}`);
-        return { success: false, error: `Price setting failed (${retry.status}): ${retryText.slice(0, 200)}` };
+      }
+
+      if (resp.status === 500 && text.includes("Gateway could not publish")) {
+        console.log(`[Upload] Item ${assetId} not ready yet (still processing/moderating), will retry...`);
+        continue;
+      }
+
+      if (attempt === MAX_PUBLISH_ATTEMPTS - 1) {
+        return { success: false, error: `Price setting failed after ${MAX_PUBLISH_ATTEMPTS} attempts (${resp.status}): ${text.slice(0, 200)}` };
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`[Upload] Error setting price attempt ${attempt + 1} for asset ${assetId}:`, msg);
+      if (attempt === MAX_PUBLISH_ATTEMPTS - 1) {
+        return { success: false, error: msg };
       }
     }
-
-    return { success: false, error: `Price setting failed (${resp.status}): ${text.slice(0, 200)}` };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.log(`[Upload] Error setting price for asset ${assetId}:`, msg);
-    return { success: false, error: msg };
   }
+
+  return { success: false, error: `Could not publish asset ${assetId} after ${MAX_PUBLISH_ATTEMPTS} attempts. The item may still be processing on Roblox. Try publishing manually from create.roblox.com.` };
 }
 
 async function uploadViaCookie(
