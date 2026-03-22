@@ -15,14 +15,14 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 ### Frontend Pages
 - `Activation.tsx` — License code entry (split-screen, XXXX-XXXX-XXXX-XXXX format)
 - `RobloxLogin.tsx` — Roblox cookie entry (sessionStorage only, never persisted in DB)
-- `DashboardLayout.tsx` — Sidebar with owner groups list, user profile, license info, Tools section (AI Assistant, Competitors, Limited Sniper), Community & Settings links
+- `DashboardLayout.tsx` — Sidebar with owner groups list, user profile, license info, Tools section (AI Assistant, Competitors), Community & Settings links
 - `Home.tsx` — Empty state when no group selected
 - `GroupView.tsx` — 5-tab view: P&L, Catalog (search marketplace clothing by keyword/sort/price, copy to group or download template), Clothing (browse group's own clothing, download templates), Upload (multi-file PNG drag-and-drop queue with name/type/price per item, auto-release on sale), Alt Accounts. Tab state persisted per group in localStorage. Default tab is P&L.
 - `Community.tsx` — Social hub: Feed (posts/likes/comments), Forum (Suggestions/Off-topic/Q&A with voting & replies), Discover (find developers), Friends (requests, chat), Chat (DMs)
 - `Settings.tsx` — Profile bio, Theme (light/dark/system), Notifications, Privacy (with Cookie Security info), Data export, License info, About. Side-nav layout.
 - `Assistant.tsx` — AI chat assistant for Roblox development help (Lua scripts, moderation policies, clothing strategies, Discord posts). Uses SSE streaming. Supports markdown rendering (**bold**, *italic*, `code`, # ## ### headers).
 - `Competitors.tsx` — Analyze any Roblox group by ID: member count, clothing stats, top items with thumbnails, all clothing toggle, pricing. Uses PageCacheContext for state persistence.
-- `Sniper.tsx` — Monitor Roblox limited items via Rolimons API. Browse all limiteds with thumbnails + RAP/value/demand/trend data. Find deals showing listed price vs RAP with deal % (e.g. RAP 1500 selling for 750 = 50% DEAL). Uses PageCacheContext for state persistence.
+
 - `PnL.tsx` — Group-level Profit & Loss dashboard: balance, pending, daily/weekly revenue, Roblox commission, net in USD/RUB, top items, recent transactions. Uses PageCacheContext for state persistence.
 
 ### Backend Routes
@@ -39,8 +39,7 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `GET /api/competitor/analyze/:groupId` — Analyze competitor group (members, clothing paginated up to 10 pages with thumbnails, top items)
 - `POST /api/assistant/chat` — AI assistant chat with SSE streaming (uses OpenAI via Replit AI Integrations)
 - `POST /api/banshield/analyze` — Content moderation pre-check for clothing names/descriptions
-- `GET /api/sniper/items?search=` — Browse limited items from Rolimons (3-min cache) with RAP/value/demand/trend data and thumbnails (batch fetch)
-- `GET /api/sniper/deals` — Find limited items from Rolimons deals API with thumbnails, Best Price vs RAP comparison (deal % = (rap - bestPrice) / rap)
+
 - `GET /api/pnl/group/:groupId` — Group P&L: balance, revenue, transactions (up to 10 pages) with item thumbnails, top items
 - `GET /api/forum/topics?category=` — List forum topics by category (suggestions/offtopic/qa)
 - `GET /api/forum/topics/:topicId` — Get topic details with replies

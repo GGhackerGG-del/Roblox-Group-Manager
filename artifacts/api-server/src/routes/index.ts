@@ -9,7 +9,6 @@ import featuredGroupsRouter from "./featuredGroups";
 import competitorRouter from "./competitor";
 import assistantRouter from "./assistant";
 import banshieldRouter from "./banshield";
-import sniperRouter from "./sniper";
 import pnlRouter from "./pnl";
 import forumRouter from "./forum";
 
@@ -36,7 +35,6 @@ router.use("/social", requireLicense);
 router.use("/competitor", requireLicense);
 router.use("/assistant", requireLicense);
 router.use("/banshield", requireLicense);
-router.use("/sniper", requireLicense);
 router.use("/pnl", requireLicense);
 router.use("/forum", requireLicense);
 router.use(robloxRouter);
@@ -45,7 +43,6 @@ router.use(socialRouter);
 router.use(competitorRouter);
 router.use(assistantRouter);
 router.use(banshieldRouter);
-router.use(sniperRouter);
 router.use(pnlRouter);
 router.use(forumRouter);
 

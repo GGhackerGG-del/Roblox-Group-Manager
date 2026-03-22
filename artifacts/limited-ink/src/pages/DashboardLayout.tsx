@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair } from "lucide-react";
+import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-react";
@@ -69,24 +69,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       } catch {}
     };
 
-    const prefetchSniper = async () => {
-      if (prefetchedRef.current.has("sniper_items")) return;
-      if (cache.get("sniper_browse")) return;
-      prefetchedRef.current.add("sniper_items");
-      try {
-        const resp = await fetch(`${BASE}/api/sniper/items`, { credentials: "include", headers });
-        if (resp.ok) {
-          const data = await resp.json();
-          cache.set("sniper_browse", { items: data.items || [], total: data.total || 0, search: "" });
-        }
-      } catch {}
-    };
-
     const groups = groupsData.groups.slice(0, 5);
     groups.forEach((g, i) => {
       setTimeout(() => prefetchPnL(String(g.id)), i * 400);
     });
-    setTimeout(prefetchSniper, groups.length * 400 + 200);
   }, [groupsData?.groups?.length]);
 
   return (
@@ -112,7 +98,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </h3>
           <NavItem href="/assistant" icon={<Bot className="w-4 h-4" />} label="AI Assistant" isActive={location === "/assistant"} badge="AI" />
           <NavItem href="/competitors" icon={<Search className="w-4 h-4" />} label="Competitors" isActive={location === "/competitors"} />
-          <NavItem href="/sniper" icon={<Crosshair className="w-4 h-4" />} label="Limited Sniper" isActive={location === "/sniper"} badge="NEW" />
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 custom-scrollbar">

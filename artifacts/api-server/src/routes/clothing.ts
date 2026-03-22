@@ -19,27 +19,32 @@ function cacheSet(k: string, v: unknown) { _cache.set(k, { data: v, ts: Date.now
 
 async function getRobloxCsrf(cookie: string): Promise<string> {
   try {
-    const r1 = await fetch("https://auth.roblox.com/", {
+    const hdrs: Record<string, string> = {
+      "Cookie": `.ROBLOSECURITY=${cookie}`,
+      "Content-Length": "0",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Referer": "https://www.roblox.com/",
+      "Origin": "https://www.roblox.com",
+    };
+    console.log("[Clothing] Getting CSRF token...");
+    const r1 = await fetch("https://auth.roblox.com/v2/logout", {
       method: "POST",
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "Content-Length": "0",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
+      headers: hdrs,
     });
     const token = r1.headers.get("x-csrf-token");
-    if (!token) return "";
-    const r2 = await fetch("https://auth.roblox.com/", {
-      method: "POST",
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "X-CSRF-TOKEN": token,
-        "Content-Length": "0",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-    });
-    return r2.headers.get("x-csrf-token") || token;
-  } catch {
+    console.log(`[Clothing] CSRF r1 status=${r1.status} token=${token ? "yes" : "no"}`);
+    if (!token) {
+      const r1b = await fetch("https://auth.roblox.com/", {
+        method: "POST",
+        headers: hdrs,
+      });
+      const token2 = r1b.headers.get("x-csrf-token");
+      console.log(`[Clothing] CSRF r1b status=${r1b.status} token=${token2 ? "yes" : "no"}`);
+      return token2 || "";
+    }
+    return token;
+  } catch (err) {
+    console.error("[Clothing] CSRF error:", err);
     return "";
   }
 }
@@ -84,12 +89,13 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
   console.log(`[Clothing] Search: ${url.slice(0, 200)}`);
 
   try {
-    let resp = await fetch(url, { headers: { "Accept": "application/json" } });
-    if (!resp.ok) {
+    let resp = await fetch(url, { headers: robloxHeaders(cookie) });
+    if (resp.status === 429) {
+      await new Promise(r => setTimeout(r, 3000));
       resp = await fetch(url, { headers: robloxHeaders(cookie) });
     }
     if (resp.status === 429) {
-      res.status(429).json({ error: "Roblox rate limit. Wait 30 seconds." });
+      res.status(429).json({ error: "Roblox rate limit. Wait 30 seconds and try again." });
       return;
     }
     if (!resp.ok) {
@@ -185,8 +191,27 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
       await new Promise(r => setTimeout(r, 300));
     }
 
-    const thumbMap: Record<number, string | null> = {};
     const allIds = all.map(i => i.id);
+
+    type DetailItem = { id: number; name: string; assetType: number; price: number | null };
+    const detailMap = new Map<number, DetailItem>();
+    for (let i = 0; i < allIds.length; i += 120) {
+      const batch = allIds.slice(i, i + 120);
+      try {
+        const dr = await fetch(`${CATALOG_API}/v1/catalog/items/details`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ items: batch.map(id => ({ itemType: "Asset", id })) }),
+        });
+        if (dr.ok) {
+          const dd = await dr.json() as { data: DetailItem[] };
+          for (const d of (dd.data || [])) detailMap.set(d.id, d);
+        }
+      } catch {}
+      if (i + 120 < allIds.length) await new Promise(r => setTimeout(r, 300));
+    }
+
+    const thumbMap: Record<number, string | null> = {};
     for (let i = 0; i < allIds.length; i += 100) {
       const batch = allIds.slice(i, i + 100);
       try {
@@ -198,14 +223,17 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
       } catch {}
     }
 
-    const items = all.map(item => ({
-      id: item.id,
-      name: item.name,
-      assetType: item.assetType === 12 ? "Pants" : "Shirt",
-      assetTypeId: item.assetType || 11,
-      price: item.price,
-      thumbnailUrl: thumbMap[item.id] || null,
-    }));
+    const items = allIds.map(id => {
+      const d = detailMap.get(id);
+      return {
+        id,
+        name: d?.name || `Item ${id}`,
+        assetType: (d?.assetType ?? 11) === 12 ? "Pants" : "Shirt",
+        assetTypeId: d?.assetType || 11,
+        price: d?.price ?? null,
+        thumbnailUrl: thumbMap[id] || null,
+      };
+    });
 
     const payload = { items };
     cacheSet(ck, payload);
