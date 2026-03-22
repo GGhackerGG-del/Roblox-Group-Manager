@@ -104,8 +104,9 @@ export default function Assistant() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<Message[]>(messages);
-  const scrollPosRef = useRef<number>(0);
-  const isVisibleRef = useRef(true);
+  const scrollPosRef = useRef<number | null>(null);
+  const prevMsgCountRef = useRef(messages.length);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -117,26 +118,26 @@ export default function Assistant() {
   }, [messages]);
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const wasVisible = isVisibleRef.current;
-        isVisibleRef.current = entries[0].isIntersecting;
+    const wrapper = container.closest(".block, .hidden");
+    if (!wrapper) return;
 
-        if (!wasVisible && entries[0].isIntersecting) {
+    const observer = new MutationObserver(() => {
+      const isNowVisible = wrapper.classList.contains("block");
+      if (isNowVisible && scrollRef.current && scrollPosRef.current !== null) {
+        requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (scrollRef.current) {
-              scrollRef.current.scrollTop = scrollPosRef.current;
+              scrollRef.current.scrollTop = scrollPosRef.current!;
             }
           });
-        }
-      },
-      { threshold: 0.1 }
-    );
+        });
+      }
+    });
 
-    observer.observe(el);
+    observer.observe(wrapper, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
 
@@ -145,9 +146,7 @@ export default function Assistant() {
     if (!el) return;
 
     const handleScroll = () => {
-      if (isVisibleRef.current) {
-        scrollPosRef.current = el.scrollTop;
-      }
+      scrollPosRef.current = el.scrollTop;
     };
 
     el.addEventListener("scroll", handleScroll, { passive: true });
@@ -155,8 +154,15 @@ export default function Assistant() {
   }, []);
 
   useEffect(() => {
-    if (isVisibleRef.current && scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const isNewMessage = messages.length > prevMsgCountRef.current;
+    prevMsgCountRef.current = messages.length;
+
+    if (isNewMessage || (messages.length > 0 && scrollPosRef.current === null)) {
+      el.scrollTop = el.scrollHeight;
+      scrollPosRef.current = el.scrollTop;
     }
   }, [messages]);
 
@@ -309,7 +315,7 @@ export default function Assistant() {
   }, [cache]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div ref={containerRef} className="flex flex-col h-full">
       <div className="p-6 pb-0 border-b border-border/50">
         <div className="flex items-center gap-3 pb-4">
           <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
