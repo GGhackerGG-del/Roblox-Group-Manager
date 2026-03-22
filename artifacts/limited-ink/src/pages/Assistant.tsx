@@ -273,7 +273,10 @@ export default function Assistant() {
         body: JSON.stringify({ messages: apiMessages }),
       });
 
-      if (!resp.ok) throw new Error("Failed to get response");
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({ error: "Server error" }));
+        throw new Error(errData.error || `Error ${resp.status}`);
+      }
 
       const reader = resp.body?.getReader();
       if (!reader) throw new Error("No stream");
@@ -309,9 +312,10 @@ export default function Assistant() {
         }
       }
     } catch (err) {
+      const errMsg = err instanceof Error && err.message !== "Failed to fetch" ? err.message : t("assistant.error");
       setMessages(prev => {
         const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content: t("assistant.error") };
+        updated[updated.length - 1] = { role: "assistant", content: errMsg };
         return updated;
       });
     } finally {

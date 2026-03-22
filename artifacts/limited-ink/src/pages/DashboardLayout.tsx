@@ -6,7 +6,7 @@ import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSqu
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-react";
-import { motion } from "framer-motion";
+
 import { playHover, playClick } from "@/hooks/useSounds";
 import { usePageCache } from "@/contexts/PageCacheContext";
 
@@ -188,15 +188,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </div>
 
       <main className="flex-1 relative overflow-hidden bg-background">
-        <motion.div
-          key={location}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="w-full h-full overflow-y-auto custom-scrollbar"
-        >
+        <div className="w-full h-full overflow-y-auto custom-scrollbar">
           {children}
-        </motion.div>
+        </div>
       </main>
     </div>
   );

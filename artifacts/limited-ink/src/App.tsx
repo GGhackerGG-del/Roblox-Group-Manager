@@ -91,7 +91,7 @@ function PersistentPages() {
       <div className={location === "/profile" ? "block" : "hidden"}><Profile /></div>
       <div className={location === "/community" ? "block" : "hidden"}><Community /></div>
       <div className={location === "/settings" ? "block" : "hidden"}><Settings /></div>
-      <div className={location === "/assistant" ? "block" : "hidden"}><Assistant /></div>
+      <div className={`${location === "/assistant" ? "block" : "hidden"} h-full`}><Assistant /></div>
       <div className={location === "/competitors" ? "block" : "hidden"}><Competitors /></div>
       <div className={location === "/sniper" ? "block" : "hidden"}><Sniper /></div>
       {isGroupPage && <GroupView id={groupId!} />}
