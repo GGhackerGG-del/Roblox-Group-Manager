@@ -18,6 +18,7 @@ import Community from "@/pages/Community";
 import Settings from "@/pages/Settings";
 import Assistant from "@/pages/Assistant";
 import Competitors from "@/pages/Competitors";
+import Sniper from "@/pages/Sniper";
 
 
 const queryClient = new QueryClient({
@@ -102,6 +103,13 @@ function Router() {
         <RequireAuth>
           <DashboardLayout>
             <Competitors />
+          </DashboardLayout>
+        </RequireAuth>
+      </Route>
+      <Route path="/sniper">
+        <RequireAuth>
+          <DashboardLayout>
+            <Sniper />
           </DashboardLayout>
         </RequireAuth>
       </Route>

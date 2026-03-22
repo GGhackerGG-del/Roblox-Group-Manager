@@ -97,18 +97,23 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   const [sortType, setSortType] = useState("0");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [creatorId, setCreatorId] = useState("");
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [copying, setCopying] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDownloading, setBulkDownloading] = useState(false);
 
   const search = async () => {
     if (!keyword.trim()) return;
     playClick();
     setLoading(true);
+    setSelected(new Set());
     try {
       const params = new URLSearchParams({ keyword: keyword.trim(), subcategory, sortType });
       if (minPrice) params.set("minPrice", minPrice);
       if (maxPrice) params.set("maxPrice", maxPrice);
+      if (creatorId.trim()) params.set("creatorId", creatorId.trim());
       const data = await apiFetch<{ items: ClothingItem[] }>(`/api/clothing/search?${params}`);
       setItems(data.items || []);
       if (!data.items?.length) toast({ title: "No results", description: "Try a different keyword." });
@@ -117,6 +122,45 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
       toast({ title: "Search failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelected(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const bulkDownload = async () => {
+    if (!selected.size) return;
+    playClick();
+    setBulkDownloading(true);
+    try {
+      const data = await apiFetch<{ results: Array<{ id: number; name: string; b64: string | null; error?: string }> }>("/api/clothing/bulk-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds: Array.from(selected) }),
+      });
+      let ok = 0;
+      for (const r of data.results) {
+        if (r.b64) {
+          const link = document.createElement("a");
+          link.href = `data:image/png;base64,${r.b64}`;
+          link.download = `${r.name.replace(/[^a-z0-9_.-]/gi, "_")}.png`;
+          link.click();
+          ok++;
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      playSuccess();
+      toast({ title: "Bulk download", description: `Downloaded ${ok} of ${selected.size} templates.` });
+    } catch (e: unknown) {
+      playError();
+      toast({ title: "Bulk download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    } finally {
+      setBulkDownloading(false);
     }
   };
 
@@ -187,8 +231,9 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
               <SelectItem value="5">Recently Updated</SelectItem>
             </SelectContent>
           </Select>
-          <Input placeholder="Min ₽" value={minPrice} onChange={e => setMinPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
-          <Input placeholder="Max ₽" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
+          <Input placeholder="Min R$" value={minPrice} onChange={e => setMinPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
+          <Input placeholder="Max R$" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="w-20 rounded-xl text-sm" />
+          <Input placeholder="Group ID filter" value={creatorId} onChange={e => setCreatorId(e.target.value)} className="w-32 rounded-xl text-sm" />
           <Button onClick={search} disabled={loading || !keyword.trim()} className="rounded-xl gap-1.5">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Search
@@ -196,25 +241,41 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
         </div>
 
         {items.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[600px] overflow-y-auto pr-1">
-            {items.map(item => (
-              <div key={item.id} className="rounded-xl border border-border/50 p-2 bg-card hover:bg-accent/30 transition-colors">
-                {item.thumbnailUrl && <img src={item.thumbnailUrl} alt={item.name} className="w-full aspect-square rounded-lg object-cover mb-2" loading="lazy" />}
-                <p className="text-xs font-medium truncate" title={item.name}>{item.name}</p>
-                <p className="text-[10px] text-muted-foreground">{item.assetType} · {item.price != null ? `${item.price} R$` : "Off-sale"}</p>
-                {item.creatorName && <p className="text-[10px] text-muted-foreground truncate">{item.creatorName}</p>}
-                <div className="flex gap-1 mt-1.5">
-                  <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 flex-1 gap-1" onClick={() => copyItem(item)} disabled={copying === item.id}>
-                    {copying === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Copy className="w-3 h-3" />}
-                    Copy
+          <>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{items.length} results</span>
+              {selected.size > 0 && (
+                <>
+                  <span>· {selected.size} selected</span>
+                  <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 gap-1" onClick={bulkDownload} disabled={bulkDownloading}>
+                    {bulkDownloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <FolderDown className="w-3 h-3" />}
+                    Download {selected.size}
                   </Button>
-                  <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7 px-2" onClick={() => downloadTemplate(item)} title="Download template">
-                    <Download className="w-3 h-3" />
-                  </Button>
+                  <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7" onClick={() => setSelected(new Set())}>Clear</Button>
+                </>
+              )}
+              <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7" onClick={() => setSelected(new Set(items.map(i => i.id)))}>Select All</Button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[600px] overflow-y-auto pr-1">
+              {items.map(item => (
+                <div key={item.id} className={`rounded-xl border p-2 bg-card hover:bg-accent/30 transition-colors cursor-pointer ${selected.has(item.id) ? "border-primary ring-1 ring-primary/30" : "border-border/50"}`} onClick={() => toggleSelect(item.id)}>
+                  {item.thumbnailUrl && <img src={item.thumbnailUrl} alt={item.name} className="w-full aspect-square rounded-lg object-cover mb-2" loading="lazy" />}
+                  <p className="text-xs font-medium truncate" title={item.name}>{item.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{item.assetType} · {item.price != null ? `${item.price} R$` : "Off-sale"}</p>
+                  {item.creatorName && <p className="text-[10px] text-muted-foreground truncate">{item.creatorName}</p>}
+                  <div className="flex gap-1 mt-1.5" onClick={e => e.stopPropagation()}>
+                    <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 flex-1 gap-1" onClick={() => copyItem(item)} disabled={copying === item.id}>
+                      {copying === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Copy className="w-3 h-3" />}
+                      Copy
+                    </Button>
+                    <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7 px-2" onClick={() => downloadTemplate(item)} title="Download template">
+                      <Download className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
@@ -369,12 +430,16 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState<number | null>(null);
+  const [searchFilter, setSearchFilter] = useState("");
+  const [total, setTotal] = useState(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (q?: string) => {
     setLoading(true);
     try {
-      const data = await apiFetch<{ items: ClothingItem[] }>(`/api/clothing/group/${groupId}/items`);
+      const params = q ? `?search=${encodeURIComponent(q)}` : "";
+      const data = await apiFetch<{ items: ClothingItem[]; total: number }>(`/api/clothing/group/${groupId}/items${params}`);
       setItems(data.items || []);
+      setTotal(data.total || data.items?.length || 0);
     } catch {
       toast({ title: "Failed to load", description: "Could not fetch group clothing.", variant: "destructive" });
     } finally {
@@ -407,13 +472,20 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle className="text-base flex items-center gap-2"><FolderDown className="w-4 h-4" /> Group Clothing</CardTitle>
-          <CardDescription>Browse and download clothing templates from this group.</CardDescription>
+          <CardDescription>Browse and download clothing templates from this group. {total > 0 && `${total} total items.`}</CardDescription>
         </div>
-        <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={load} disabled={loading}>
+        <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={() => load(searchFilter || undefined)} disabled={loading}>
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
         </Button>
       </CardHeader>
       <CardContent>
+        <div className="flex gap-2 mb-4">
+          <Input placeholder="Search by name or ID..." value={searchFilter} onChange={e => setSearchFilter(e.target.value)} onKeyDown={e => e.key === "Enter" && load(searchFilter || undefined)} className="rounded-xl text-sm" />
+          <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={() => load(searchFilter || undefined)} disabled={loading}>
+            <Search className="w-3.5 h-3.5" /> Filter
+          </Button>
+          {searchFilter && <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => { setSearchFilter(""); load(); }}>Clear</Button>}
+        </div>
         {loading && !items.length ? (
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
             {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded-xl" />)}

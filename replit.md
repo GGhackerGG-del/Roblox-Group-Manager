@@ -15,13 +15,14 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 ### Frontend Pages
 - `Activation.tsx` — License code entry (split-screen, XXXX-XXXX-XXXX-XXXX format)
 - `RobloxLogin.tsx` — Roblox cookie entry (sessionStorage only, never persisted in DB)
-- `DashboardLayout.tsx` — Sidebar with owner groups list, user profile, license info, Tools section (AI Assistant, Competitors), Community & Settings links
+- `DashboardLayout.tsx` — Sidebar with owner groups list, user profile, license info, Tools section (AI Assistant, Competitors, Limited Sniper), Community & Settings links
 - `Home.tsx` — Empty state when no group selected
 - `GroupView.tsx` — 5-tab view: P&L, Catalog (search marketplace clothing by keyword/sort/price, copy to group or download template), Clothing (browse group's own clothing, download templates), Upload (multi-file PNG drag-and-drop queue with name/type/price per item, auto-release on sale), Alt Accounts. Tab state persisted per group in localStorage. Default tab is P&L.
 - `Community.tsx` — Social hub: Feed (posts/likes/comments), Forum (Suggestions/Off-topic/Q&A with voting & replies), Discover (find developers), Friends (requests, chat), Chat (DMs)
 - `Settings.tsx` — Profile bio, Theme (light/dark/system), Notifications, Privacy (with Cookie Security info), Data export, License info, About. Side-nav layout.
 - `Assistant.tsx` — AI chat assistant for Roblox development help (Lua scripts, moderation policies, clothing strategies, Discord posts). Uses SSE streaming. Supports markdown rendering (**bold**, *italic*, `code`, # ## ### headers).
 - `Competitors.tsx` — Analyze any Roblox group by ID: member count, clothing stats, top items with thumbnails, all clothing toggle, pricing. Uses PageCacheContext for state persistence.
+- `Sniper.tsx` — Limited Sniper tool: Browse/search all Roblox limited items (Rolimons data), Deals tab (undervalued/projected items), Watchlist with live price checking and one-click buy. localStorage watchlist persistence.
 
 - `PnL.tsx` — Group-level Profit & Loss dashboard: balance, pending, daily/weekly revenue, Roblox commission, net in USD/RUB, top items, recent transactions. Uses PageCacheContext for state persistence.
 
@@ -32,13 +33,18 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `POST /api/roblox/auth` — Validate cookie, return user profile
 - `POST /api/roblox/groups` — List groups where user is owner
 - `POST /api/roblox/groups/:groupId/stats` — Group statistics (members, funds, join policy)
-- `GET /api/clothing/search?keyword=&subcategory=&sortType=&minPrice=&maxPrice=` — Search Roblox catalog clothing with filters
-- `GET /api/clothing/group/:groupId/items` — List group's clothing items with thumbnails
+- `GET /api/clothing/search?keyword=&subcategory=&sortType=&minPrice=&maxPrice=&creatorId=` — Search Roblox catalog clothing with filters (group filter via creatorId)
+- `GET /api/clothing/group/:groupId/items?search=` — List group's clothing items with thumbnails and search filter
+- `POST /api/clothing/bulk-download` — Bulk download templates (up to 50 items)
 - `GET /api/clothing/:itemId/template` — Download clothing template (texture) as base64
 - `POST /api/clothing/upload` — Upload PNG clothing to group + auto-release at price (CSRF, multipart)
 - `GET /api/competitor/analyze/:groupId` — Analyze competitor group (members, clothing paginated up to 10 pages with thumbnails, top items)
 - `POST /api/assistant/chat` — AI assistant chat with SSE streaming (uses OpenAI via Replit AI Integrations)
 - `POST /api/banshield/analyze` — Content moderation pre-check for clothing names/descriptions
+- `GET /api/sniper/items?search=` — Browse/search all Roblox limited items (Rolimons data)
+- `GET /api/sniper/deals` — Get undervalued/projected limited items
+- `GET /api/sniper/live/:assetId` — Get live catalog price for a limited item
+- `POST /api/sniper/buy` — Purchase a limited item (productId, price, sellerId, userAssetId)
 
 - `GET /api/pnl/group/:groupId` — Group P&L: balance, revenue, transactions (up to 10 pages) with item thumbnails, top items
 - `GET /api/forum/topics?category=` — List forum topics by category (suggestions/offtopic/qa)
@@ -118,7 +124,7 @@ CREATE TABLE licenses (
 - Dark mode ready (CSS variables)
 
 ## Known Limitations / Pending Work
-- Roblox clothing upload: uses `apis.roblox.com/assets/user-auth/v1/assets` (cookie-based) with Open Cloud fallback. Price/release via `POST itemconfiguration.roblox.com/v1/collectibles` (publishingType:2, resaleRestriction:2). 5s delay between upload and price-set. Requires `publisherUserId` from authenticated user.
+- Roblox clothing upload: tries 3 endpoints in order (v1/avatar-assets, v2/avatar-assets, legacy Data/Upload.ashx). Price/release via POST itemconfiguration.roblox.com/v1/assets/{id}/release.
 - Telegram bot for selling license codes is included but basic
 - License expiry checks work via DB `expires_at` field, but UI doesn't show countdown
 - Limited Sniper is a scanner/monitor only, not an autobuyer
