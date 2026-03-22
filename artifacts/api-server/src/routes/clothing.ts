@@ -225,7 +225,7 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
   const cached = cacheGet<unknown>(ck);
   if (cached) { res.json(cached); return; }
 
-  let url = `${CATALOG_API}/v1/search/items/details?category=Clothing&limit=${limit}&salesTypeFilter=1&subcategory=${encodeURIComponent(subcategory)}`;
+  let url = `${CATALOG_API}/v1/search/items/details?category=Clothing&limit=${limit}&subcategory=${encodeURIComponent(subcategory)}`;
   if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
   if (sortType) url += `&sortType=${sortType}`;
   if (sortAggregation) url += `&sortAggregation=${sortAggregation}`;
@@ -239,6 +239,7 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
   }
 
   try {
+    console.log(`[Clothing] Search URL: ${url}`);
     let resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
 
     if (resp.status === 429) {
@@ -254,8 +255,23 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
       return;
     }
     if (!resp.ok) {
-      res.status(502).json({ error: `Catalog API error (${resp.status})` });
-      return;
+      const errBody = await resp.text().catch(() => "");
+      console.error(`[Clothing] Search API error status=${resp.status} body=${errBody.slice(0, 300)}`);
+
+      if (!keyword && creatorId) {
+        console.log("[Clothing] Retrying search with salesTypeFilter=1...");
+        const retryUrl = url + "&salesTypeFilter=1";
+        const retryResp = await throttledFetch(retryUrl, { headers: robloxHeaders(cookie) });
+        if (retryResp.ok) {
+          resp = retryResp;
+        } else {
+          res.status(502).json({ error: `Catalog API error (${resp.status})` });
+          return;
+        }
+      } else {
+        res.status(502).json({ error: `Catalog API error (${resp.status})` });
+        return;
+      }
     }
 
     type CatalogDetailItem = {
@@ -299,6 +315,54 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
   }
 });
 
+async function fetchGroupItemsViaItemConfig(groupId: number, cookie: string): Promise<Array<{ id: number; name?: string; assetType?: number; price?: number | null }>> {
+  const items: Array<{ id: number; name?: string; assetType?: number; price?: number | null }> = [];
+  try {
+    let cursor: string | null = null;
+    let pages = 0;
+    while (pages < 10) {
+      const url = `${ITEM_CONFIG_API}/v1/creations/get-assets?assetType=Shirt&groupId=${groupId}&limit=100${cursor ? `&cursor=${cursor}` : ""}`;
+      const resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
+      if (!resp.ok) {
+        console.log(`[Clothing] ItemConfig Shirt API status=${resp.status}`);
+        break;
+      }
+      const data = await resp.json() as { data: Array<{ assetId: number; name: string }>; nextPageCursor?: string };
+      for (const item of data.data || []) {
+        items.push({ id: item.assetId, name: item.name, assetType: 11, price: null });
+      }
+      cursor = data.nextPageCursor || null;
+      if (!cursor) break;
+      pages++;
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    cursor = null;
+    pages = 0;
+    while (pages < 10) {
+      const url = `${ITEM_CONFIG_API}/v1/creations/get-assets?assetType=Pants&groupId=${groupId}&limit=100${cursor ? `&cursor=${cursor}` : ""}`;
+      const resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
+      if (!resp.ok) {
+        console.log(`[Clothing] ItemConfig Pants API status=${resp.status}`);
+        break;
+      }
+      const data = await resp.json() as { data: Array<{ assetId: number; name: string }>; nextPageCursor?: string };
+      for (const item of data.data || []) {
+        items.push({ id: item.assetId, name: item.name, assetType: 12, price: null });
+      }
+      cursor = data.nextPageCursor || null;
+      if (!cursor) break;
+      pages++;
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    console.log(`[Clothing] ItemConfig fallback found ${items.length} items for group ${groupId}`);
+  } catch (err) {
+    console.error("[Clothing] ItemConfig fallback error:", err);
+  }
+  return items;
+}
+
 router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => {
   const cookie = req.session.robloxCookie;
   if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
@@ -319,23 +383,29 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
       let pages = 0;
 
       while (pages < 30) {
-        const url = `${CATALOG_API}/v1/search/items/details?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=120&salesTypeFilter=1${cursor ? `&cursor=${cursor}` : ""}`;
-        const resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
+        const url = `${CATALOG_API}/v1/search/items/details?category=Clothing&creatorType=Group&creatorTargetId=${groupId}&limit=120${cursor ? `&cursor=${cursor}` : ""}`;
+        console.log(`[Clothing] Group items URL: ${url}`);
+        let resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
 
         if (resp.status === 429) {
           console.log("[Clothing] Group search rate limited, waiting...");
           await new Promise(r => setTimeout(r, 6000));
-          const retry = await throttledFetch(url, { headers: robloxHeaders(cookie) });
-          if (!retry.ok) break;
-          const retryData = await retry.json() as { data: GroupDetailItem[]; nextPageCursor?: string };
-          rawItems.push(...(retryData.data || []));
-          cursor = retryData.nextPageCursor || null;
-          if (!cursor) break;
-          pages++;
-          continue;
+          resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
         }
 
-        if (!resp.ok) break;
+        if (!resp.ok) {
+          const errBody = await resp.text().catch(() => "");
+          console.error(`[Clothing] Group items API error status=${resp.status} body=${errBody.slice(0, 300)}`);
+
+          if (pages === 0 && rawItems.length === 0) {
+            console.log("[Clothing] Trying Item Configuration API as fallback...");
+            const fallbackItems = await fetchGroupItemsViaItemConfig(groupId, cookie);
+            if (fallbackItems.length > 0) {
+              rawItems.push(...fallbackItems);
+            }
+          }
+          break;
+        }
 
         const data = await resp.json() as { data: GroupDetailItem[]; nextPageCursor?: string };
         rawItems.push(...(data.data || []));

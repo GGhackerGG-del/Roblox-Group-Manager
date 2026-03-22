@@ -159,13 +159,13 @@ export default function PnL({ groupId }: { groupId: string }) {
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{t("pnl.weekRevenue") || "Week Revenue"}</p>
             <p className="text-lg font-bold text-green-500">{data.weekRevenue.toLocaleString()} R$</p>
-            <p className="text-[10px] text-muted-foreground">{data.weekSales} {t("pnl.sales")}</p>
+            <p className="text-[10px] text-muted-foreground">{data.weekSales ?? 0} {t("pnl.sales")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{t("pnl.monthRevenue") || "Month Revenue"}</p>
-            <p className="text-lg font-bold text-green-500">{data.monthRevenue.toLocaleString()} R$</p>
+            <p className="text-lg font-bold text-green-500">{(data.monthRevenue ?? 0).toLocaleString()} R$</p>
             <p className="text-[10px] text-muted-foreground">{data.totalSales} {t("pnl.sales")}</p>
           </CardContent>
         </Card>
@@ -173,14 +173,14 @@ export default function PnL({ groupId }: { groupId: string }) {
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{t("pnl.commission") || "Commission (30%)"}</p>
             <p className="text-lg font-bold text-red-500">-{data.robloxCommission.toLocaleString()} R$</p>
-            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: -{Math.round(data.monthRevenue * 0.3).toLocaleString()} R$</p>
+            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: -{Math.round((data.monthRevenue ?? 0) * 0.3).toLocaleString()} R$</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{t("pnl.netFiat") || "Net in Fiat"}</p>
             <p className="text-lg font-bold">${data.netUSD} <span className="text-sm text-muted-foreground">/ {data.netRUB.toLocaleString()} ₽</span></p>
-            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: ${data.netMonthUSD} / {data.netMonthRUB.toLocaleString()} ₽</p>
+            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: ${data.netMonthUSD ?? 0} / {(data.netMonthRUB ?? 0).toLocaleString()} ₽</p>
           </CardContent>
         </Card>
       </div>
