@@ -119,22 +119,49 @@ router.post("/assistant/generate-image", async (req, res): Promise<void> => {
 
     console.log(`[Assistant] Generating image: "${prompt.slice(0, 80)}..."`);
 
-    const response = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt: prompt.trim(),
-      n: 1,
-      size: "1024x1024",
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000);
+
+    let response;
+    try {
+      response = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: prompt.trim(),
+        n: 1,
+        size: "1024x1024",
+      }, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    console.log(`[Assistant] Image generation response received, data length: ${response.data?.length || 0}`);
 
     const b64 = (response.data?.[0] as any)?.b64_json;
     if (!b64) {
+      const rawUrl = response.data?.[0]?.url;
+      if (rawUrl) {
+        console.log(`[Assistant] Got URL instead of b64, fetching: ${rawUrl.slice(0, 100)}...`);
+        const imgResp = await fetch(rawUrl);
+        if (imgResp.ok) {
+          const buf = Buffer.from(await imgResp.arrayBuffer());
+          res.json({ b64_json: buf.toString("base64") });
+          return;
+        }
+      }
+      console.error("[Assistant] No b64_json in response:", JSON.stringify(response.data?.[0]).slice(0, 500));
       res.status(502).json({ error: "No image returned from API." });
       return;
     }
 
+    console.log(`[Assistant] Image generated successfully, b64 length: ${b64.length}`);
     res.json({ b64_json: b64 });
-  } catch (err) {
-    console.error("[Assistant] Image generation error:", err);
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      console.error("[Assistant] Image generation timed out (120s)");
+      res.status(504).json({ error: "Image generation timed out. Try a simpler prompt." });
+      return;
+    }
+    console.error("[Assistant] Image generation error:", err?.message || err, err?.status, err?.response?.data || "");
     res.status(500).json({ error: err instanceof Error ? err.message : "Failed to generate image." });
   }
 });

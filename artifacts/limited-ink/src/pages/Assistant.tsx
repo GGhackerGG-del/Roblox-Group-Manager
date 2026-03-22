@@ -190,20 +190,29 @@ export default function Assistant() {
 
     try {
       const { token, fingerprint } = getAuthCredentials();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) hdrs["Authorization"] = `Bearer ${token}`;
+      if (fingerprint) hdrs["X-Device-Fingerprint"] = fingerprint;
 
-      const resp = await fetch(`${BASE}/api/assistant/generate-image`, {
-        method: "POST",
-        credentials: "include",
-        headers,
-        body: JSON.stringify({ prompt }),
-      });
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 130000);
+
+      let resp: Response;
+      try {
+        resp = await fetch(`${BASE}/api/assistant/generate-image`, {
+          method: "POST",
+          credentials: "include",
+          headers: hdrs,
+          body: JSON.stringify({ prompt }),
+          signal: ac.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
 
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: "Failed" }));
-        throw new Error(err.error || "Failed to generate image");
+        const errData = await resp.json().catch(() => ({ error: "Failed" }));
+        throw new Error(errData.error || "Failed to generate image");
       }
 
       const data = await resp.json() as { b64_json: string };
@@ -214,10 +223,11 @@ export default function Assistant() {
         updated[updated.length - 1] = { role: "assistant", content: "", imageUrl };
         return updated;
       });
-    } catch (err) {
+    } catch (ex: any) {
+      const msg = ex?.name === "AbortError" ? "Timeout — try a simpler prompt" : (ex instanceof Error ? ex.message : t("assistant.error"));
       setMessages(prev => {
         const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content: err instanceof Error ? err.message : t("assistant.error") };
+        updated[updated.length - 1] = { role: "assistant", content: msg };
         return updated;
       });
     } finally {
