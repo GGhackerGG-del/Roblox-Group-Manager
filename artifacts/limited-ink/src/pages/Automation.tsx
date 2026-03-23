@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { getAuthCredentials, useGetRobloxGroups } from "@workspace/api-client-react";
 import { robloxHeadshot } from "@/lib/roblox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
   Cog, UserCheck, UserMinus, Users, Megaphone, Shield, MessageSquareX,
   Coins, Activity, Loader2, RefreshCw, ExternalLink, Trash2, Check,
   X, ChevronDown, Clock, Search, Plus, AlertTriangle, TrendingUp,
-  TrendingDown, Calendar, Zap,
+  TrendingDown, Calendar, Zap, ShieldCheck, KeyRound,
 } from "lucide-react";
 import { playClick, playSuccess, playError } from "@/hooks/useSounds";
 
@@ -123,6 +123,7 @@ export default function Automation() {
   const [payoutSearchLoading, setPayoutSearchLoading] = useState(false);
   const [payoutAmount, setPayoutAmount] = useState("100");
   const [sendingPayout, setSendingPayout] = useState(false);
+  const [twoFA, setTwoFA] = useState<{ open: boolean; challengeId: string; mediaType: string; code: string; verifying: boolean }>({ open: false, challengeId: "", mediaType: "Authenticator", code: "", verifying: false });
 
   const [activityMembers, setActivityMembers] = useState<Member[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -351,22 +352,57 @@ export default function Automation() {
     finally { setPayoutSearchLoading(false); }
   }, [groupId]);
 
-  const sendPayout = async () => {
+  const sendPayout = async (challengeId?: string, verificationToken?: string) => {
     if (!payoutEntries.length) return;
     setSendingPayout(true);
     try {
-      const data = await apiFetch<{ message: string }>(`/api/automation/payout/${groupId}`, {
+      const reqBody: any = { payouts: payoutEntries.map(p => ({ recipientId: p.userId, amount: p.amount })) };
+      if (challengeId && verificationToken) {
+        reqBody.challengeId = challengeId;
+        reqBody.verificationToken = verificationToken;
+      }
+      const resp = await fetch(`${BASE}/api/automation/payout/${groupId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payouts: payoutEntries.map(p => ({ recipientId: p.userId, amount: p.amount })) }),
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        credentials: "include",
+        body: JSON.stringify(reqBody),
       });
+      const data = await resp.json();
+      if (!resp.ok) {
+        if (data.requires2FA) {
+          setTwoFA({ open: true, challengeId: data.challengeId, mediaType: data.mediaType || "Authenticator", code: "", verifying: false });
+          return;
+        }
+        throw new Error(data.error || "Failed to send payout");
+      }
       playSuccess();
       toast({ title: "✅", description: data.message });
       setPayoutEntries([]);
+      setTwoFA({ open: false, challengeId: "", mediaType: "Authenticator", code: "", verifying: false });
     } catch (e: unknown) {
       playError();
       toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setSendingPayout(false); }
+  };
+
+  const verify2FA = async () => {
+    if (!twoFA.code || !twoFA.challengeId) return;
+    setTwoFA(p => ({ ...p, verifying: true }));
+    try {
+      const resp = await fetch(`${BASE}/api/automation/payout/${groupId}/verify-2fa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        credentials: "include",
+        body: JSON.stringify({ challengeId: twoFA.challengeId, code: twoFA.code, mediaType: twoFA.mediaType }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Invalid 2FA code");
+      setTwoFA(p => ({ ...p, open: false }));
+      await sendPayout(twoFA.challengeId, data.verificationToken);
+    } catch (e: unknown) {
+      playError();
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally { setTwoFA(p => ({ ...p, verifying: false })); }
   };
 
   const loadActivity = useCallback(async (cursor?: string) => {
@@ -963,6 +999,46 @@ export default function Automation() {
                 </div>
               </CardContent>
             </Card>
+
+            {twoFA.open && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setTwoFA(p => ({ ...p, open: false }))}>
+                <div className="w-full max-w-sm mx-4 rounded-2xl border border-border bg-background p-6 shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                      <ShieldCheck className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm">{t("auto.2faTitle")}</h3>
+                      <p className="text-xs text-muted-foreground">{twoFA.mediaType === "Email" ? t("auto.2faDescEmail") : twoFA.mediaType === "SMS" ? t("auto.2faDescSms") : t("auto.2faDesc")}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">{t("auto.2faCodeLabel")}</span>
+                    </div>
+                    <Input
+                      autoFocus
+                      placeholder="000000"
+                      value={twoFA.code}
+                      onChange={e => setTwoFA(p => ({ ...p, code: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
+                      onKeyDown={e => { if (e.key === "Enter" && twoFA.code.length === 6) verify2FA(); }}
+                      className="rounded-xl text-center text-lg tracking-[0.3em] font-mono"
+                      maxLength={6}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setTwoFA(p => ({ ...p, open: false }))} disabled={twoFA.verifying}>
+                      {t("common.cancel")}
+                    </Button>
+                    <Button className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 gap-1.5" onClick={verify2FA} disabled={twoFA.code.length !== 6 || twoFA.verifying}>
+                      {twoFA.verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      {t("auto.2faVerify")}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="activity" className="mt-4">
