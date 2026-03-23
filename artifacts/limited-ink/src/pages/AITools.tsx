@@ -9,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Sparkles, FileText, Hash, Palette, TrendingUp, DollarSign, MessageSquare,
+  Sparkles, FileText, Hash, Palette, TrendingUp, MessageSquare,
   Loader2, Copy, Check, ChevronUp, ChevronDown, RefreshCw, Download, Zap,
-  Tag, Search, BarChart2, Star, Clock
+  Search, BarChart2, Star, Clock
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playClick, playSuccess } from "@/hooks/useSounds";
@@ -103,16 +103,6 @@ export default function AITools() {
   } | null>(null);
   const [trendLoading, setTrendLoading] = useState(false);
 
-  const [priceForm, setPriceForm] = useState({ type: "Shirt", style: "", rarity: "Common", demand: "Medium", competitorPrices: "" });
-  const [priceResult, setPriceResult] = useState<{
-    recommendedPrice: number;
-    priceRange: { min: number; max: number };
-    strategy: string;
-    reasoning: string[];
-    proTips: string[];
-    expectedSalesPerWeek: string;
-  } | null>(null);
-  const [priceLoading, setPriceLoading] = useState(false);
 
   const [chatbotForm, setChatbotForm] = useState({ post: "", tone: "friendly", groupContext: "" });
   const [chatbotResult, setChatbotResult] = useState<{
@@ -188,15 +178,6 @@ export default function AITools() {
     finally { setTrendLoading(false); }
   };
 
-  const genPrice = async () => {
-    setPriceLoading(true); setPriceResult(null);
-    try {
-      const r = await apiFetch<typeof priceResult>("/api/ai-tools/price", { ...priceForm, language: lang });
-      setPriceResult(r);
-      playSuccess();
-    } catch (e) { handleError(e); }
-    finally { setPriceLoading(false); }
-  };
 
   const genChatbot = async () => {
     if (!chatbotForm.post.trim()) return;
@@ -215,13 +196,10 @@ export default function AITools() {
     { id: "keywords", icon: <Hash className="w-3.5 h-3.5" />, label: "Keywords", badge: "SEO" },
     { id: "design", icon: <Palette className="w-3.5 h-3.5" />, label: "Designer", badge: "IMG" },
     { id: "trend", icon: <TrendingUp className="w-3.5 h-3.5" />, label: "Trends", badge: "AI" },
-    { id: "price", icon: <DollarSign className="w-3.5 h-3.5" />, label: "Price", badge: "AI" },
     { id: "chatbot", icon: <MessageSquare className="w-3.5 h-3.5" />, label: "Chatbot", badge: "BOT" },
   ];
 
   const typeOptions = ["Shirt", "Pants", "T-Shirt", "Hoodie", "Jacket", "Dress", "Outfit"];
-  const rarityOptions = ["Common", "Uncommon", "Rare", "Epic", "Legendary"];
-  const demandOptions = ["Low", "Medium", "High", "Very High"];
   const toneOptions = [
     { value: "friendly", label: "Friendly" },
     { value: "professional", label: "Professional" },
@@ -230,13 +208,6 @@ export default function AITools() {
   ];
   const categoryOptions = ["All", "Shirts", "Pants", "T-Shirts", "Accessories", "Casual", "Streetwear", "Fantasy", "Military", "Anime"];
 
-  const strategyColor: Record<string, string> = {
-    budget: "text-green-500", midrange: "text-blue-500",
-    premium: "text-violet-500", luxury: "text-amber-500",
-  };
-  const strategyLabel: Record<string, string> = {
-    budget: "💰 Budget", midrange: "⚖️ Mid-range", premium: "⭐ Premium", luxury: "👑 Luxury",
-  };
   const sentimentColor: Record<string, string> = {
     positive: "text-green-500", neutral: "text-blue-500",
     negative: "text-red-500", question: "text-amber-500",
@@ -629,101 +600,6 @@ export default function AITools() {
                     </CardContent>
                   </Card>
                 </div>
-              </ResultCard>
-            )}
-          </AnimatePresence>
-        </TabsContent>
-
-        <TabsContent value="price" className="mt-4 space-y-4">
-          <Card className="rounded-2xl border-border/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><DollarSign className="w-4 h-4 text-amber-500" /> AI Price Advisor</CardTitle>
-              <CardDescription>Optimal pricing for maximum profit</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Type</label>
-                  <Select value={priceForm.type} onValueChange={v => setPriceForm(p => ({ ...p, type: v }))}>
-                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>{typeOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Rarity</label>
-                  <Select value={priceForm.rarity} onValueChange={v => setPriceForm(p => ({ ...p, rarity: v }))}>
-                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>{rarityOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Demand</label>
-                  <Select value={priceForm.demand} onValueChange={v => setPriceForm(p => ({ ...p, demand: v }))}>
-                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>{demandOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Style</label>
-                  <Input placeholder="Streetwear, Anime..." value={priceForm.style} onChange={e => setPriceForm(p => ({ ...p, style: e.target.value }))} className="rounded-xl" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Competitor Prices</label>
-                <Input placeholder="5-25 R$, main competitors..." value={priceForm.competitorPrices} onChange={e => setPriceForm(p => ({ ...p, competitorPrices: e.target.value }))} className="rounded-xl" />
-              </div>
-              <Button className="w-full rounded-xl gap-2 bg-amber-600 hover:bg-amber-700" onClick={genPrice} disabled={priceLoading}>
-                {priceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
-                Calculate Price
-              </Button>
-            </CardContent>
-          </Card>
-          <AnimatePresence>
-            {priceResult && (
-              <ResultCard>
-                <Card className="rounded-2xl border-amber-500/20 bg-amber-500/5">
-                  <CardContent className="pt-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-4xl font-bold">{priceResult.recommendedPrice} R$</p>
-                        <p className="text-xs text-muted-foreground mt-1">Range: {priceResult.priceRange.min}–{priceResult.priceRange.max} R$</p>
-                      </div>
-                      <div className={`text-lg font-bold ${strategyColor[priceResult.strategy] || "text-foreground"}`}>
-                        {strategyLabel[priceResult.strategy] || priceResult.strategy}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Reasoning</p>
-                      <ul className="space-y-1.5">
-                        {priceResult.reasoning.map((r, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
-                            <span className="text-amber-500 shrink-0">•</span> {r}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {priceResult.expectedSalesPerWeek && (
-                      <div className="flex items-center gap-2 rounded-xl bg-secondary/50 p-3 text-sm">
-                        <BarChart2 className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Sales forecast:</span>
-                        <span className="font-semibold">{priceResult.expectedSalesPerWeek}</span>
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pro Tips</p>
-                      <ul className="space-y-1.5">
-                        {priceResult.proTips.map((tip, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
-                            <span className="text-blue-500 shrink-0">→</span> {tip}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </CardContent>
-                </Card>
               </ResultCard>
             )}
           </AnimatePresence>
