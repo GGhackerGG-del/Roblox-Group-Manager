@@ -152,6 +152,11 @@ declare module "express-session" {
       notes: string;
       createdAt: number;
     }>;
+    integrationDiscord?: { notifyEvents: string[]; testChannelWebhookId: string };
+    integrationTelegram?: { notifyEvents: string[]; chatIds: string[]; messageLog: Array<{ chatId: string; text: string; sentAt: number; ok: boolean }> };
+    integrationEmail?: { smtpHost: string; smtpPort: number; smtpUser: string; smtpPass: string; fromEmail: string; toEmail: string; notifyEvents: string[]; enabled: boolean };
+    integrationSheets?: { sheetId: string; sheetUrl: string; syncFields: string[]; lastSync: number | null; autoSync: boolean };
+    customWebhooks?: Array<{ id: string; name: string; url: string; method: string; headers: string; payload: string; events: string[]; enabled: boolean; createdAt: number; lastTriggered: number | null; lastStatus: number | null }>;
     streakData?: {
       currentStreak: number;
       longestStreak: number;
