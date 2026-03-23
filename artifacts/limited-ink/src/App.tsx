@@ -22,6 +22,7 @@ import Sniper from "@/pages/Sniper";
 import Automation from "@/pages/Automation";
 import AITools from "@/pages/AITools";
 import Security from "@/pages/Security";
+import Marketing from "@/pages/Marketing";
 
 
 const queryClient = new QueryClient({
@@ -75,6 +76,7 @@ const STATIC_PAGES = [
   { path: "/automation", key: "automation" },
   { path: "/ai-tools", key: "ai-tools" },
   { path: "/security", key: "security" },
+  { path: "/marketing", key: "marketing" },
 ];
 
 function PersistentPages() {
@@ -103,6 +105,7 @@ function PersistentPages() {
       <div className={location === "/automation" ? "block" : "hidden"}><Automation /></div>
       <div className={location === "/ai-tools" ? "block" : "hidden"}><AITools /></div>
       <div className={location === "/security" ? "block" : "hidden"}><Security /></div>
+      <div className={location === "/marketing" ? "block" : "hidden"}><Marketing /></div>
       {isGroupPage && <GroupView id={groupId!} />}
     </DashboardLayout>
   );

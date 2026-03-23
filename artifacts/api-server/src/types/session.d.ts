@@ -32,6 +32,27 @@ declare module "express-session" {
       enabled: boolean;
       addedAt: number;
     };
+    webhooks?: Array<{
+      id: string;
+      name: string;
+      url: string;
+      type: "discord" | "telegram";
+      events: string[];
+      enabled: boolean;
+      addedAt: number;
+      lastTriggered?: number;
+    }>;
+    promotions?: Array<{
+      id: string;
+      title: string;
+      description: string;
+      discountPercent: number;
+      startsAt: number;
+      endsAt: number;
+      itemType: string;
+      webhookNotify: boolean;
+      status: "scheduled" | "active" | "ended";
+    }>;
   }
 }
 
