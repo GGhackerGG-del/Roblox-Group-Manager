@@ -117,7 +117,7 @@ function DiscordTab() {
     finally { setTesting(false); }
   };
 
-  if (loading) return <Skeleton className="h-64 rounded-2xl" />;
+  if (loading || !data) return <Skeleton className="h-64 rounded-2xl" />;
 
   return (
     <div className="space-y-5">
@@ -144,7 +144,7 @@ function DiscordTab() {
                 <Label className="text-xs text-muted-foreground">Webhook для тестов</Label>
                 <Select value={selectedWebhookId} onValueChange={setSelectedWebhookId}>
                   <SelectTrigger className="rounded-xl h-9"><SelectValue placeholder="Выбрать webhook..." /></SelectTrigger>
-                  <SelectContent>{data.webhooks.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{(data?.webhooks || []).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
@@ -173,7 +173,7 @@ function DiscordTab() {
       {data?.webhooks?.length > 0 && (
         <div className="space-y-2">
           <p className="text-sm font-semibold text-muted-foreground">Настроенные Discord webhooks</p>
-          {data.webhooks.map((w: any) => (
+          {(data?.webhooks || []).map((w: any) => (
             <div key={w.id} className="flex items-center gap-3 rounded-xl border border-border/50 px-4 py-3">
               <div className={`w-2 h-2 rounded-full shrink-0 ${w.enabled ? "bg-green-500" : "bg-gray-300"}`} />
               <p className="text-sm font-medium flex-1">{w.name}</p>
@@ -239,7 +239,7 @@ function TelegramTab() {
     finally { setSending(false); }
   };
 
-  if (loading) return <Skeleton className="h-64 rounded-2xl" />;
+  if (loading || !data) return <Skeleton className="h-64 rounded-2xl" />;
 
   return (
     <div className="space-y-5">
@@ -322,9 +322,9 @@ function TelegramTab() {
       {data?.messageLog?.length > 0 && (
         <div className="space-y-2">
           <button onClick={() => setShowLog(p => !p)} className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-            {showLog ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />} История сообщений ({data.messageLog.length})
+            {showLog ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />} История сообщений ({data?.messageLog?.length || 0})
           </button>
-          {showLog && data.messageLog.slice().reverse().map((m: any, i: number) => (
+          {showLog && (data?.messageLog || []).slice().reverse().map((m: any, i: number) => (
             <div key={i} className="flex items-start gap-2 rounded-xl border border-border/40 p-2.5">
               {m.ok ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" /> : <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />}
               <div className="flex-1 min-w-0"><p className="text-xs truncate">{m.text}</p><p className="text-[10px] text-muted-foreground">{m.chatId} • {timeAgo(m.sentAt)}</p></div>
@@ -528,7 +528,7 @@ function SheetsTab() {
     finally { setExporting(null); }
   };
 
-  if (loading) return <Skeleton className="h-64 rounded-2xl" />;
+  if (loading || !data) return <Skeleton className="h-64 rounded-2xl" />;
 
   return (
     <div className="space-y-5">
@@ -632,7 +632,7 @@ function EmailTab() {
     finally { setTesting(false); }
   };
 
-  if (loading) return <Skeleton className="h-64 rounded-2xl" />;
+  if (loading || !data) return <Skeleton className="h-64 rounded-2xl" />;
 
   return (
     <div className="space-y-5">
