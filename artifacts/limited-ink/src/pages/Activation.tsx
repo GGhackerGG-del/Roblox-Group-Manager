@@ -143,11 +143,10 @@ export default function Activation() {
           </div>
 
           {/* Telegram bot link */}
-          <a
-            href="https://t.me/limitedink_bot"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between w-full px-4 py-3.5 mb-6 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/80 transition-all group"
+          <button
+            type="button"
+            onClick={() => window.open("https://t.me/limitedink_bot", "_blank", "noopener,noreferrer")}
+            className="flex items-center justify-between w-full px-4 py-3.5 mb-4 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/80 transition-all group text-left"
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-[#229ED9]/15 flex items-center justify-center shrink-0">
@@ -161,18 +160,18 @@ export default function Activation() {
               </div>
             </div>
             <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-          </a>
+          </button>
 
-          <a
-            href="https://funpay.com/users/2941091/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between w-full px-4 py-3.5 mb-6 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/80 transition-all group"
+          <button
+            type="button"
+            onClick={() => window.open("https://funpay.com/users/2941091/", "_blank", "noopener,noreferrer")}
+            className="flex items-center justify-between w-full px-4 py-3.5 mb-6 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/80 transition-all group text-left"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#6C5CE7]/15 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5 text-[#6C5CE7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
+              <div className="w-9 h-9 rounded-xl bg-[#00B67A]/15 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 4h16v16H4V4z" rx="3" fill="#00B67A" opacity="0.15"/>
+                  <text x="12" y="16.5" textAnchor="middle" fill="#00B67A" fontSize="11" fontWeight="bold" fontFamily="Arial, sans-serif">FP</text>
                 </svg>
               </div>
               <div>
@@ -181,7 +180,7 @@ export default function Activation() {
               </div>
             </div>
             <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-          </a>
+          </button>
 
           {/* form */}
           <form onSubmit={handleSubmit} className="space-y-4">
