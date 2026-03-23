@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useGetRobloxGroups } from "@workspace/api-client-react";
+import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Gamepad2, Users, BarChart2, Star, Bell, RefreshCw, ExternalLink, Loader2,
@@ -21,12 +21,16 @@ import {
 } from "recharts";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+function getAuthHeaders(): Record<string, string> {
+  const { credentials } = getAuthCredentials();
+  return credentials ? { Authorization: `Bearer ${credentials}` } : {};
+}
 
 async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
-    headers: { "Content-Type": "application/json", ...opts?.headers },
-    credentials: "include",
     ...opts,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders(), ...(opts?.headers || {}) },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Request failed" }));
