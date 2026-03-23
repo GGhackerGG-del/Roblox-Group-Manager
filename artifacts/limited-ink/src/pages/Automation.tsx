@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   Cog, UserCheck, UserMinus, Users, Megaphone, Shield, MessageSquareX,
   Coins, Activity, Loader2, RefreshCw, ExternalLink, Trash2, Check,
@@ -40,18 +41,18 @@ async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   return r.json() as Promise<T>;
 }
 
-function timeAgo(dateStr: string | null): string {
-  if (!dateStr) return "Неизвестно";
+function timeAgo(dateStr: string | null, t: (k: string) => string): string {
+  if (!dateStr) return t("common.unknown") || "—";
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "Только что";
-  if (m < 60) return `${m} мин. назад`;
+  if (m < 1) return t("common.justNow");
+  if (m < 60) return `${m} ${t("common.minAgo")}`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} ч. назад`;
+  if (h < 24) return `${h} ${t("common.hAgo")}`;
   const d = Math.floor(h / 24);
-  if (d < 30) return `${d} дн. назад`;
+  if (d < 30) return `${d} ${t("common.dAgo")}`;
   const mo = Math.floor(d / 30);
-  return `${mo} мес. назад`;
+  return `${mo} ${t("common.monthAgo")}`;
 }
 
 interface JoinRequest { requester: { userId: number; username: string; displayName: string }; created: string }
@@ -63,6 +64,7 @@ interface PayoutEntry { userId: number; username: string; amount: number }
 
 export default function Automation() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [tab, setTab] = useState("join-requests");
 
   const { data: groupsData, isLoading: groupsLoading } = useGetRobloxGroups();
@@ -134,9 +136,9 @@ export default function Automation() {
       const data = await apiFetch<{ roles: Role[] }>(`/api/automation/roles/${groupId}`);
       setRoles(data.roles || []);
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Не удалось загрузить роли", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setRolesLoading(false); }
-  }, [groupId, toast]);
+  }, [groupId, toast, t]);
 
   const loadJoinRequests = useCallback(async () => {
     if (!groupId) return;
@@ -145,9 +147,9 @@ export default function Automation() {
       const data = await apiFetch<{ requests: JoinRequest[] }>(`/api/automation/join-requests/${groupId}`);
       setJoinRequests(data.requests || []);
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Нет доступа", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setJoinLoading(false); }
-  }, [groupId, toast]);
+  }, [groupId, toast, t]);
 
   const acceptAll = async () => {
     if (!joinRequests.length) return;
@@ -159,11 +161,11 @@ export default function Automation() {
         body: JSON.stringify({ userIds: joinRequests.map(r => r.requester.userId) }),
       });
       playSuccess();
-      toast({ title: "✅ Принято", description: data.message });
+      toast({ title: "✅", description: data.message });
       setJoinRequests([]);
     } catch (e: unknown) {
       playError();
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setAcceptingAll(false); }
   };
 
@@ -172,9 +174,9 @@ export default function Automation() {
     try {
       await apiFetch(`/api/automation/join-requests/${groupId}/${userId}`, { method: "DELETE" });
       setJoinRequests(prev => prev.filter(r => r.requester.userId !== userId));
-      toast({ title: "Отклонено" });
+      toast({ title: "✅" });
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setDecliningId(null); }
   };
 
@@ -188,15 +190,15 @@ export default function Automation() {
       if (forExile) setExileResults(results.slice(0, 10));
       else setMemberSearchResults(results.slice(0, 10));
       if (results.length === 0) {
-        toast({ title: "Не найден", description: `Участник «${q.trim()}» не состоит в этой группе`, variant: "destructive" });
+        toast({ title: t("common.error"), description: t("auto.notInGroup"), variant: "destructive" });
       }
     } catch (e) {
-      toast({ title: "Ошибка поиска", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
     finally {
       if (forExile) setExileLoading(false); else setMemberSearchLoading(false);
     }
-  }, [groupId]);
+  }, [groupId, t]);
 
   const changeRank = async (userId: number, roleId: number) => {
     setRankingId(userId);
@@ -207,25 +209,25 @@ export default function Automation() {
         body: JSON.stringify({ roleId }),
       });
       playSuccess();
-      toast({ title: "✅ Ранг изменён", description: data.message });
+      toast({ title: "✅", description: data.message });
       setMemberSearchResults(prev => prev.map(m => m.user.userId === userId ? { ...m, role: { ...m.role, id: roleId } } : m));
     } catch (e: unknown) {
       playError();
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setRankingId(null); }
   };
 
   const exileMember = async (userId: number, username: string) => {
-    if (!confirm(`Удалить ${username} из группы?`)) return;
+    if (!confirm(`${t("auto.exile")} ${username}?`)) return;
     setExilingId(userId);
     try {
       const data = await apiFetch<{ message: string }>(`/api/automation/exile/${groupId}/${userId}`, { method: "DELETE" });
       playSuccess();
-      toast({ title: "✅ Удалён", description: data.message });
+      toast({ title: "✅", description: data.message });
       setExileResults(prev => prev.filter(m => m.user.userId !== userId));
     } catch (e: unknown) {
       playError();
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setExilingId(null); }
   };
 
@@ -237,9 +239,9 @@ export default function Automation() {
       setCurrentShout(data.shout);
       setScheduledShouts(data.scheduled || []);
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setShoutLoading(false); }
-  }, [groupId, toast]);
+  }, [groupId, toast, t]);
 
   const postShout = async () => {
     if (!shoutMessage.trim() && shoutMessage !== "") return;
@@ -251,19 +253,19 @@ export default function Automation() {
         body: JSON.stringify({ message: shoutMessage }),
       });
       playSuccess();
-      toast({ title: "✅ Shout опубликован" });
+      toast({ title: "✅" });
       setShoutMessage("");
       loadShout();
     } catch (e: unknown) {
       playError();
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setPosting(false); }
   };
 
   const scheduleShout = async () => {
     if (!shoutMessage.trim() || !scheduleDate || !scheduleTime) return;
     const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).getTime();
-    if (scheduledAt <= Date.now()) { toast({ title: "Ошибка", description: "Время должно быть в будущем", variant: "destructive" }); return; }
+    if (scheduledAt <= Date.now()) { toast({ title: t("common.error"), description: t("auto.timeMustBeFuture"), variant: "destructive" }); return; }
     setScheduling(true);
     try {
       await apiFetch(`/api/automation/shout/${groupId}/schedule`, {
@@ -272,14 +274,14 @@ export default function Automation() {
         body: JSON.stringify({ message: shoutMessage, scheduledAt }),
       });
       playSuccess();
-      toast({ title: "✅ Shout запланирован" });
+      toast({ title: "✅" });
       setShoutMessage("");
       setScheduleDate("");
       setScheduleTime("");
       loadShout();
     } catch (e: unknown) {
       playError();
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setScheduling(false); }
   };
 
@@ -287,7 +289,7 @@ export default function Automation() {
     try {
       await apiFetch(`/api/automation/shout/scheduled/${id}`, { method: "DELETE" });
       setScheduledShouts(prev => prev.filter(s => s.id !== id));
-      toast({ title: "Отменено" });
+      toast({ title: "✅" });
     } catch { }
   };
 
@@ -301,9 +303,9 @@ export default function Automation() {
       else setWallPosts(data.posts || []);
       setWallNextCursor(data.nextPageCursor);
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setWallLoading(false); }
-  }, [groupId, toast]);
+  }, [groupId, toast, t]);
 
   const deletePost = async (postId: number) => {
     setDeletingPostId(postId);
@@ -311,7 +313,7 @@ export default function Automation() {
       await apiFetch(`/api/automation/wall/${groupId}/${postId}`, { method: "DELETE" });
       setWallPosts(prev => prev.filter(p => p.id !== postId));
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setDeletingPostId(null); }
   };
 
@@ -326,10 +328,10 @@ export default function Automation() {
       });
       playSuccess();
       setLastModResult({ deleted: data.deleted, checked: data.checked });
-      toast({ title: "✅ Модерация завершена", description: data.message });
+      toast({ title: `✅ ${t("auto.modDone")}`, description: data.message });
     } catch (e: unknown) {
       playError();
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setModerating(false); }
   };
 
@@ -357,11 +359,11 @@ export default function Automation() {
         body: JSON.stringify({ payouts: payoutEntries.map(p => ({ recipientId: p.userId, amount: p.amount })) }),
       });
       playSuccess();
-      toast({ title: "✅ Выплата отправлена", description: data.message });
+      toast({ title: "✅", description: data.message });
       setPayoutEntries([]);
     } catch (e: unknown) {
       playError();
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setSendingPayout(false); }
   };
 
@@ -377,9 +379,9 @@ export default function Automation() {
       else setActivityMembers(data.members || []);
       setActivityNextCursor(data.nextPageCursor);
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setActivityLoading(false); }
-  }, [groupId, activityRoleFilter, toast]);
+  }, [groupId, activityRoleFilter, toast, t]);
 
   useEffect(() => {
     if (!groupId) return;
@@ -398,13 +400,13 @@ export default function Automation() {
         <Users className="w-4 h-4 text-muted-foreground" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-muted-foreground font-medium mb-1">Группа</p>
+        <p className="text-xs text-muted-foreground font-medium mb-1">{t("common.group") || "Group"}</p>
         {groupsLoading ? (
           <Skeleton className="h-5 w-40" />
         ) : (
           <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
             <SelectTrigger className="h-8 text-sm border-0 p-0 shadow-none focus:ring-0 bg-transparent font-semibold">
-              <SelectValue placeholder="Выберите группу..." />
+              <SelectValue placeholder={t("common.selectGroup")} />
             </SelectTrigger>
             <SelectContent>
               {groups.map(g => (
@@ -429,14 +431,14 @@ export default function Automation() {
   );
 
   const tabs = [
-    { id: "join-requests", icon: <UserCheck className="w-3.5 h-3.5" />, label: "Join Requests" },
-    { id: "auto-rank", icon: <TrendingUp className="w-3.5 h-3.5" />, label: "Auto Rank" },
-    { id: "auto-exile", icon: <UserMinus className="w-3.5 h-3.5" />, label: "Auto Exile" },
-    { id: "shout", icon: <Megaphone className="w-3.5 h-3.5" />, label: "Shout Scheduler" },
-    { id: "wall", icon: <Shield className="w-3.5 h-3.5" />, label: "Wall Mod" },
-    { id: "spam", icon: <MessageSquareX className="w-3.5 h-3.5" />, label: "Spam Filter" },
-    { id: "payout", icon: <Coins className="w-3.5 h-3.5" />, label: "Auto Payout" },
-    { id: "activity", icon: <Activity className="w-3.5 h-3.5" />, label: "Activity" },
+    { id: "join-requests", icon: <UserCheck className="w-3.5 h-3.5" />, label: t("auto.joinRequests") },
+    { id: "auto-rank", icon: <TrendingUp className="w-3.5 h-3.5" />, label: t("auto.autoRank") },
+    { id: "auto-exile", icon: <UserMinus className="w-3.5 h-3.5" />, label: t("auto.autoExile") },
+    { id: "shout", icon: <Megaphone className="w-3.5 h-3.5" />, label: t("auto.shout") },
+    { id: "wall", icon: <Shield className="w-3.5 h-3.5" />, label: t("auto.wall") },
+    { id: "spam", icon: <MessageSquareX className="w-3.5 h-3.5" />, label: t("auto.spam") },
+    { id: "payout", icon: <Coins className="w-3.5 h-3.5" />, label: t("auto.payout") },
+    { id: "activity", icon: <Activity className="w-3.5 h-3.5" />, label: t("auto.activity") },
   ];
 
   return (
@@ -444,8 +446,8 @@ export default function Automation() {
       <div className="flex items-center gap-3">
         <Cog className="w-7 h-7 text-foreground" />
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Автоматизация группы</h1>
-          <p className="text-sm text-muted-foreground">Управление участниками, шаутами, стеной и выплатами</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("auto.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("auto.desc")}</p>
         </div>
       </div>
 
@@ -454,15 +456,15 @@ export default function Automation() {
       {!selectedGroupId ? (
         <div className="flex flex-col items-center py-20 text-muted-foreground gap-3">
           <Cog className="w-12 h-12 opacity-20" />
-          <p className="text-sm">Выберите группу для начала работы</p>
+          <p className="text-sm">{t("auto.selectGroup")}</p>
         </div>
       ) : (
         <Tabs value={tab} onValueChange={v => { playClick(); setTab(v); }}>
           <div className="overflow-x-auto pb-1">
             <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1 flex-nowrap inline-flex">
-              {tabs.map(t => (
-                <TabsTrigger key={t.id} value={t.id} className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 gap-1.5 whitespace-nowrap">
-                  {t.icon} {t.label}
+              {tabs.map(tb => (
+                <TabsTrigger key={tb.id} value={tb.id} className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 gap-1.5 whitespace-nowrap">
+                  {tb.icon} {tb.label}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -472,14 +474,14 @@ export default function Automation() {
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="flex flex-row items-center justify-between pb-3">
                 <div>
-                  <CardTitle className="text-base flex items-center gap-2"><UserCheck className="w-4 h-4 text-green-500" /> Запросы на вступление</CardTitle>
-                  <CardDescription>Список ожидающих подтверждения участников</CardDescription>
+                  <CardTitle className="text-base flex items-center gap-2"><UserCheck className="w-4 h-4 text-green-500" /> {t("auto.joinRequests")}</CardTitle>
+                  <CardDescription>{t("auto.joinDesc")}</CardDescription>
                 </div>
                 <div className="flex gap-2">
                   {joinRequests.length > 0 && (
                     <Button size="sm" className="rounded-xl gap-1.5 bg-green-600 hover:bg-green-700" onClick={acceptAll} disabled={acceptingAll}>
                       {acceptingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      Принять все ({joinRequests.length})
+                      {t("auto.acceptAll")} ({joinRequests.length})
                     </Button>
                   )}
                   <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={loadJoinRequests} disabled={joinLoading}>
@@ -493,7 +495,7 @@ export default function Automation() {
                 ) : joinRequests.length === 0 ? (
                   <div className="flex flex-col items-center py-10 text-muted-foreground gap-2">
                     <UserCheck className="w-10 h-10 opacity-20" />
-                    <p className="text-sm">Нет запросов на вступление</p>
+                    <p className="text-sm">{t("auto.noRequests")}</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -502,7 +504,7 @@ export default function Automation() {
                         <img src={robloxHeadshot(req.requester.userId)} alt={req.requester.displayName} className="w-10 h-10 rounded-full bg-secondary shrink-0 object-cover" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{req.requester.displayName}</p>
-                          <p className="text-xs text-muted-foreground">@{req.requester.username} • {timeAgo(req.created)}</p>
+                          <p className="text-xs text-muted-foreground">@{req.requester.username} • {timeAgo(req.created, t)}</p>
                         </div>
                         <div className="flex gap-1.5 shrink-0">
                           <a href={`https://www.roblox.com/users/${req.requester.userId}/profile`} target="_blank" rel="noreferrer">
@@ -523,13 +525,13 @@ export default function Automation() {
           <TabsContent value="auto-rank" className="mt-4">
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-500" /> Auto Rank</CardTitle>
-                <CardDescription>Изменение ранга участника</CardDescription>
+                <CardTitle className="text-base flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-500" /> {t("auto.autoRank")}</CardTitle>
+                <CardDescription>{t("auto.autoRankDesc")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Имя участника..."
+                    placeholder={t("auto.memberName")}
                     value={memberSearch}
                     onChange={e => setMemberSearch(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && searchMembers(memberSearch)}
@@ -541,7 +543,7 @@ export default function Automation() {
                 </div>
 
                 {rolesLoading ? <Skeleton className="h-8 w-full" /> : roles.length === 0 ? (
-                  <Button variant="outline" size="sm" className="rounded-xl" onClick={loadRoles}>Загрузить роли</Button>
+                  <Button variant="outline" size="sm" className="rounded-xl" onClick={loadRoles}>{t("common.refresh")}</Button>
                 ) : null}
 
                 {memberSearchResults.length > 0 && (
@@ -556,7 +558,7 @@ export default function Automation() {
                         <div className="flex items-center gap-2 shrink-0">
                           <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
                             <SelectTrigger className="w-36 h-8 text-xs rounded-lg">
-                              <SelectValue placeholder="Выбери ранг..." />
+                              <SelectValue placeholder={t("auto.selectRank")} />
                             </SelectTrigger>
                             <SelectContent>
                               {roles.filter(r => r.rank > 0).map(r => (
@@ -582,7 +584,7 @@ export default function Automation() {
 
                 {roles.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Роли группы</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("common.allRoles")}</p>
                     <div className="grid grid-cols-2 gap-2">
                       {roles.filter(r => r.rank > 0).map(r => (
                         <div key={r.id} className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 text-xs">
@@ -600,18 +602,18 @@ export default function Automation() {
           <TabsContent value="auto-exile" className="mt-4">
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2"><UserMinus className="w-4 h-4 text-red-500" /> Auto Exile</CardTitle>
-                <CardDescription>Удаление участников из группы</CardDescription>
+                <CardTitle className="text-base flex items-center gap-2"><UserMinus className="w-4 h-4 text-red-500" /> {t("auto.autoExile")}</CardTitle>
+                <CardDescription>{t("auto.autoExileDesc")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex gap-2">
                   {roles.length > 0 && (
                     <Select value={exileRoleFilter} onValueChange={v => setExileRoleFilter(v === "all" ? "" : v)}>
                       <SelectTrigger className="w-36 h-10 text-xs rounded-xl">
-                        <SelectValue placeholder="Все роли" />
+                        <SelectValue placeholder={t("common.allRoles")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Все роли</SelectItem>
+                        <SelectItem value="all">{t("common.allRoles")}</SelectItem>
                         {roles.filter(r => r.rank > 0).map(r => (
                           <SelectItem key={r.id} value={String(r.id)}>[{r.rank}] {r.name}</SelectItem>
                         ))}
@@ -619,7 +621,7 @@ export default function Automation() {
                     </Select>
                   )}
                   <Input
-                    placeholder="Имя участника..."
+                    placeholder={t("auto.memberName")}
                     value={exileSearch}
                     onChange={e => setExileSearch(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && searchMembers(exileSearch, true)}
@@ -650,7 +652,7 @@ export default function Automation() {
                             onClick={() => exileMember(member.user.userId, member.user.username)}
                           >
                             {exilingId === member.user.userId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserMinus className="w-3.5 h-3.5" />}
-                            Изгнать
+                            {t("auto.exile")}
                           </Button>
                         </div>
                       </div>
@@ -660,7 +662,7 @@ export default function Automation() {
 
                 <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-700 dark:text-amber-300 flex gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <p>Изгнание необратимо. Участник потеряет все привилегии и накопленный прогресс в группе.</p>
+                  <p>{t("auto.exileWarning")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -670,8 +672,8 @@ export default function Automation() {
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="flex flex-row items-center justify-between pb-3">
                 <div>
-                  <CardTitle className="text-base flex items-center gap-2"><Megaphone className="w-4 h-4 text-violet-500" /> Shout Scheduler</CardTitle>
-                  <CardDescription>Публикация и планирование shout-ов группы</CardDescription>
+                  <CardTitle className="text-base flex items-center gap-2"><Megaphone className="w-4 h-4 text-violet-500" /> {t("auto.shout")}</CardTitle>
+                  <CardDescription>{t("auto.shoutDesc")}</CardDescription>
                 </div>
                 <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={loadShout} disabled={shoutLoading}>
                   <RefreshCw className={`w-3.5 h-3.5 ${shoutLoading ? "animate-spin" : ""}`} />
@@ -680,15 +682,15 @@ export default function Automation() {
               <CardContent className="space-y-4">
                 {currentShout && (
                   <div className="rounded-xl border border-border/50 p-3 bg-card space-y-1.5">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Текущий Shout</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("auto.currentShout")}</p>
                     <p className="text-sm">{currentShout.body}</p>
-                    <p className="text-xs text-muted-foreground">— {currentShout.poster?.username} • {timeAgo(currentShout.updated)}</p>
+                    <p className="text-xs text-muted-foreground">— {currentShout.poster?.username} • {timeAgo(currentShout.updated, t)}</p>
                   </div>
                 )}
 
                 <div className="space-y-3">
                   <Textarea
-                    placeholder="Текст shout-а (до 255 символов)..."
+                    placeholder={t("auto.shoutPlaceholder")}
                     value={shoutMessage}
                     onChange={e => setShoutMessage(e.target.value.slice(0, 255))}
                     className="rounded-xl resize-none"
@@ -701,7 +703,7 @@ export default function Automation() {
                   <div className="grid grid-cols-2 gap-3">
                     <Button onClick={postShout} disabled={posting || !shoutMessage.trim()} className="rounded-xl gap-1.5">
                       {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                      Опубликовать сейчас
+                      {t("auto.publishNow")}
                     </Button>
                     <div className="space-y-2">
                       <div className="flex gap-2">
@@ -710,7 +712,7 @@ export default function Automation() {
                       </div>
                       <Button variant="outline" onClick={scheduleShout} disabled={scheduling || !shoutMessage.trim() || !scheduleDate || !scheduleTime} className="rounded-xl gap-1.5 w-full">
                         {scheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
-                        Запланировать
+                        {t("auto.schedule")}
                       </Button>
                     </div>
                   </div>
@@ -718,14 +720,14 @@ export default function Automation() {
 
                 {scheduledShouts.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Запланированные ({scheduledShouts.length})</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("auto.scheduled")} ({scheduledShouts.length})</p>
                     {scheduledShouts.map(shout => (
                       <div key={shout.id} className="flex items-start gap-3 rounded-xl border border-violet-500/20 p-3 bg-violet-500/5">
                         <Clock className="w-4 h-4 text-violet-500 shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm truncate">{shout.message}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {new Date(shout.scheduledAt).toLocaleString("ru-RU")}
+                            {new Date(shout.scheduledAt).toLocaleString()}
                           </p>
                         </div>
                         <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 shrink-0" onClick={() => cancelScheduledShout(shout.id)}>
@@ -743,11 +745,11 @@ export default function Automation() {
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="flex flex-row items-center justify-between pb-3">
                 <div>
-                  <CardTitle className="text-base flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500" /> Wall Moderation</CardTitle>
-                  <CardDescription>Просмотр и удаление постов со стены группы</CardDescription>
+                  <CardTitle className="text-base flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500" /> {t("auto.wall")}</CardTitle>
+                  <CardDescription>{t("auto.wallDesc")}</CardDescription>
                 </div>
                 <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={() => loadWall()} disabled={wallLoading}>
-                  <RefreshCw className={`w-3.5 h-3.5 ${wallLoading ? "animate-spin" : ""}`} /> Обновить
+                  <RefreshCw className={`w-3.5 h-3.5 ${wallLoading ? "animate-spin" : ""}`} /> {t("common.refresh")}
                 </Button>
               </CardHeader>
               <CardContent>
@@ -756,7 +758,7 @@ export default function Automation() {
                 ) : wallPosts.length === 0 ? (
                   <div className="flex flex-col items-center py-10 text-muted-foreground gap-2">
                     <Shield className="w-10 h-10 opacity-20" />
-                    <p className="text-sm">Стена пуста или нет доступа</p>
+                    <p className="text-sm">{t("auto.wallEmpty")}</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
@@ -769,8 +771,8 @@ export default function Automation() {
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-xs font-semibold">{post.poster?.user.displayName || "Удалённый"}</p>
-                            <p className="text-[10px] text-muted-foreground">{timeAgo(post.created)}</p>
+                            <p className="text-xs font-semibold">{post.poster?.user.displayName || t("auto.deletedUser")}</p>
+                            <p className="text-[10px] text-muted-foreground">{timeAgo(post.created, t)}</p>
                           </div>
                           <p className="text-sm mt-0.5 break-words">{post.body}</p>
                         </div>
@@ -786,7 +788,7 @@ export default function Automation() {
                     ))}
                     {wallNextCursor && (
                       <Button variant="outline" className="w-full rounded-xl" onClick={() => loadWall(wallNextCursor)} disabled={wallLoading}>
-                        {wallLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Загрузить ещё
+                        {wallLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} {t("common.loadMore")}
                       </Button>
                     )}
                   </div>
@@ -798,13 +800,13 @@ export default function Automation() {
           <TabsContent value="spam" className="mt-4">
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2"><MessageSquareX className="w-4 h-4 text-orange-500" /> Spam Filter</CardTitle>
-                <CardDescription>Автоматическое удаление постов с нежелательными словами</CardDescription>
+                <CardTitle className="text-base flex items-center gap-2"><MessageSquareX className="w-4 h-4 text-orange-500" /> {t("auto.spam")}</CardTitle>
+                <CardDescription>{t("auto.spamDesc")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Добавить слово или фразу..."
+                    placeholder={t("auto.addKeyword")}
                     value={newKeyword}
                     onChange={e => setNewKeyword(e.target.value)}
                     onKeyDown={e => {
@@ -840,8 +842,8 @@ export default function Automation() {
 
                 {lastModResult && (
                   <div className="rounded-xl bg-green-500/10 border border-green-500/20 p-3 text-sm">
-                    <p className="font-semibold text-green-700 dark:text-green-300">✅ Модерация завершена</p>
-                    <p className="text-xs text-muted-foreground mt-1">Удалено {lastModResult.deleted} из {lastModResult.checked} проверенных постов</p>
+                    <p className="font-semibold text-green-700 dark:text-green-300">✅ {t("auto.modDone")}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t("auto.modResult").replace("{d}", String(lastModResult.deleted)).replace("{c}", String(lastModResult.checked))}</p>
                   </div>
                 )}
 
@@ -852,7 +854,7 @@ export default function Automation() {
                     onClick={runSpamFilter}
                   >
                     {moderating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquareX className="w-4 h-4" />}
-                    Запустить фильтрацию
+                    {t("auto.runFilter")}
                   </Button>
                   <Button variant="outline" size="sm" className="rounded-xl" onClick={() => { setSpamKeywords([]); setLastModResult(null); }}>
                     <Trash2 className="w-4 h-4" />
@@ -860,10 +862,10 @@ export default function Automation() {
                 </div>
 
                 <div className="rounded-xl bg-secondary/50 border border-border/50 p-3 text-xs text-muted-foreground space-y-1">
-                  <p className="font-semibold text-foreground">Как работает:</p>
-                  <p>• Загружает последние 100 постов со стены</p>
-                  <p>• Удаляет посты, содержащие хотя бы одно из указанных слов</p>
-                  <p>• Поиск без учёта регистра</p>
+                  <p className="font-semibold text-foreground">{t("auto.howWorks")}</p>
+                  <p>• {t("auto.howWorks1")}</p>
+                  <p>• {t("auto.howWorks2")}</p>
+                  <p>• {t("auto.howWorks3")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -872,20 +874,20 @@ export default function Automation() {
           <TabsContent value="payout" className="mt-4">
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2"><Coins className="w-4 h-4 text-amber-500" /> Auto Payout</CardTitle>
-                <CardDescription>Выплата Robux участникам группы</CardDescription>
+                <CardTitle className="text-base flex items-center gap-2"><Coins className="w-4 h-4 text-amber-500" /> {t("auto.payout")}</CardTitle>
+                <CardDescription>{t("auto.payoutDesc")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Имя участника..."
+                    placeholder={t("auto.memberName")}
                     value={payoutUserSearch}
                     onChange={e => { setPayoutUserSearch(e.target.value); if (e.target.value.length >= 2) searchPayoutUser(e.target.value); else setPayoutSearchResults([]); }}
                     className="rounded-xl flex-1"
                   />
                   <Input
                     type="number"
-                    placeholder="Сумма R$"
+                    placeholder={t("auto.amountRS")}
                     value={payoutAmount}
                     onChange={e => setPayoutAmount(e.target.value)}
                     className="rounded-xl w-24"
@@ -919,7 +921,7 @@ export default function Automation() {
 
                 {payoutEntries.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Получатели</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("common.recipients")}</p>
                     {payoutEntries.map(entry => (
                       <div key={entry.userId} className="flex items-center gap-3 rounded-xl border border-amber-500/20 p-3 bg-amber-500/5">
                         <img src={robloxHeadshot(entry.userId)} alt={entry.username} className="w-8 h-8 rounded-full bg-secondary shrink-0 object-cover" />
@@ -939,19 +941,19 @@ export default function Automation() {
                       </div>
                     ))}
                     <div className="flex items-center justify-between rounded-xl bg-secondary/50 p-3 text-sm">
-                      <span className="text-muted-foreground">Итого:</span>
+                      <span className="text-muted-foreground">{t("common.total")}:</span>
                       <span className="font-bold">{payoutEntries.reduce((s, p) => s + p.amount, 0).toLocaleString()} R$</span>
                     </div>
                     <Button className="w-full rounded-xl gap-1.5 bg-amber-600 hover:bg-amber-700" onClick={sendPayout} disabled={sendingPayout}>
                       {sendingPayout ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
-                      Отправить выплаты ({payoutEntries.length} чел.)
+                      {t("auto.sendPayouts")} ({payoutEntries.length} {t("common.persons")})
                     </Button>
                   </div>
                 )}
 
                 <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-700 dark:text-amber-300 flex gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <p>Выплаты списываются с баланса группы. Убедитесь, что на счету достаточно Robux.</p>
+                  <p>{t("auto.payoutWarning")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -961,17 +963,17 @@ export default function Automation() {
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="flex flex-row items-center justify-between pb-3">
                 <div>
-                  <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-green-500" /> Activity Monitor</CardTitle>
-                  <CardDescription>Последняя активность участников группы</CardDescription>
+                  <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-green-500" /> {t("auto.activity")}</CardTitle>
+                  <CardDescription>{t("auto.activityDesc")}</CardDescription>
                 </div>
                 <div className="flex gap-2">
                   {roles.length > 0 && (
                     <Select value={activityRoleFilter} onValueChange={v => { setActivityRoleFilter(v === "all" ? "" : v); setActivityMembers([]); }}>
                       <SelectTrigger className="w-32 h-8 text-xs rounded-xl">
-                        <SelectValue placeholder="Все роли" />
+                        <SelectValue placeholder={t("common.allRoles")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Все роли</SelectItem>
+                        <SelectItem value="all">{t("common.allRoles")}</SelectItem>
                         {roles.filter(r => r.rank > 0).map(r => (
                           <SelectItem key={r.id} value={String(r.id)}>[{r.rank}] {r.name}</SelectItem>
                         ))}
@@ -989,7 +991,7 @@ export default function Automation() {
                 ) : activityMembers.length === 0 ? (
                   <div className="flex flex-col items-center py-10 text-muted-foreground gap-2">
                     <Activity className="w-10 h-10 opacity-20" />
-                    <p className="text-sm">Нажмите обновить для загрузки</p>
+                    <p className="text-sm">{t("auto.pressRefresh")}</p>
                   </div>
                 ) : (
                   <div className="space-y-1.5 max-h-[550px] overflow-y-auto pr-1">
@@ -1009,7 +1011,7 @@ export default function Automation() {
                           </div>
                           <div className="text-right shrink-0">
                             <Badge variant="outline" className="text-[9px] mb-0.5">{member.role.name}</Badge>
-                            <p className="text-[10px] text-muted-foreground">{timeAgo(lastOnline || null)}</p>
+                            <p className="text-[10px] text-muted-foreground">{timeAgo(lastOnline || null, t)}</p>
                           </div>
                           <a href={`https://www.roblox.com/users/${member.user.userId}/profile`} target="_blank" rel="noreferrer">
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0"><ExternalLink className="w-3 h-3" /></Button>
@@ -1019,7 +1021,7 @@ export default function Automation() {
                     })}
                     {activityNextCursor && (
                       <Button variant="outline" className="w-full rounded-xl mt-2" onClick={() => loadActivity(activityNextCursor)} disabled={activityLoading}>
-                        {activityLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Загрузить ещё
+                        {activityLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} {t("common.loadMore")}
                       </Button>
                     )}
                   </div>

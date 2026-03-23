@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   FlaskConical, Upload, Shield, ClipboardCheck, Eye,
   Check, X, AlertTriangle, Loader2, Plus, Trash2,
@@ -18,8 +19,11 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 function getAuthHeaders(): Record<string, string> {
-  const { credentials } = getAuthCredentials();
-  return credentials ? { Authorization: `Bearer ${credentials}` } : {};
+  const { token, fingerprint } = getAuthCredentials();
+  const h: Record<string, string> = {};
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  if (fingerprint) h["X-Device-Fingerprint"] = fingerprint;
+  return h;
 }
 async function api<T = any>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${url}`, { ...opts, credentials: "include", headers: { "Content-Type": "application/json", ...getAuthHeaders(), ...(opts?.headers || {}) } });
@@ -28,15 +32,15 @@ async function api<T = any>(url: string, opts?: RequestInit): Promise<T> {
 }
 
 // ── Clothing type specs ───────────────────────────────────────────────────────
-const CLOTHING_SPECS: Record<string, { label: string; w: number; h: number; icon: string }> = {
-  shirt: { label: "Рубашка", w: 585, h: 559, icon: "👕" },
-  pants: { label: "Брюки", w: 292, h: 280, icon: "👖" },
-  tshirt: { label: "Футболка", w: 128, h: 128, icon: "🩱" },
-  custom: { label: "Другое", w: 0, h: 0, icon: "📦" },
+const CLOTHING_SPECS: Record<string, { labelKey: string; w: number; h: number; icon: string }> = {
+  shirt: { labelKey: "test.shirt", w: 585, h: 559, icon: "👕" },
+  pants: { labelKey: "test.pants", w: 292, h: 280, icon: "👖" },
+  tshirt: { labelKey: "test.tshirt", w: 128, h: 128, icon: "🩱" },
+  custom: { labelKey: "test.custom", w: 0, h: 0, icon: "📦" },
 };
 
 // ── Shared image picker ───────────────────────────────────────────────────────
-function DropZone({ onFile, file, label = "Перетащите PNG или нажмите для выбора" }: { onFile: (f: File) => void; file: File | null; label?: string }) {
+function DropZone({ onFile, file, label }: { onFile: (f: File) => void; file: File | null; label: string }) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -150,6 +154,7 @@ function analyzeColorVariety(data: ImageData): number {
 type ValidationResult = { id: string; label: string; status: "pass" | "fail" | "warn" | "info"; detail: string };
 
 function ValidatorTab() {
+  const { t } = useLanguage();
   const [file, setFile] = useState<File | null>(null);
   const [clothingType, setClothingType] = useState("shirt");
   const [results, setResults] = useState<ValidationResult[]>([]);
@@ -164,12 +169,12 @@ function ValidatorTab() {
 
     // File type
     const isPng = file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
-    res.push({ id: "type", label: "Формат файла (PNG)", status: isPng ? "pass" : "fail", detail: isPng ? "✓ Файл в формате PNG" : `✗ Обнаружен формат ${file.type || "неизвестный"} — Roblox принимает только PNG` });
+    res.push({ id: "type", label: `${t("test.format")} (PNG)`, status: isPng ? "pass" : "fail", detail: isPng ? "✓ Файл в формате PNG" : `✗ Обнаружен формат ${file.type || "неизвестный"} — Roblox принимает только PNG` });
 
     // File size
     const maxSize = 2 * 1024 * 1024;
     const sizeOk = file.size <= maxSize;
-    res.push({ id: "size", label: "Размер файла (≤ 2 МБ)", status: sizeOk ? "pass" : "fail", detail: sizeOk ? `✓ ${(file.size / 1024).toFixed(1)} KB — в пределах лимита` : `✗ ${(file.size / 1024 / 1024).toFixed(2)} МБ — превышает лимит 2 МБ` });
+    res.push({ id: "size", label: `${t("test.fileSize")} (≤ 2 МБ)`, status: sizeOk ? "pass" : "fail", detail: sizeOk ? `✓ ${(file.size / 1024).toFixed(1)} KB — в пределах лимита` : `✗ ${(file.size / 1024 / 1024).toFixed(2)} МБ — превышает лимит 2 МБ` });
 
     try {
       const { img, data } = await loadImageData(file);
@@ -184,14 +189,14 @@ function ValidatorTab() {
       if (clothingType !== "custom" && spec.w > 0) {
         const exactMatch = w === spec.w && h === spec.h;
         const close = Math.abs(w - spec.w) < 20 && Math.abs(h - spec.h) < 20;
-        res.push({ id: "dims", label: `Размеры (${spec.w}×${spec.h}px)`, status: exactMatch ? "pass" : close ? "warn" : "fail", detail: exactMatch ? `✓ ${w}×${h}px — точное соответствие шаблону` : close ? `⚠ ${w}×${h}px — близко, но не точно. Рекомендуется ${spec.w}×${spec.h}px` : `✗ ${w}×${h}px — не соответствует шаблону ${spec.label} (${spec.w}×${spec.h}px)` });
+        res.push({ id: "dims", label: `${t("test.dimensions")} (${spec.w}×${spec.h}px)`, status: exactMatch ? "pass" : close ? "warn" : "fail", detail: exactMatch ? `✓ ${w}×${h}px — точное соответствие шаблону` : close ? `⚠ ${w}×${h}px — близко, но не точно. Рекомендуется ${spec.w}×${spec.h}px` : `✗ ${w}×${h}px — не соответствует шаблону ${t(spec.labelKey)} (${spec.w}×${spec.h}px)` });
       } else {
-        res.push({ id: "dims", label: "Размеры изображения", status: "info", detail: `ℹ ${w}×${h}px` });
+        res.push({ id: "dims", label: t("test.dimensions"), status: "info", detail: `ℹ ${w}×${h}px` });
       }
 
       // Transparency
       const hasAlpha = hasTransparency(data);
-      res.push({ id: "alpha", label: "Прозрачность (alpha-канал)", status: hasAlpha ? "pass" : "warn", detail: hasAlpha ? "✓ Изображение содержит прозрачные пиксели" : "⚠ Прозрачность не обнаружена — убедитесь что фон прозрачный" });
+      res.push({ id: "alpha", label: `${t("test.transparency")} (alpha-канал)`, status: hasAlpha ? "pass" : "warn", detail: hasAlpha ? "✓ Изображение содержит прозрачные пиксели" : "⚠ Прозрачность не обнаружена — убедитесь что фон прозрачный" });
 
       // Not fully transparent
       const transRatio = transparentRatio(data);
@@ -217,12 +222,12 @@ function ValidatorTab() {
       res.push({ id: "skin", label: "Проверка телесных тонов", status: skinRatio > 0.6 ? "warn" : "pass", detail: skinRatio > 0.6 ? `⚠ ${Math.round(skinRatio * 100)}% пикселей — телесный тон. Возможен риск модерации` : `✓ ${Math.round(skinRatio * 100)}% телесного тона — в норме` });
 
     } catch (e) {
-      res.push({ id: "load", label: "Загрузка изображения", status: "fail", detail: `✗ Ошибка: ${(e as Error).message}` });
+      res.push({ id: "load", label: "Загрузка изображения", status: "fail", detail: `✗ ${t("common.error")}: ${(e as Error).message}` });
     }
 
     setResults(res);
     setAnalyzing(false);
-  }, [file, clothingType]);
+  }, [file, clothingType, t]);
 
   useEffect(() => { if (file) validate(); }, [file, clothingType]);
 
@@ -241,11 +246,11 @@ function ValidatorTab() {
             <Label className="text-xs text-muted-foreground">Тип одежды</Label>
             <Select value={clothingType} onValueChange={setClothingType}>
               <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {v.label} {v.w > 0 ? `(${v.w}×${v.h})` : ""}</SelectItem>)}</SelectContent>
+              <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {t(v.labelKey)} {v.w > 0 ? `(${v.w}×${v.h})` : ""}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <DropZone onFile={f => { setFile(f); setResults([]); setPreviewUrl(null); }} file={file} label="Перетащите PNG файл одежды сюда" />
-          {file && <Button variant="outline" className="w-full rounded-xl gap-1.5" onClick={validate} disabled={analyzing}>{analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Повторить проверку</Button>}
+          <DropZone onFile={f => { setFile(f); setResults([]); setPreviewUrl(null); }} file={file} label={t("test.dropFile")} />
+          {file && <Button variant="outline" className="w-full rounded-xl gap-1.5" onClick={validate} disabled={analyzing}>{analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} {t("test.recheck")}</Button>}
         </div>
 
         <div>
@@ -256,13 +261,13 @@ function ValidatorTab() {
           )}
           {results.length > 0 && (
             <div className="mt-3 flex gap-3">
-              <div className="text-center"><p className="text-2xl font-black text-green-500">{passCount}</p><p className="text-[10px] text-muted-foreground">Пройдено</p></div>
-              <div className="text-center"><p className="text-2xl font-black text-amber-500">{warnCount}</p><p className="text-[10px] text-muted-foreground">Предупреждений</p></div>
-              <div className="text-center"><p className="text-2xl font-black text-red-500">{failCount}</p><p className="text-[10px] text-muted-foreground">Ошибок</p></div>
+              <div className="text-center"><p className="text-2xl font-black text-green-500">{passCount}</p><p className="text-[10px] text-muted-foreground">{t("test.pass")}</p></div>
+              <div className="text-center"><p className="text-2xl font-black text-amber-500">{warnCount}</p><p className="text-[10px] text-muted-foreground">{t("test.warning")}</p></div>
+              <div className="text-center"><p className="text-2xl font-black text-red-500">{failCount}</p><p className="text-[10px] text-muted-foreground">{t("test.fail")}</p></div>
               <div className="ml-auto flex items-center">
-                {failCount === 0 && warnCount === 0 ? <Badge className="bg-green-500/15 text-green-700 border-green-400/30">✅ Готово к загрузке</Badge>
-                  : failCount === 0 ? <Badge className="bg-amber-500/15 text-amber-700 border-amber-400/30">⚠ Проверьте предупреждения</Badge>
-                  : <Badge className="bg-red-500/15 text-red-700 border-red-400/30">❌ Есть ошибки</Badge>}
+                {failCount === 0 && warnCount === 0 ? <Badge className="bg-green-500/15 text-green-700 border-green-400/30">✅ {t("test.noIssues")}</Badge>
+                  : failCount === 0 ? <Badge className="bg-amber-500/15 text-amber-700 border-amber-400/30">⚠ {t("test.warning")}</Badge>
+                  : <Badge className="bg-red-500/15 text-red-700 border-red-400/30">❌ {t("test.fail")}</Badge>}
               </div>
             </div>
           )}
@@ -289,8 +294,8 @@ function ValidatorTab() {
           <CardContent className="pt-4">
             <p className="text-xs font-bold text-muted-foreground mb-2">📐 Требования Roblox к одежде</p>
             <div className="grid grid-cols-3 gap-3">
-              {Object.entries(CLOTHING_SPECS).filter(([k]) => k !== "custom").map(([, v]) => (
-                <div key={v.label} className="text-center text-xs"><div className="text-2xl mb-1">{v.icon}</div><p className="font-bold">{v.label}</p><p className="text-muted-foreground">{v.w}×{v.h}px</p><p className="text-muted-foreground">≤ 2 МБ • PNG</p></div>
+              {Object.entries(CLOTHING_SPECS).filter(([k]) => k !== "custom").map(([k, v]) => (
+                <div key={k} className="text-center text-xs"><div className="text-2xl mb-1">{v.icon}</div><p className="font-bold">{t(v.labelKey)}</p><p className="text-muted-foreground">{v.w}×{v.h}px</p><p className="text-muted-foreground">≤ 2 МБ • PNG</p></div>
               ))}
             </div>
           </CardContent>
@@ -304,6 +309,7 @@ function ValidatorTab() {
 type RiskFactor = { label: string; score: number; detail: string; weight: number };
 
 function RiskScannerTab() {
+  const { t } = useLanguage();
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [factors, setFactors] = useState<RiskFactor[]>([]);
@@ -333,7 +339,7 @@ function RiskScannerTab() {
       // High transparency ratio (might hide content)
       const transRatio = transparentRatio(data);
       const hiddenRisk = transRatio > 0.9 ? 0.2 : 0;
-      newFactors.push({ label: "Скрытый контент", score: hiddenRisk, detail: hiddenRisk > 0 ? "Изображение почти пустое — возможно скрытый контент" : "✓ Прозрачность в норме", weight: 0.1 });
+      newFactors.push({ label: "Скрытый контент", score: hiddenRisk, detail: hiddenRisk > 0 ? "Изображение почти пустое — возможно скрытый контент" : `✓ ${t("test.transparency")} в норме`, weight: 0.1 });
 
       // Contrast (very high contrast can indicate offensive content)
       const contrast = analyzeContrast(data);
@@ -348,7 +354,7 @@ function RiskScannerTab() {
       // Dimensions risk
       const w = img.naturalWidth; const h = img.naturalHeight;
       const dimRisk = (w !== 585 || h !== 559) && (w !== 292 || h !== 280) && (w !== 128 || h !== 128) ? 0.1 : 0;
-      newFactors.push({ label: "Нестандартные размеры", score: dimRisk, detail: dimRisk > 0 ? `${w}×${h}px не соответствует стандартным шаблонам Roblox` : "✓ Стандартный размер шаблона", weight: 0.1 });
+      newFactors.push({ label: t("test.dimensions"), score: dimRisk, detail: dimRisk > 0 ? `${w}×${h}px не соответствует стандартным шаблонам Roblox` : "✓ Стандартный размер шаблона", weight: 0.1 });
 
       // Aspect ratio extremes
       const ratio = w / h;
@@ -359,21 +365,21 @@ function RiskScannerTab() {
       const weighted = newFactors.reduce((acc, f) => acc + f.score * f.weight, 0) / newFactors.reduce((acc, f) => acc + f.weight, 0);
       setTotalRisk(Math.min(Math.round(weighted * 100), 100));
     } catch (e) {
-      setFactors([{ label: "Ошибка анализа", score: 0, detail: (e as Error).message, weight: 1 }]);
+      setFactors([{ label: t("common.error"), score: 0, detail: (e as Error).message, weight: 1 }]);
     }
     setAnalyzing(false);
-  }, []);
+  }, [t]);
 
   const riskColor = totalRisk === null ? "" : totalRisk < 20 ? "text-green-500" : totalRisk < 50 ? "text-amber-500" : "text-red-500";
-  const riskLabel = totalRisk === null ? "" : totalRisk < 20 ? "Низкий риск" : totalRisk < 50 ? "Средний риск" : "Высокий риск";
+  const riskLabel = totalRisk === null ? "" : totalRisk < 20 ? t("test.modSafe") : totalRisk < 50 ? t("test.modRisk") : t("test.modRisk");
   const riskBg = totalRisk === null ? "" : totalRisk < 20 ? "from-green-500" : totalRisk < 50 ? "from-amber-500" : "from-red-500";
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-3">
-          <DropZone onFile={f => { setFile(f); scan(f); }} file={file} label="Загрузите изображение одежды для проверки риска" />
-          {file && <Button variant="outline" className="w-full rounded-xl gap-1.5" onClick={() => scan(file)} disabled={analyzing}>{analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Повторить сканирование</Button>}
+          <DropZone onFile={f => { setFile(f); scan(f); }} file={file} label={t("test.dropFile")} />
+          {file && <Button variant="outline" className="w-full rounded-xl gap-1.5" onClick={() => scan(file)} disabled={analyzing}>{analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} {t("test.recheck")}</Button>}
         </div>
 
         {(totalRisk !== null || previewUrl) && (
@@ -386,7 +392,7 @@ function RiskScannerTab() {
                 <div className="w-full h-3 rounded-full bg-secondary overflow-hidden">
                   <motion.div initial={{ width: 0 }} animate={{ width: `${totalRisk}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className={`h-full rounded-full bg-gradient-to-r ${riskBg} to-transparent`} />
                 </div>
-                <p className="text-xs text-muted-foreground">{totalRisk < 20 ? "Изображение вероятно пройдёт модерацию" : totalRisk < 50 ? "Есть факторы риска — проверьте детали" : "Высокий риск отклонения модерацией"}</p>
+                <p className="text-xs text-muted-foreground">{totalRisk < 20 ? t("test.modSafe") : totalRisk < 50 ? t("test.modRisk") : t("test.modRisk")}</p>
               </div>
             )}
           </div>
@@ -430,6 +436,7 @@ function RiskScannerTab() {
 
 // ── Quality Checklist Tab ─────────────────────────────────────────────────────
 function ChecklistTab() {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [checklists, setChecklists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -451,7 +458,7 @@ function ChecklistTab() {
       setActiveId(checklist.id);
       setShowAdd(false); setNewName("");
       toast({ title: "✅ Чеклист создан" });
-    } catch { toast({ variant: "destructive", title: "Ошибка" }); }
+    } catch { toast({ variant: "destructive", title: t("common.error") }); }
     finally { setSaving(false); }
   };
 
@@ -505,7 +512,7 @@ function ChecklistTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div><p className="font-semibold">Quality Checklist</p><p className="text-xs text-muted-foreground">{checklists.length} чеклистов</p></div>
+        <div><p className="font-semibold">{t("test.checklist")}</p><p className="text-xs text-muted-foreground">{checklists.length} чеклистов</p></div>
         <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> Новый чеклист</Button>
       </div>
 
@@ -518,7 +525,7 @@ function ChecklistTab() {
                   <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Название чеклиста *" className="rounded-xl" onKeyDown={e => e.key === "Enter" && create()} />
                   <Select value={newType} onValueChange={setNewType}>
                     <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {v.label}</SelectItem>)}</SelectContent>
+                    <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {t(v.labelKey)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="flex gap-2">
@@ -606,6 +613,7 @@ function ChecklistTab() {
 
 // ── Preview on Avatar Tab ─────────────────────────────────────────────────────
 function AvatarPreviewTab() {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [clothingType, setClothingType] = useState("shirt");
@@ -624,7 +632,7 @@ function AvatarPreviewTab() {
       setAvatarData(d);
       toast({ title: `✅ Аватар ${d.displayName} загружен` });
     } catch (e) {
-      toast({ variant: "destructive", title: "Ошибка", description: (e as Error).message });
+      toast({ variant: "destructive", title: t("common.error"), description: (e as Error).message });
     } finally { setLoading(false); }
   };
 
@@ -708,11 +716,11 @@ function AvatarPreviewTab() {
             <Label className="text-xs text-muted-foreground">Тип одежды</Label>
             <Select value={clothingType} onValueChange={v => { setClothingType(v); setComposited(false); }}>
               <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {v.label}</SelectItem>)}</SelectContent>
+              <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {t(v.labelKey)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
 
-          <DropZone onFile={handleClothingFile} file={clothingFile} label="Загрузите PNG файл одежды" />
+          <DropZone onFile={handleClothingFile} file={clothingFile} label={t("test.dropFile")} />
 
           {avatarData && (
             <Card className="rounded-2xl border-border/50">
@@ -762,19 +770,20 @@ function AvatarPreviewTab() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Testing() {
+  const { t } = useLanguage();
   return (
     <div className="p-6 lg:p-10 w-full max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3"><FlaskConical className="w-7 h-7" /> Testing & Quality</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Валидация, проверка модерации, чеклисты и предпросмотр на аватаре</p>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3"><FlaskConical className="w-7 h-7" /> {t("test.title")}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">{t("test.desc")}</p>
       </div>
 
       <Tabs defaultValue="validator" className="w-full">
         <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1 flex-wrap">
-          <TabsTrigger value="validator" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Upload className="w-3.5 h-3.5" /> Валидатор</TabsTrigger>
-          <TabsTrigger value="risk" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Риск модерации</TabsTrigger>
-          <TabsTrigger value="checklist" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><ClipboardCheck className="w-3.5 h-3.5" /> Чеклист качества</TabsTrigger>
-          <TabsTrigger value="avatar" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" /> Предпросмотр</TabsTrigger>
+          <TabsTrigger value="validator" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Upload className="w-3.5 h-3.5" /> {t("test.validator")}</TabsTrigger>
+          <TabsTrigger value="risk" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> {t("test.modCheck")}</TabsTrigger>
+          <TabsTrigger value="checklist" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><ClipboardCheck className="w-3.5 h-3.5" /> {t("test.checklist")}</TabsTrigger>
+          <TabsTrigger value="avatar" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" /> {t("test.preview")}</TabsTrigger>
         </TabsList>
 
         <div className="mt-6">

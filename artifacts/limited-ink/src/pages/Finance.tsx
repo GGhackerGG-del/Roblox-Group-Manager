@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   Receipt, Calculator, FileText, ArrowLeftRight, Target, Plus, Trash2,
   Pencil, Check, X, Loader2, RefreshCw, Download, Copy, ChevronRight,
@@ -22,8 +23,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function getAuthHeaders(): Record<string, string> {
-  const { credentials } = getAuthCredentials();
-  return credentials ? { Authorization: `Bearer ${credentials}` } : {};
+  const { token, fingerprint } = getAuthCredentials();
+  const h: Record<string, string> = {};
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  if (fingerprint) h["X-Device-Fingerprint"] = fingerprint;
+  return h;
 }
 
 async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
@@ -70,12 +74,23 @@ const STATUS_COLORS: Record<string, string> = {
   paid: "border-green-500/30 text-green-600",
   overdue: "border-red-500/30 text-red-600",
 };
-const STATUS_LABELS: Record<string, string> = { draft: "📝 Черновик", sent: "📤 Отправлен", paid: "✅ Оплачен", overdue: "⚠️ Просрочен" };
-const CURRENCIES = [{ value: "robux", label: "Robux (R$)" }, { value: "usd", label: "US Dollar ($)" }, { value: "rub", label: "Рубли (₽)" }];
+const CURRENCIES = [{ value: "robux", label: "Robux (R$)" }, { value: "usd", label: "US Dollar ($)" }, { value: "rub", label: "RUB (₽)" }];
 const CUR_SYM: Record<string, string> = { robux: "R$", usd: "$", rub: "₽" };
+
+function useStatusLabels() {
+  const { t } = useLanguage();
+  return {
+    draft: `📝 ${t("fin.statusDraft")}`,
+    sent: `📤 ${t("fin.statusSent")}`,
+    paid: `✅ ${t("fin.statusPaid")}`,
+    overdue: `⚠️ ${t("fin.statusOverdue")}`,
+  } as Record<string, string>;
+}
 
 function InvoiceTab({ rates }: { rates: Rates | null }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
+  const STATUS_LABELS = useStatusLabels();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "create" | "detail">("list");
@@ -101,8 +116,8 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
       });
       setInvoices(p => [invoice, ...p]);
       setView("list"); setForm({ clientName: "", clientEmail: "", currency: "robux", notes: "", dueDate: "" }); setItems([{ description: "", qty: 1, price: 0 }]);
-      toast({ title: `✅ Счёт ${invoice.number} создан` });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+      toast({ title: `✅ ${t("fin.invoiceCreated")} ${invoice.number}` });
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
 
@@ -116,45 +131,45 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
     await apiFetch(`/api/finance/invoices/${id}`, { method: "DELETE" });
     setInvoices(p => p.filter(inv => inv.id !== id));
     if (selected?.id === id) setView("list");
-    toast({ title: "✅ Счёт удалён" });
+    toast({ title: `✅ ${t("fin.invoiceDeleted")}` });
   };
 
   const copyToClipboard = (inv: Invoice) => {
     const sym = CUR_SYM[inv.currency] || "";
     const lines = [
-      `СЧЁТ ${inv.number}`, `Клиент: ${inv.clientName}`, `Дата: ${new Date(inv.createdAt).toLocaleDateString("ru")}`,
-      inv.dueDate ? `Оплатить до: ${new Date(inv.dueDate).toLocaleDateString("ru")}` : "",
-      "", "Услуги:", ...inv.items.map(it => `  • ${it.description} — ${it.qty} × ${sym}${it.price} = ${sym}${it.qty * it.price}`),
-      "", `ИТОГО: ${sym}${total(inv)}`, inv.notes ? `\nПримечание: ${inv.notes}` : "",
+      `${t("fin.invoices")} ${inv.number}`, `${t("fin.client")}: ${inv.clientName}`, `${new Date(inv.createdAt).toLocaleDateString()}`,
+      inv.dueDate ? `${t("fin.dueDate")}: ${new Date(inv.dueDate).toLocaleDateString()}` : "",
+      "", `${t("fin.items")}:`, ...inv.items.map(it => `  • ${it.description} — ${it.qty} × ${sym}${it.price} = ${sym}${it.qty * it.price}`),
+      "", `${t("fin.total")}: ${sym}${total(inv)}`, inv.notes ? `\n${t("fin.notes")}: ${inv.notes}` : "",
     ].filter(Boolean).join("\n");
     navigator.clipboard.writeText(lines);
-    toast({ title: "✅ Скопировано в буфер обмена" });
+    toast({ title: `✅ ${t("fin.copied")}` });
   };
 
   if (view === "create") return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setView("list")}><X className="w-4 h-4" /> Отмена</Button>
-        <p className="font-semibold">Новый счёт</p>
+        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setView("list")}><X className="w-4 h-4" /> {t("fin.back")}</Button>
+        <p className="font-semibold">{t("fin.createInvoice")}</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Клиент *</Label><Input value={form.clientName} onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))} placeholder="Имя клиента..." className="rounded-xl" /></div>
-        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Email клиента</Label><Input value={form.clientEmail} onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))} placeholder="email@example.com" className="rounded-xl" /></div>
+        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{t("fin.client")} *</Label><Input value={form.clientName} onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))} placeholder={t("fin.client")} className="rounded-xl" /></div>
+        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{t("fin.email")}</Label><Input value={form.clientEmail} onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))} placeholder="email@example.com" className="rounded-xl" /></div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Валюта</Label>
+          <Label className="text-xs text-muted-foreground">{t("fin.currency")}</Label>
           <Select value={form.currency} onValueChange={v => setForm(p => ({ ...p, currency: v }))}>
             <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
             <SelectContent>{CURRENCIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Срок оплаты</Label><Input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} className="rounded-xl" /></div>
+        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{t("fin.dueDate")}</Label><Input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} className="rounded-xl" /></div>
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between"><Label className="text-xs text-muted-foreground">Позиции *</Label><Button size="sm" variant="outline" className="rounded-xl h-7 gap-1 text-xs" onClick={() => setItems(p => [...p, { description: "", qty: 1, price: 0 }])}><Plus className="w-3 h-3" /> Добавить</Button></div>
+        <div className="flex items-center justify-between"><Label className="text-xs text-muted-foreground">{t("fin.items")} *</Label><Button size="sm" variant="outline" className="rounded-xl h-7 gap-1 text-xs" onClick={() => setItems(p => [...p, { description: "", qty: 1, price: 0 }])}><Plus className="w-3 h-3" /> {t("fin.addItem")}</Button></div>
         {items.map((item, idx) => (
           <div key={idx} className="flex items-center gap-2">
-            <Input value={item.description} onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))} placeholder="Описание услуги..." className="rounded-xl flex-1 text-sm" />
+            <Input value={item.description} onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))} placeholder={t("fin.description")} className="rounded-xl flex-1 text-sm" />
             <Input type="number" value={item.qty} min={1} onChange={e => setItems(p => p.map((it, i) => i === idx ? { ...it, qty: parseInt(e.target.value) || 1 } : it))} className="rounded-xl w-16 text-sm" />
             <div className="flex items-center gap-1 w-28">
               <span className="text-xs text-muted-foreground shrink-0">{CUR_SYM[form.currency]}</span>
@@ -163,13 +178,13 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
             {items.length > 1 && <Button size="sm" variant="ghost" className="h-9 w-9 p-0 rounded-xl text-red-500 hover:bg-red-500/10 shrink-0" onClick={() => setItems(p => p.filter((_, i) => i !== idx))}><Trash2 className="w-3.5 h-3.5" /></Button>}
           </div>
         ))}
-        <div className="flex justify-end"><p className="text-sm font-bold">Итого: {CUR_SYM[form.currency]}{formTotal.toFixed(2)}</p></div>
+        <div className="flex justify-end"><p className="text-sm font-bold">{t("fin.total")}: {CUR_SYM[form.currency]}{formTotal.toFixed(2)}</p></div>
       </div>
 
-      <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Примечания</Label><Textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Условия оплаты, реквизиты..." className="rounded-xl resize-none" rows={3} /></div>
+      <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{t("fin.notes")}</Label><Textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder={t("fin.notes")} className="rounded-xl resize-none" rows={3} /></div>
 
       <Button className="w-full rounded-xl gap-2" onClick={createInvoice} disabled={saving || !form.clientName || !items[0].description}>
-        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />} Создать счёт
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />} {t("fin.create")}
       </Button>
     </div>
   );
@@ -177,7 +192,7 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
   if (view === "detail" && selected) return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setView("list")}><X className="w-4 h-4" /> Назад</Button>
+        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setView("list")}><X className="w-4 h-4" /> {t("fin.back")}</Button>
         <p className="font-bold flex-1">{selected.number}</p>
         <Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[selected.status]}`}>{STATUS_LABELS[selected.status]}</Badge>
       </div>
@@ -185,9 +200,9 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
         <CardContent className="pt-5 space-y-4">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-2xl font-bold">СЧЁТ {selected.number}</p>
-              <p className="text-muted-foreground text-sm mt-0.5">Дата: {new Date(selected.createdAt).toLocaleDateString("ru")}</p>
-              {selected.dueDate && <p className="text-muted-foreground text-sm">До: {new Date(selected.dueDate).toLocaleDateString("ru")}</p>}
+              <p className="text-2xl font-bold">{t("fin.invoices")} {selected.number}</p>
+              <p className="text-muted-foreground text-sm mt-0.5">{new Date(selected.createdAt).toLocaleDateString("ru")}</p>
+              {selected.dueDate && <p className="text-muted-foreground text-sm">{t("fin.dueDate")}: {new Date(selected.dueDate).toLocaleDateString("ru")}</p>}
             </div>
             <div className="text-right">
               <p className="font-bold">{selected.clientName}</p>
@@ -196,7 +211,7 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
           </div>
           <div className="border-t border-border/50 pt-3 space-y-2">
             <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-muted-foreground pb-1 border-b border-border/30">
-              <span className="col-span-6">Описание</span><span className="col-span-2 text-center">Кол-во</span><span className="col-span-2 text-right">Цена</span><span className="col-span-2 text-right">Сумма</span>
+              <span className="col-span-6">{t("fin.description")}</span><span className="col-span-2 text-center">{t("fin.qty")}</span><span className="col-span-2 text-right">{t("fin.price")}</span><span className="col-span-2 text-right">{t("fin.amount")}</span>
             </div>
             {selected.items.map((it, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 text-sm">
@@ -208,12 +223,12 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
           </div>
           <div className="border-t border-border/50 pt-2 flex justify-end">
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">ИТОГО</p>
+              <p className="text-xs text-muted-foreground">{t("fin.total")}</p>
               <p className="text-2xl font-bold">{CUR_SYM[selected.currency]}{total(selected).toFixed(2)}</p>
               {rates && selected.currency === "robux" && <p className="text-xs text-muted-foreground">≈ ${(total(selected) * rates.robuxUsd).toFixed(2)} / ≈ ₽{Math.round(total(selected) * rates.robuxUsd * rates.usdRub)}</p>}
             </div>
           </div>
-          {selected.notes && <div className="border-t border-border/50 pt-2"><p className="text-xs text-muted-foreground">Примечание: {selected.notes}</p></div>}
+          {selected.notes && <div className="border-t border-border/50 pt-2"><p className="text-xs text-muted-foreground">{t("fin.notes")}: {selected.notes}</p></div>}
         </CardContent>
       </Card>
       <div className="flex gap-2 flex-wrap">
@@ -221,8 +236,8 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
           <SelectTrigger className="rounded-xl h-9 w-44"><SelectValue /></SelectTrigger>
           <SelectContent>{Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
         </Select>
-        <Button variant="outline" className="rounded-xl gap-1.5" onClick={() => copyToClipboard(selected)}><Copy className="w-4 h-4" /> Копировать</Button>
-        <Button variant="outline" className="rounded-xl gap-1.5 text-red-500 hover:text-red-600 hover:border-red-500/30 ml-auto" onClick={() => deleteInvoice(selected.id)}><Trash2 className="w-4 h-4" /> Удалить</Button>
+        <Button variant="outline" className="rounded-xl gap-1.5" onClick={() => copyToClipboard(selected)}><Copy className="w-4 h-4" /> {t("fin.copy")}</Button>
+        <Button variant="outline" className="rounded-xl gap-1.5 text-red-500 hover:text-red-600 hover:border-red-500/30 ml-auto" onClick={() => deleteInvoice(selected.id)}><Trash2 className="w-4 h-4" /> {t("fin.delete")}</Button>
       </div>
     </div>
   );
@@ -231,13 +246,13 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-semibold">Счета</p>
-          <p className="text-xs text-muted-foreground">{invoices.length} счетов</p>
+          <p className="font-semibold">{t("fin.invoices")}</p>
+          <p className="text-xs text-muted-foreground">{invoices.length}</p>
         </div>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setView("create")}><Plus className="w-3.5 h-3.5" /> Создать счёт</Button>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setView("create")}><Plus className="w-3.5 h-3.5" /> {t("fin.createInvoice")}</Button>
       </div>
       {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />) : invoices.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2"><Receipt className="w-12 h-12 opacity-20" /><p className="text-sm">Счетов нет</p><Button size="sm" className="rounded-xl gap-1.5 mt-2" onClick={() => setView("create")}><Plus className="w-3.5 h-3.5" /> Создать первый счёт</Button></div>
+        <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2"><Receipt className="w-12 h-12 opacity-20" /><p className="text-sm">{t("fin.noInvoices")}</p><Button size="sm" className="rounded-xl gap-1.5 mt-2" onClick={() => setView("create")}><Plus className="w-3.5 h-3.5" /> {t("fin.createInvoice")}</Button></div>
       ) : (
         <div className="space-y-2">
           {invoices.map(inv => (
@@ -263,6 +278,7 @@ function InvoiceTab({ rates }: { rates: Rates | null }) {
 
 // ── Commission Calculator ─────────────────────────────────────────────────────
 function CommissionTab({ rates, ratesLoading }: { rates: Rates | null; ratesLoading: boolean }) {
+  const { t } = useLanguage();
   const [robux, setRobux] = useState("1000");
   const [taxRate, setTaxRate] = useState("13");
   const [mode, setMode] = useState<"earn" | "price">("earn");
@@ -290,25 +306,25 @@ function CommissionTab({ rates, ratesLoading }: { rates: Rates | null; ratesLoad
   return (
     <div className="space-y-5">
       <div className="flex gap-2 p-1 bg-secondary/50 rounded-xl border border-border w-fit">
-        <button onClick={() => setMode("earn")} className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${mode === "earn" ? "bg-black text-white" : "text-muted-foreground"}`}>Сколько получу</button>
-        <button onClick={() => setMode("price")} className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${mode === "price" ? "bg-black text-white" : "text-muted-foreground"}`}>Как выставить цену</button>
+        <button onClick={() => setMode("earn")} className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${mode === "earn" ? "bg-black text-white" : "text-muted-foreground"}`}>{t("fin.howMuchEarn")}</button>
+        <button onClick={() => setMode("price")} className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${mode === "price" ? "bg-black text-white" : "text-muted-foreground"}`}>{t("fin.howToPrice")}</button>
       </div>
 
       {mode === "earn" ? (
         <div className="space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardContent className="pt-4 space-y-3">
-              <Label className="text-xs text-muted-foreground">Сумма Robux для DevEx</Label>
-              <Input type="number" value={robux} onChange={e => setRobux(e.target.value)} className="rounded-xl text-lg font-bold" placeholder="Введите Robux..." />
+              <Label className="text-xs text-muted-foreground">{t("fin.robuxForDevex")}</Label>
+              <Input type="number" value={robux} onChange={e => setRobux(e.target.value)} className="rounded-xl text-lg font-bold" placeholder="Robux..." />
               <div className="flex gap-1.5 flex-wrap">
                 {PRESETS.map(p => <button key={p} onClick={() => setRobux(String(p))} className="text-xs rounded-lg px-2.5 py-1 border border-border text-muted-foreground hover:border-black/40 transition-colors">{fmt(p)} R$</button>)}
               </div>
               <div className="flex items-center gap-3">
-                <Label className="text-xs text-muted-foreground whitespace-nowrap">Ставка налога:</Label>
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">{t("fin.taxRate")}:</Label>
                 <Input type="number" value={taxRate} onChange={e => setTaxRate(e.target.value)} className="rounded-xl h-8 w-20 text-sm" min={0} max={50} />
                 <span className="text-sm text-muted-foreground">%</span>
                 <div className="flex gap-1 ml-auto">
-                  {[0, 6, 13, 20].map(t => <button key={t} onClick={() => setTaxRate(String(t))} className={`text-xs rounded-lg px-2 py-1 border transition-colors ${taxRate === String(t) ? "bg-black text-white border-black" : "border-border text-muted-foreground"}`}>{t}%</button>)}
+                  {[0, 6, 13, 20].map(rate => <button key={rate} onClick={() => setTaxRate(String(rate))} className={`text-xs rounded-lg px-2 py-1 border transition-colors ${taxRate === String(rate) ? "bg-black text-white border-black" : "border-border text-muted-foreground"}`}>{rate}%</button>)}
                 </div>
               </div>
             </CardContent>
@@ -316,10 +332,10 @@ function CommissionTab({ rates, ratesLoading }: { rates: Rates | null; ratesLoad
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: "Курс DevEx", value: `R$${fmt(1000)} = $${(1000 * (rates?.robuxUsd || 0.0035)).toFixed(2)}`, sub: "Официальный курс Roblox", color: "" },
-              { label: "Брутто (USD)", value: fmtMoney(usdGross), sub: `${fmt(rubGross, 0)} ₽`, color: "text-blue-600" },
-              { label: "Налог", value: fmtMoney(usdGross * tax), sub: `Ставка ${taxRate}%`, color: "text-red-500" },
-              { label: "Нетто (USD)", value: fmtMoney(usdNet), sub: `${fmt(rubNet, 0)} ₽`, color: "text-green-600" },
+              { label: t("fin.devexRate"), value: `R$${fmt(1000)} = $${(1000 * (rates?.robuxUsd || 0.0035)).toFixed(2)}`, sub: t("fin.officialRate"), color: "" },
+              { label: `${t("fin.gross")} (USD)`, value: fmtMoney(usdGross), sub: `${fmt(rubGross, 0)} ₽`, color: "text-blue-600" },
+              { label: t("fin.tax"), value: fmtMoney(usdGross * tax), sub: `${t("fin.taxRate")} ${taxRate}%`, color: "text-red-500" },
+              { label: `${t("fin.net")} (USD)`, value: fmtMoney(usdNet), sub: `${fmt(rubNet, 0)} ₽`, color: "text-green-600" },
             ].map(s => (
               <Card key={s.label} className="rounded-2xl border-border/50">
                 <CardContent className="pt-4 pb-3">
@@ -333,12 +349,12 @@ function CommissionTab({ rates, ratesLoading }: { rates: Rates | null; ratesLoad
 
           <Card className="rounded-2xl border-blue-500/20 bg-blue-500/5">
             <CardContent className="pt-4 space-y-2">
-              <p className="text-sm font-semibold text-blue-700">📦 Продажа через маркетплейс (не DevEx)</p>
-              <p className="text-xs text-muted-foreground">Если вы продаёте товар за {fmt(R, 0)} R$, Roblox оставляет 30% себе:</p>
+              <p className="text-sm font-semibold text-blue-700">📦 {t("fin.marketplaceSale")}</p>
+              <p className="text-xs text-muted-foreground">{t("fin.afterFee")} ({fmt(R, 0)} R$):</p>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-xl bg-card border border-border/50 p-2"><p className="text-sm font-bold">{fmt(R, 0)} R$</p><p className="text-[10px] text-muted-foreground">Цена товара</p></div>
-                <div className="rounded-xl bg-card border border-border/50 p-2"><p className="text-sm font-bold text-red-500">-{fmt(platformFee, 0)} R$</p><p className="text-[10px] text-muted-foreground">Комиссия 30%</p></div>
-                <div className="rounded-xl bg-green-500/10 border border-green-500/20 p-2"><p className="text-sm font-bold text-green-600">+{fmt(sellerReceives, 0)} R$</p><p className="text-[10px] text-muted-foreground">Ваш доход</p></div>
+                <div className="rounded-xl bg-card border border-border/50 p-2"><p className="text-sm font-bold">{fmt(R, 0)} R$</p><p className="text-[10px] text-muted-foreground">{t("fin.price")}</p></div>
+                <div className="rounded-xl bg-card border border-border/50 p-2"><p className="text-sm font-bold text-red-500">-{fmt(platformFee, 0)} R$</p><p className="text-[10px] text-muted-foreground">{t("fin.fee")} 30%</p></div>
+                <div className="rounded-xl bg-green-500/10 border border-green-500/20 p-2"><p className="text-sm font-bold text-green-600">+{fmt(sellerReceives, 0)} R$</p><p className="text-[10px] text-muted-foreground">{t("fin.yourIncome")}</p></div>
               </div>
             </CardContent>
           </Card>
@@ -346,7 +362,7 @@ function CommissionTab({ rates, ratesLoading }: { rates: Rates | null; ratesLoad
           {R < (rates?.devexMin || 30000) && (
             <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">Минимум для DevEx: <strong>{fmt(rates?.devexMin || 30000, 0)} R$</strong>. Вам ещё нужно <strong>{fmt((rates?.devexMin || 30000) - R, 0)} R$</strong>.</p>
+              <p className="text-xs text-amber-700">{t("fin.devexMinimum")}: <strong>{fmt(rates?.devexMin || 30000, 0)} R$</strong>. {t("fin.youStillNeed")} <strong>{fmt((rates?.devexMin || 30000) - R, 0)} R$</strong>.</p>
             </div>
           )}
         </div>
@@ -354,29 +370,29 @@ function CommissionTab({ rates, ratesLoading }: { rates: Rates | null; ratesLoad
         <div className="space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardContent className="pt-4 space-y-3">
-              <Label className="text-xs text-muted-foreground">Сколько хочу заработать (Robux)</Label>
-              <Input type="number" value={targetRobux} onChange={e => setTargetRobux(e.target.value)} className="rounded-xl text-lg font-bold" placeholder="Цель в Robux..." />
+              <Label className="text-xs text-muted-foreground">{t("fin.targetEarnings")} (Robux)</Label>
+              <Input type="number" value={targetRobux} onChange={e => setTargetRobux(e.target.value)} className="rounded-xl text-lg font-bold" placeholder="Robux..." />
             </CardContent>
           </Card>
           <div className="grid grid-cols-2 gap-3">
             <Card className="rounded-2xl border-border/50">
               <CardContent className="pt-4 pb-3">
                 <p className="text-2xl font-bold">{fmt(neededPrice, 0)} R$</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Цена товара</p>
-                <p className="text-[10px] text-muted-foreground/60">чтобы получить {fmt(T, 0)} R$</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("fin.price")}</p>
+                <p className="text-[10px] text-muted-foreground/60">{t("fin.toEarn")} {fmt(T, 0)} R$</p>
               </CardContent>
             </Card>
             <Card className="rounded-2xl border-border/50">
               <CardContent className="pt-4 pb-3">
                 <p className="text-2xl font-bold">{fmt(T, 0)} R$</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Ваш доход (70%)</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("fin.yourIncome")} (70%)</p>
                 <p className="text-[10px] text-muted-foreground/60">≈ ${(T * (rates?.robuxUsd || 0.0035)).toFixed(2)}</p>
               </CardContent>
             </Card>
           </div>
           <Card className="rounded-2xl border-border/50">
             <CardContent className="pt-4">
-              <p className="text-xs text-muted-foreground mb-3">Популярные ценовые точки:</p>
+              <p className="text-xs text-muted-foreground mb-3">{t("fin.popularPricePoints")}:</p>
               <div className="space-y-2">
                 {[5, 10, 25, 50, 100, 200, 500].map(price => {
                   const earn = Math.floor(price * 0.70);
@@ -400,6 +416,7 @@ function CommissionTab({ rates, ratesLoading }: { rates: Rates | null; ratesLoad
 
 // ── Robux Converter ───────────────────────────────────────────────────────────
 function ConverterTab({ rates, ratesLoading, refreshRates }: { rates: Rates | null; ratesLoading: boolean; refreshRates: () => void }) {
+  const { t } = useLanguage();
   const [fromCurrency, setFromCurrency] = useState("robux");
   const [amount, setAmount] = useState("1000");
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -422,12 +439,12 @@ function ConverterTab({ rates, ratesLoading, refreshRates }: { rates: Rates | nu
   const CONVS = [
     { label: "Robux", value: "robux", sym: "R$" },
     { label: "USD", value: "usd", sym: "$" },
-    { label: "Рубли", value: "rub", sym: "₽" },
+    { label: "RUB", value: "rub", sym: "₽" },
   ];
 
   const copyResult = (val: number, sym: string) => {
     navigator.clipboard.writeText(val.toFixed(2));
-    toast({ title: `✅ ${sym}${val.toFixed(2)} скопировано` });
+    toast({ title: `✅ ${sym}${val.toFixed(2)} ${t("fin.copied")}` });
   };
 
   return (
@@ -439,12 +456,12 @@ function ConverterTab({ rates, ratesLoading, refreshRates }: { rates: Rates | nu
         <Button variant="ghost" size="sm" className="rounded-xl gap-1.5 ml-auto" onClick={refreshRates} disabled={ratesLoading}>
           {ratesLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
         </Button>
-        {lastUpdated && <p className="text-[10px] text-muted-foreground">Курс: {lastUpdated}</p>}
+        {lastUpdated && <p className="text-[10px] text-muted-foreground">{t("fin.rates")}: {lastUpdated}</p>}
       </div>
 
       <Card className="rounded-2xl border-black/20 bg-secondary/10">
         <CardContent className="pt-4 space-y-2">
-          <Label className="text-xs text-muted-foreground">Сумма в {CONVS.find(c => c.value === fromCurrency)?.label}</Label>
+          <Label className="text-xs text-muted-foreground">{t("fin.amount")} ({CONVS.find(c => c.value === fromCurrency)?.label})</Label>
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold text-muted-foreground">{CONVS.find(c => c.value === fromCurrency)?.sym}</span>
             <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="rounded-xl text-2xl font-bold h-12 flex-1" placeholder="0" />
@@ -461,7 +478,7 @@ function ConverterTab({ rates, ratesLoading, refreshRates }: { rates: Rates | nu
         {[
           { label: "Robux", sym: "R$", val: result.robux, from: "robux" },
           { label: "US Dollar", sym: "$", val: result.usd, from: "usd" },
-          { label: "Рубли", sym: "₽", val: result.rub, from: "rub" },
+          { label: "RUB", sym: "₽", val: result.rub, from: "rub" },
         ].filter(c => c.from !== fromCurrency).map(c => (
           <Card key={c.from} className="rounded-2xl border-border/50 hover:border-black/20 transition-colors">
             <CardContent className="p-4 flex items-center justify-between">
@@ -477,12 +494,12 @@ function ConverterTab({ rates, ratesLoading, refreshRates }: { rates: Rates | nu
 
       <Card className="rounded-2xl border-border/30 bg-secondary/20">
         <CardContent className="pt-4">
-          <p className="text-xs text-muted-foreground font-semibold mb-2">Справочные курсы</p>
+          <p className="text-xs text-muted-foreground font-semibold mb-2">{t("fin.referenceRates")}</p>
           <div className="grid grid-cols-2 gap-y-1.5 text-xs">
             <span className="text-muted-foreground">DevEx (1000 R$)</span><span className="font-medium">${(1000 * R).toFixed(2)}</span>
             <span className="text-muted-foreground">USD/RUB</span><span className="font-medium">{USD_RUB.toFixed(2)} ₽</span>
-            <span className="text-muted-foreground">1 R$ в USD</span><span className="font-medium">${R.toFixed(4)}</span>
-            <span className="text-muted-foreground">1 R$ в RUB</span><span className="font-medium">{(R * USD_RUB).toFixed(2)} ₽</span>
+            <span className="text-muted-foreground">1 R$ → USD</span><span className="font-medium">${R.toFixed(4)}</span>
+            <span className="text-muted-foreground">1 R$ → RUB</span><span className="font-medium">{(R * USD_RUB).toFixed(2)} ₽</span>
           </div>
         </CardContent>
       </Card>
@@ -492,6 +509,7 @@ function ConverterTab({ rates, ratesLoading, refreshRates }: { rates: Rates | nu
 
 // ── Tax Report ────────────────────────────────────────────────────────────────
 function TaxTab({ rates }: { rates: Rates | null }) {
+  const { t } = useLanguage();
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [taxRate, setTaxRate] = useState("13");
@@ -506,8 +524,8 @@ function TaxTab({ rates }: { rates: Rates | null }) {
   if (!report || report.paidInvoices === 0) return (
     <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
       <FileText className="w-12 h-12 opacity-20" />
-      <p className="text-sm">Нет оплаченных счетов для отчёта</p>
-      <p className="text-xs">Отметьте счета как "Оплачен" в разделе Invoice Generator</p>
+      <p className="text-sm">{t("fin.noTaxData")}</p>
+      <p className="text-xs">{t("fin.noTaxDataHint")}</p>
     </div>
   );
 
@@ -516,41 +534,41 @@ function TaxTab({ rates }: { rates: Rates | null }) {
 
   const copyReport = () => {
     const text = [
-      "НАЛОГОВЫЙ ОТЧЁТ Limited.Ink",
-      `Сформирован: ${new Date().toLocaleDateString("ru")}`,
-      "", `Оплаченных счетов: ${report.paidInvoices}`,
-      `Доход (USD): $${report.totalUsd.toFixed(2)}`,
-      `Доход (RUB): ${report.totalRub.toLocaleString()} ₽`,
-      `Доход (Robux): ${report.totalRobux.toLocaleString()} R$`,
-      "", `Налог ${taxRate}% (USD): $${taxEst.toFixed(2)}`,
-      `Налог ${taxRate}% (RUB): ${Math.round(taxRub).toLocaleString()} ₽`,
-      "", "По месяцам:",
-      ...report.byMonth.map((m: any) => `  ${m.month}: $${m.totalUsd.toFixed(2)} (${m.count} счетов)`),
+      `${t("fin.taxReport")} Limited.Ink`,
+      `${new Date().toLocaleDateString()}`,
+      "", `${t("fin.paidInvoices")}: ${report.paidInvoices}`,
+      `${t("fin.income")} (USD): $${report.totalUsd.toFixed(2)}`,
+      `${t("fin.income")} (RUB): ${report.totalRub.toLocaleString()} ₽`,
+      `${t("fin.income")} (Robux): ${report.totalRobux.toLocaleString()} R$`,
+      "", `${t("fin.tax")} ${taxRate}% (USD): $${taxEst.toFixed(2)}`,
+      `${t("fin.tax")} ${taxRate}% (RUB): ${Math.round(taxRub).toLocaleString()} ₽`,
+      "", `${t("fin.incomeByMonth")}:`,
+      ...report.byMonth.map((m: any) => `  ${m.month}: $${m.totalUsd.toFixed(2)} (${m.count})`),
     ].join("\n");
     navigator.clipboard.writeText(text);
-    toast({ title: "✅ Отчёт скопирован" });
+    toast({ title: `✅ ${t("fin.copied")}` });
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <p className="font-semibold">Налоговый отчёт</p>
-          <p className="text-xs text-muted-foreground">{report.paidInvoices} оплаченных счетов</p>
+          <p className="font-semibold">{t("fin.taxReport")}</p>
+          <p className="text-xs text-muted-foreground">{report.paidInvoices} {t("fin.paidInvoices")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Ставка:</span>
-          {["0", "6", "13", "20"].map(t => <button key={t} onClick={() => setTaxRate(t)} className={`text-xs rounded-lg px-2 py-1 border transition-colors ${taxRate === t ? "bg-black text-white border-black" : "border-border text-muted-foreground"}`}>{t}%</button>)}
-          <Button size="sm" variant="outline" className="rounded-xl gap-1.5 h-8" onClick={copyReport}><Copy className="w-3.5 h-3.5" /> Копировать</Button>
+          <span className="text-xs text-muted-foreground">{t("fin.taxRate")}:</span>
+          {["0", "6", "13", "20"].map(rate => <button key={rate} onClick={() => setTaxRate(rate)} className={`text-xs rounded-lg px-2 py-1 border transition-colors ${taxRate === rate ? "bg-black text-white border-black" : "border-border text-muted-foreground"}`}>{rate}%</button>)}
+          <Button size="sm" variant="outline" className="rounded-xl gap-1.5 h-8" onClick={copyReport}><Copy className="w-3.5 h-3.5" /> {t("fin.copy")}</Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Доход (USD)", value: `$${report.totalUsd.toFixed(2)}`, color: "text-green-600" },
-          { label: "Доход (RUB)", value: `${report.totalRub.toLocaleString()} ₽`, color: "text-blue-600" },
-          { label: "Доход (Robux)", value: `R$${report.totalRobux.toLocaleString()}`, color: "" },
-          { label: `Налог ${taxRate}%`, value: `$${taxEst.toFixed(2)}`, color: "text-red-500" },
+          { label: `${t("fin.income")} (USD)`, value: `$${report.totalUsd.toFixed(2)}`, color: "text-green-600" },
+          { label: `${t("fin.income")} (RUB)`, value: `${report.totalRub.toLocaleString()} ₽`, color: "text-blue-600" },
+          { label: `${t("fin.income")} (Robux)`, value: `R$${report.totalRobux.toLocaleString()}`, color: "" },
+          { label: `${t("fin.tax")} ${taxRate}%`, value: `$${taxEst.toFixed(2)}`, color: "text-red-500" },
         ].map(s => (
           <Card key={s.label} className="rounded-2xl border-border/50">
             <CardContent className="pt-4 pb-3"><p className={`text-xl font-bold ${s.color}`}>{s.value}</p><p className="text-xs text-muted-foreground mt-0.5">{s.label}</p></CardContent>
@@ -561,10 +579,10 @@ function TaxTab({ rates }: { rates: Rates | null }) {
       {taxRate !== "0" && (
         <Card className="rounded-2xl border-amber-500/20 bg-amber-500/5">
           <CardContent className="pt-4">
-            <p className="text-xs font-semibold text-amber-700 mb-2">💡 К уплате налога ({taxRate}%)</p>
+            <p className="text-xs font-semibold text-amber-700 mb-2">💡 {t("fin.taxDue")} ({taxRate}%)</p>
             <div className="grid grid-cols-2 gap-3">
-              <div><p className="text-xl font-bold">${taxEst.toFixed(2)}</p><p className="text-xs text-muted-foreground">в долларах</p></div>
-              <div><p className="text-xl font-bold">{Math.round(taxRub).toLocaleString()} ₽</p><p className="text-xs text-muted-foreground">в рублях</p></div>
+              <div><p className="text-xl font-bold">${taxEst.toFixed(2)}</p><p className="text-xs text-muted-foreground">USD</p></div>
+              <div><p className="text-xl font-bold">{Math.round(taxRub).toLocaleString()} ₽</p><p className="text-xs text-muted-foreground">RUB</p></div>
             </div>
           </CardContent>
         </Card>
@@ -572,14 +590,14 @@ function TaxTab({ rates }: { rates: Rates | null }) {
 
       {report.byMonth.length > 0 && (
         <Card className="rounded-2xl border-border/50">
-          <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm font-semibold text-muted-foreground">Доход по месяцам (USD)</CardTitle></CardHeader>
+          <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm font-semibold text-muted-foreground">{t("fin.incomeByMonth")} (USD)</CardTitle></CardHeader>
           <CardContent className="px-2 pb-4">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={report.byMonth.map((m: any) => ({ ...m, name: m.month.slice(5) + "/" + m.month.slice(0, 4) }))} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} className="fill-muted-foreground" />
                 <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" tickFormatter={v => `$${v}`} />
-                <Tooltip contentStyle={{ borderRadius: "12px", fontSize: "12px" }} formatter={(v: any) => [`$${Number(v).toFixed(2)}`, "Доход"]} />
+                <Tooltip contentStyle={{ borderRadius: "12px", fontSize: "12px" }} formatter={(v: any) => [`$${Number(v).toFixed(2)}`, t("fin.income")]} />
                 <Bar dataKey="totalUsd" fill="#000" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -591,7 +609,7 @@ function TaxTab({ rates }: { rates: Rates | null }) {
         {report.byMonth.map((m: any) => (
           <div key={m.month} className="flex items-center justify-between rounded-xl border border-border/50 px-4 py-2.5">
             <p className="text-sm font-medium">{m.month}</p>
-            <p className="text-xs text-muted-foreground">{m.count} счетов</p>
+            <p className="text-xs text-muted-foreground">{m.count}</p>
             <p className="text-sm font-bold text-green-600">${m.totalUsd.toFixed(2)}</p>
           </div>
         ))}
@@ -602,12 +620,13 @@ function TaxTab({ rates }: { rates: Rates | null }) {
 
 // ── Financial Goals ───────────────────────────────────────────────────────────
 const GOAL_CATEGORIES = [
-  { value: "devex", label: "💸 DevEx вывод" }, { value: "commission", label: "🎨 Комиссия" },
-  { value: "group_funds", label: "🏦 Казна группы" }, { value: "personal", label: "👤 Личное" },
-  { value: "team", label: "👥 Команда" }, { value: "other", label: "🎯 Другое" },
+  { value: "devex", label: "💸 DevEx" }, { value: "commission", label: "🎨 Commission" },
+  { value: "group_funds", label: "🏦 Group Funds" }, { value: "personal", label: "👤 Personal" },
+  { value: "team", label: "👥 Team" }, { value: "other", label: "🎯 Other" },
 ];
 
 function GoalsTab({ rates }: { rates: Rates | null }) {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -630,8 +649,8 @@ function GoalsTab({ rates }: { rates: Rates | null }) {
       });
       setGoals(p => [goal, ...p]);
       setShowAdd(false); setForm({ title: "", category: "devex", targetAmount: "", currency: "robux", deadline: "" });
-      toast({ title: "✅ Цель создана" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+      toast({ title: `✅ ${t("fin.goalCreated")}` });
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
 
@@ -663,8 +682,8 @@ function GoalsTab({ rates }: { rates: Rates | null }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div><p className="font-semibold">Финансовые цели</p><p className="text-xs text-muted-foreground">{goals.length} целей</p></div>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> Новая цель</Button>
+        <div><p className="font-semibold">{t("fin.goals")}</p><p className="text-xs text-muted-foreground">{goals.length}</p></div>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("fin.createGoal")}</Button>
       </div>
 
       <AnimatePresence>
@@ -672,8 +691,8 @@ function GoalsTab({ rates }: { rates: Rates | null }) {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <Card className="rounded-2xl border-black/20 bg-secondary/20">
               <CardContent className="pt-4 space-y-3">
-                <p className="text-sm font-semibold">Новая финансовая цель</p>
-                <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Название цели..." className="rounded-xl" />
+                <p className="text-sm font-semibold">{t("fin.createGoal")}</p>
+                <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={t("fin.goalTitle")} className="rounded-xl" />
                 <div className="grid grid-cols-2 gap-2">
                   <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
                     <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
@@ -685,12 +704,12 @@ function GoalsTab({ rates }: { rates: Rates | null }) {
                   </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input type="number" value={form.targetAmount} onChange={e => setForm(p => ({ ...p, targetAmount: e.target.value }))} placeholder={`Сумма (${CUR_SYM[form.currency]})`} className="rounded-xl" />
+                  <Input type="number" value={form.targetAmount} onChange={e => setForm(p => ({ ...p, targetAmount: e.target.value }))} placeholder={`${t("fin.amount")} (${CUR_SYM[form.currency]})`} className="rounded-xl" />
                   <Input type="date" value={form.deadline} onChange={e => setForm(p => ({ ...p, deadline: e.target.value }))} className="rounded-xl" />
                 </div>
                 <div className="flex gap-2">
                   <Button className="flex-1 rounded-xl" onClick={createGoal} disabled={saving || !form.title || !form.targetAmount}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Flag className="w-4 h-4" />} Создать
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Flag className="w-4 h-4" />} {t("fin.create")}
                   </Button>
                   <Button variant="ghost" className="rounded-xl" onClick={() => setShowAdd(false)}><X className="w-4 h-4" /></Button>
                 </div>
@@ -701,7 +720,7 @@ function GoalsTab({ rates }: { rates: Rates | null }) {
       </AnimatePresence>
 
       {loading ? Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />) : goals.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2"><Target className="w-12 h-12 opacity-20" /><p className="text-sm">Нет финансовых целей</p><p className="text-xs">Создайте цель для DevEx, комиссии или пополнения казны группы</p></div>
+        <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2"><Target className="w-12 h-12 opacity-20" /><p className="text-sm">{t("fin.noGoals")}</p><p className="text-xs">{t("fin.noGoalsHint")}</p></div>
       ) : (
         <div className="space-y-3">
           {goals.map(goal => {
@@ -717,12 +736,12 @@ function GoalsTab({ rates }: { rates: Rates | null }) {
                   <div className="flex items-start gap-3">
                     <span className="text-xl">{cat?.label.split(" ")[0] || "🎯"}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap"><p className="font-bold text-sm">{goal.title}</p>{isComplete && <Badge className="text-[9px] bg-green-500/15 text-green-700 border-green-500/30">✅ Достигнута</Badge>}</div>
+                      <div className="flex items-center gap-2 flex-wrap"><p className="font-bold text-sm">{goal.title}</p>{isComplete && <Badge className="text-[9px] bg-green-500/15 text-green-700 border-green-500/30">✅ {t("fin.goalReached")}</Badge>}</div>
                       <p className="text-xs text-muted-foreground">{cat?.label || goal.category}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="font-bold text-sm">{sym}{goal.currentAmount.toLocaleString()}<span className="text-muted-foreground font-normal"> / {sym}{goal.targetAmount.toLocaleString()}</span></p>
-                      {days !== null && <p className={`text-[10px] mt-0.5 ${days < 0 ? "text-red-500" : days < 7 ? "text-amber-600" : "text-muted-foreground"}`}>{days < 0 ? `Просрочено ${Math.abs(days)}д` : `${days}д осталось`}</p>}
+                      {days !== null && <p className={`text-[10px] mt-0.5 ${days < 0 ? "text-red-500" : days < 7 ? "text-amber-600" : "text-muted-foreground"}`}>{days < 0 ? `${t("fin.statusOverdue")} ${Math.abs(days)}d` : `${days}d ${t("fin.remaining")}`}</p>}
                     </div>
                   </div>
 
@@ -736,14 +755,14 @@ function GoalsTab({ rates }: { rates: Rates | null }) {
                   <div className="flex items-center gap-2">
                     {addingFunds === goal.id ? (
                       <>
-                        <Input type="number" value={addAmount} onChange={e => setAddAmount(e.target.value)} placeholder={`Добавить ${sym}...`} className="rounded-xl h-8 flex-1 text-sm" />
+                        <Input type="number" value={addAmount} onChange={e => setAddAmount(e.target.value)} placeholder={`${t("fin.addItem")} ${sym}...`} className="rounded-xl h-8 flex-1 text-sm" />
                         <Button size="sm" className="rounded-xl h-8 gap-1" onClick={() => updateProgress(goal, goal.currentAmount + parseFloat(addAmount || "0"))}><Check className="w-3 h-3" /></Button>
                         <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" onClick={() => setAddingFunds(null)}><X className="w-3.5 h-3.5" /></Button>
                       </>
                     ) : (
                       <>
                         <Button size="sm" variant="outline" className="rounded-xl h-8 gap-1.5 text-xs" onClick={() => { setAddingFunds(goal.id); setAddAmount(""); }}>
-                          <TrendingUp className="w-3 h-3" /> Обновить прогресс
+                          <TrendingUp className="w-3 h-3" /> {t("fin.updateProgress")}
                         </Button>
                         <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0 ml-auto text-red-500 hover:bg-red-500/10" onClick={() => deleteGoal(goal.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </>
@@ -761,31 +780,32 @@ function GoalsTab({ rates }: { rates: Rates | null }) {
 
 // ── Main Finance Page ─────────────────────────────────────────────────────────
 export default function Finance() {
+  const { t } = useLanguage();
   const { rates, loading: ratesLoading, refresh: refreshRates } = useRates();
   const [activeTab, setActiveTab] = useState("invoice");
 
   return (
     <div className="p-6 lg:p-10 w-full max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3"><Receipt className="w-7 h-7" /> Invoice & Finance</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Счета, калькулятор DevEx, налоги и финансовые цели</p>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3"><Receipt className="w-7 h-7" /> {t("fin.title")}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">{t("fin.desc")}</p>
       </div>
 
       {rates && (
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>💱 USD/RUB: <strong>{rates.usdRub.toFixed(1)}</strong></span>
           <span>🎮 DevEx: <strong>R$1000 = ${(1000 * rates.robuxUsd).toFixed(2)}</strong></span>
-          <span className="ml-auto opacity-60">Курс обновлён: {new Date(rates.fetchedAt).toLocaleTimeString()}</span>
+          <span className="ml-auto opacity-60">{t("fin.rates")}: {new Date(rates.fetchedAt).toLocaleTimeString()}</span>
         </div>
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1 flex-wrap">
-          <TabsTrigger value="invoice" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> Счета</TabsTrigger>
-          <TabsTrigger value="commission" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Calculator className="w-3.5 h-3.5" /> Комиссия DevEx</TabsTrigger>
-          <TabsTrigger value="converter" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><ArrowLeftRight className="w-3.5 h-3.5" /> Конвертер</TabsTrigger>
-          <TabsTrigger value="tax" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> Налоги</TabsTrigger>
-          <TabsTrigger value="goals" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Target className="w-3.5 h-3.5" /> Цели</TabsTrigger>
+          <TabsTrigger value="invoice" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> {t("fin.invoices")}</TabsTrigger>
+          <TabsTrigger value="commission" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Calculator className="w-3.5 h-3.5" /> {t("fin.commission")}</TabsTrigger>
+          <TabsTrigger value="converter" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><ArrowLeftRight className="w-3.5 h-3.5" /> {t("fin.converter")}</TabsTrigger>
+          <TabsTrigger value="tax" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> {t("fin.taxes")}</TabsTrigger>
+          <TabsTrigger value="goals" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Target className="w-3.5 h-3.5" /> {t("fin.goals")}</TabsTrigger>
         </TabsList>
 
         <div className="mt-6">

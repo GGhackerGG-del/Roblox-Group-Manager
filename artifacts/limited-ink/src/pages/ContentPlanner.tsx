@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   CalendarDays, FilePen, ListTodo, Bell, Plus, Trash2, Pencil, Check, X,
@@ -22,8 +23,11 @@ import { motion, AnimatePresence } from "framer-motion";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function getAuthHeaders(): Record<string, string> {
-  const { credentials } = getAuthCredentials();
-  return credentials ? { Authorization: `Bearer ${credentials}` } : {};
+  const { token, fingerprint } = getAuthCredentials();
+  const h: Record<string, string> = {};
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  if (fingerprint) h["X-Device-Fingerprint"] = fingerprint;
+  return h;
 }
 
 async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
@@ -39,11 +43,11 @@ async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
 function daysLeft(ts: number) {
   return Math.ceil((ts - Date.now()) / 86400000);
 }
-function fmtDate(ts: number) {
-  return new Date(ts).toLocaleDateString("ru", { day: "2-digit", month: "short", year: "numeric" });
+function fmtDate(ts: number, locale: string) {
+  return new Date(ts).toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" });
 }
-function fmtDateTime(ts: number) {
-  return new Date(ts).toLocaleDateString("ru", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+function fmtDateTime(ts: number, locale: string) {
+  return new Date(ts).toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 function toDateStr(ts: number) { return new Date(ts).toISOString().slice(0, 10); }
 
@@ -84,6 +88,7 @@ interface CalEvent { id: string; title: string; type: string; date: string; colo
 
 function CalendarTab({ drafts }: { drafts: Draft[] }) {
   const { toast } = useToast();
+  const { t, lang } = useLanguage();
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [today] = useState(new Date());
@@ -97,7 +102,7 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
     apiFetch<{ events: CalEvent[] }>("/api/content/calendar").then(({ events: e }) => setEvents(e)).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  const monthName = month.toLocaleDateString("ru", { month: "long", year: "numeric" });
+  const monthName = month.toLocaleDateString(lang, { month: "long", year: "numeric" });
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   const firstDow = (new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 6) % 7; // Mon=0
   const todayStr = today.toISOString().slice(0, 10);
@@ -125,7 +130,7 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
       setShowAdd(false);
       setForm({ title: "", type: "clothing", notes: "", draftId: "" });
       toast({ title: "✅ Событие добавлено" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
 
@@ -143,7 +148,7 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
         <Button variant="ghost" size="sm" className="rounded-xl h-8 w-8 p-0" onClick={prevMonth}><ChevronLeft className="w-4 h-4" /></Button>
         <p className="font-bold text-base flex-1 text-center capitalize">{monthName}</p>
         <Button variant="ghost" size="sm" className="rounded-xl h-8 w-8 p-0" onClick={nextMonth}><ChevronRight className="w-4 h-4" /></Button>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setMonth(new Date(today.getFullYear(), today.getMonth(), 1))}>Сегодня</Button>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setMonth(new Date(today.getFullYear(), today.getMonth(), 1))}>{t("cp.today")}</Button>
       </div>
 
       {/* Day of week headers */}
@@ -187,15 +192,15 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
         {selectedDay && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-bold">{new Date(selectedDay).toLocaleDateString("ru", { day: "numeric", month: "long" })}</p>
-              <Button size="sm" className="rounded-xl gap-1.5 h-7 text-xs" onClick={() => setShowAdd(p => !p)}><Plus className="w-3 h-3" /> Добавить</Button>
+              <p className="text-sm font-bold">{new Date(selectedDay).toLocaleDateString(lang, { day: "numeric", month: "long" })}</p>
+              <Button size="sm" className="rounded-xl gap-1.5 h-7 text-xs" onClick={() => setShowAdd(p => !p)}><Plus className="w-3 h-3" /> {t("cp.addEvent")}</Button>
             </div>
 
             {showAdd && (
               <Card className="rounded-2xl border-black/20 bg-secondary/20">
                 <CardContent className="pt-3 pb-3 space-y-2">
                   <div className="grid grid-cols-2 gap-2">
-                    <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Название события..." className="rounded-xl" />
+                    <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={t("cp.eventTitle")} className="rounded-xl" />
                     <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v }))}>
                       <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
                       <SelectContent>{EVENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
@@ -210,7 +215,7 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
                   <Input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Заметки..." className="rounded-xl" />
                   <div className="flex gap-2">
                     <Button size="sm" className="flex-1 rounded-xl" onClick={addEvent} disabled={saving || !form.title}>
-                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Добавить
+                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} {t("cp.addEvent")}
                     </Button>
                     <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => setShowAdd(false)}><X className="w-3.5 h-3.5" /></Button>
                   </div>
@@ -219,7 +224,7 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
             )}
 
             {selectedEvents.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-3">Нет событий на этот день</p>
+              <p className="text-xs text-muted-foreground text-center py-3">{t("cp.noEvents")}</p>
             ) : (
               <div className="space-y-2">
                 {selectedEvents.map(ev => {
@@ -251,6 +256,7 @@ interface Draft { id: string; title: string; type: string; content: string; thum
 
 function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dispatch<React.SetStateAction<Draft[]>> }) {
   const { toast } = useToast();
+  const { t, lang } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "edit">("list");
   const [editing, setEditing] = useState<Draft | null>(null);
@@ -289,7 +295,7 @@ function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dis
         toast({ title: "✅ Черновик создан" });
       }
       setView("list");
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
 
@@ -328,7 +334,7 @@ function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dis
       <Textarea value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} placeholder="Описание, текст публикации, заметки по дизайну..." className="rounded-xl resize-none" rows={5} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">URL превью (необяз.)</Label><Input value={form.thumbnailUrl} onChange={e => setForm(p => ({ ...p, thumbnailUrl: e.target.value }))} placeholder="https://..." className="rounded-xl" /></div>
-        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Дата публикации</Label><Input type="date" value={form.scheduledAt} onChange={e => setForm(p => ({ ...p, scheduledAt: e.target.value }))} className="rounded-xl" /></div>
+        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{t("cp.eventDate")}</Label><Input type="date" value={form.scheduledAt} onChange={e => setForm(p => ({ ...p, scheduledAt: e.target.value }))} className="rounded-xl" /></div>
       </div>
       <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Теги (через запятую)</Label><Input value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} placeholder="лето, хайп, коллаб..." className="rounded-xl" /></div>
       <Button className="w-full rounded-xl gap-2" onClick={saveDraft} disabled={saving || !form.title}>
@@ -378,7 +384,7 @@ function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dis
                     {draft.content && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{draft.content}</p>}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span className="text-[10px] text-muted-foreground">{draftType?.label}</span>
-                      {draft.scheduledAt && <span className="text-[10px] text-blue-600">📅 {fmtDate(draft.scheduledAt)}</span>}
+                      {draft.scheduledAt && <span className="text-[10px] text-blue-600">📅 {fmtDate(draft.scheduledAt, lang)}</span>}
                       {draft.tags.slice(0, 3).map(t => <span key={t} className="text-[9px] bg-secondary rounded-md px-1.5 py-0.5">{t}</span>)}
                     </div>
                   </div>
@@ -399,20 +405,21 @@ function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dis
 // ── To-Do List ────────────────────────────────────────────────────────────────
 interface Todo { id: string; title: string; description: string; priority: string; category: string; dueDate: number | null; done: boolean; createdAt: number }
 
-const PRIORITY_META: Record<string, { icon: JSX.Element; label: string; color: string }> = {
-  high: { icon: <ArrowUp className="w-3 h-3" />, label: "Высокий", color: "text-red-500" },
-  medium: { icon: <Minus className="w-3 h-3" />, label: "Средний", color: "text-amber-500" },
-  low: { icon: <ArrowDown className="w-3 h-3" />, label: "Низкий", color: "text-blue-500" },
-};
-
 function TodoTab() {
   const { toast } = useToast();
+  const { t, lang } = useLanguage();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", priority: "medium", category: "general", dueDate: "" });
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<"all" | "active" | "done">("active");
+
+  const PRIORITY_META: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+    high: { icon: <ArrowUp className="w-3 h-3" />, label: t("cp.high"), color: "text-red-500" },
+    medium: { icon: <Minus className="w-3 h-3" />, label: t("cp.medium"), color: "text-amber-500" },
+    low: { icon: <ArrowDown className="w-3 h-3" />, label: t("cp.low"), color: "text-blue-500" },
+  };
 
   useEffect(() => {
     apiFetch<{ todos: Todo[] }>("/api/content/todos").then(({ todos: t }) => setTodos(t)).catch(() => {}).finally(() => setLoading(false));
@@ -427,7 +434,7 @@ function TodoTab() {
       });
       setTodos(p => [todo, ...p]);
       setShowAdd(false); setForm({ title: "", description: "", priority: "medium", category: "general", dueDate: "" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("common.error") }); }
     finally { setSaving(false); }
   };
 
@@ -464,8 +471,8 @@ function TodoTab() {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <Card className="rounded-2xl border-black/20 bg-secondary/20">
               <CardContent className="pt-4 space-y-2">
-                <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Название задачи *" className="rounded-xl" />
-                <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Описание (необяз.)" className="rounded-xl" />
+                <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={t("cp.eventTitle")} className="rounded-xl" />
+                <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder={t("cp.ideaDesc")} className="rounded-xl" />
                 <div className="grid grid-cols-3 gap-2">
                   <Select value={form.priority} onValueChange={v => setForm(p => ({ ...p, priority: v }))}>
                     <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue /></SelectTrigger>
@@ -479,7 +486,7 @@ function TodoTab() {
                 </div>
                 <div className="flex gap-2">
                   <Button className="flex-1 rounded-xl" onClick={addTodo} disabled={saving || !form.title}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Добавить
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {t("cp.addEvent")}
                   </Button>
                   <Button variant="ghost" className="rounded-xl" onClick={() => setShowAdd(false)}><X className="w-4 h-4" /></Button>
                 </div>
@@ -509,7 +516,7 @@ function TodoTab() {
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${pm.color}`}>{pm.icon}{pm.label}</span>
                         <span className="text-[10px] text-muted-foreground">{cat?.label}</span>
-                        {due !== null && !todo.done && <span className={`text-[10px] font-medium ${due < 0 ? "text-red-500" : due === 0 ? "text-amber-600" : "text-muted-foreground"}`}>{due < 0 ? `Просрочено ${Math.abs(due)}д` : due === 0 ? "Сегодня!" : `${due}д`}</span>}
+                        {due !== null && !todo.done && <span className={`text-[10px] font-medium ${due < 0 ? "text-red-500" : due === 0 ? "text-amber-600" : "text-muted-foreground"}`}>{due < 0 ? `Просрочено ${Math.abs(due)}д` : due === 0 ? `${t("cp.today")}!` : `${due}д`}</span>}
                       </div>
                     </div>
                     <button onClick={() => deleteTodo(todo.id)} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -529,6 +536,7 @@ interface Reminder { id: string; title: string; description: string; type: strin
 
 function RemindersTab() {
   const { toast } = useToast();
+  const { t, lang } = useLanguage();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -551,7 +559,7 @@ function RemindersTab() {
       setReminders(p => [...p, reminder].sort((a, b) => a.dueAt - b.dueAt));
       setShowAdd(false); setForm({ title: "", description: "", type: "deadline", dueAt: "", dueTime: "12:00", notifyDaysBefore: "1" });
       toast({ title: "🔔 Напоминание создано" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("common.error") }); }
     finally { setSaving(false); }
   };
 
@@ -575,7 +583,7 @@ function RemindersTab() {
   const urgencyLabel = (r: Reminder) => {
     const d = daysLeft(r.dueAt);
     if (d < 0) return { text: `Просрочено ${Math.abs(d)}д назад`, color: "text-red-600", icon: <AlertTriangle className="w-3 h-3" /> };
-    if (d === 0) return { text: "Сегодня!", color: "text-amber-600", icon: <Clock className="w-3 h-3" /> };
+    if (d === 0) return { text: `${t("cp.today")}!`, color: "text-amber-600", icon: <Clock className="w-3 h-3" /> };
     if (d <= 3) return { text: `Через ${d}д`, color: "text-yellow-600", icon: <Clock className="w-3 h-3" /> };
     return { text: `Через ${d}д`, color: "text-muted-foreground", icon: <CalendarDays className="w-3 h-3" /> };
   };
@@ -587,7 +595,7 @@ function RemindersTab() {
           <p className="font-semibold text-sm">Напоминания</p>
           {past.length > 0 && <button onClick={() => setShowPast(p => !p)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{showPast ? "Скрыть прошедшие" : `+${past.length} прошедших`}</button>}
         </div>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> Добавить</Button>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("cp.addEvent")}</Button>
       </div>
 
       {/* Upcoming summary */}
@@ -603,8 +611,8 @@ function RemindersTab() {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <Card className="rounded-2xl border-black/20 bg-secondary/20">
               <CardContent className="pt-4 space-y-2">
-                <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Название напоминания *" className="rounded-xl" />
-                <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Описание (необяз.)" className="rounded-xl" />
+                <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={t("cp.eventTitle")} className="rounded-xl" />
+                <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder={t("cp.ideaDesc")} className="rounded-xl" />
                 <div className="grid grid-cols-3 gap-2">
                   <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v }))}>
                     <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue /></SelectTrigger>
@@ -654,7 +662,7 @@ function RemindersTab() {
                   {r.description && <p className="text-xs text-muted-foreground mt-0.5">{r.description}</p>}
                   <div className="flex items-center gap-2 mt-1.5">
                     <span className={`text-xs font-semibold ${ur.color}`}>{ur.text}</span>
-                    <span className="text-[10px] text-muted-foreground">• {fmtDateTime(r.dueAt)}</span>
+                    <span className="text-[10px] text-muted-foreground">• {fmtDateTime(r.dueAt, lang)}</span>
                     <span className="text-[10px] text-muted-foreground">• за {r.notifyDaysBefore}д</span>
                   </div>
                 </div>
@@ -670,21 +678,22 @@ function RemindersTab() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ContentPlanner() {
+  const { t, lang } = useLanguage();
   const [activeTab, setActiveTab] = useState("calendar");
   const [drafts, setDrafts] = useState<Draft[]>([]);
 
   return (
     <div className="p-6 lg:p-10 w-full max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3"><CalendarDays className="w-7 h-7" /> Content Planner</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Календарь публикаций, черновики, задачи и напоминания</p>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3"><CalendarDays className="w-7 h-7" /> {t("cp.title")}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">{t("cp.desc")}</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1 flex-wrap">
-          <TabsTrigger value="calendar" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> Календарь</TabsTrigger>
-          <TabsTrigger value="drafts" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><FilePen className="w-3.5 h-3.5" /> Черновики</TabsTrigger>
-          <TabsTrigger value="todos" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><ListTodo className="w-3.5 h-3.5" /> To-Do</TabsTrigger>
+          <TabsTrigger value="calendar" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> {t("cp.calendar")}</TabsTrigger>
+          <TabsTrigger value="drafts" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><FilePen className="w-3.5 h-3.5" /> {t("cp.board")}</TabsTrigger>
+          <TabsTrigger value="todos" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><ListTodo className="w-3.5 h-3.5" /> {t("cp.ideas")}</TabsTrigger>
           <TabsTrigger value="reminders" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> Напоминания</TabsTrigger>
         </TabsList>
 

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   Shield, Cookie, Users, Activity, RefreshCw, Globe, Plus, Trash2, Check,
   X, Loader2, Eye, EyeOff, AlertTriangle, Copy, CheckCircle2, XCircle,
@@ -99,12 +100,12 @@ function saveProxy(cfg: ProxyConfig | null) {
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "Только что";
-  if (m < 60) return `${m} мин. назад`;
+  if (m < 1) return "now";
+  if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} ч. назад`;
+  if (h < 24) return `${h}h`;
   const d = Math.floor(h / 24);
-  return `${d} дн. назад`;
+  return `${d}d`;
 }
 
 export function logAppActivity(action: string, detail?: string) {
@@ -113,6 +114,7 @@ export function logAppActivity(action: string, detail?: string) {
 
 export default function Security() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [tab, setTab] = useState("cookies");
 
   const [accounts, setAccounts] = useState<SavedAccount[]>([]);
@@ -186,7 +188,7 @@ export default function Security() {
       setSessionHealthy(false);
       setLastChecked(Date.now());
       if (autoRefreshRef.current) {
-        toast({ title: "⚠️ Сессия истекла", description: "Cookie больше не действует", variant: "destructive" });
+        toast({ title: `⚠️ ${t("sec.expired")}`, description: t("sec.invalid"), variant: "destructive" });
         playError();
       }
     }
@@ -206,7 +208,7 @@ export default function Security() {
       if (r?.valid) { playSuccess(); if (!newLabel) setNewLabel(r.username || ""); }
       else playError();
     } catch (e) {
-      setValidResult({ valid: false, error: e instanceof Error ? e.message : "Ошибка" });
+      setValidResult({ valid: false, error: e instanceof Error ? e.message : t("common.error") });
     } finally { setValidating(false); }
   };
 
@@ -228,7 +230,7 @@ export default function Security() {
     setAccounts(updated);
     setNewCookie(""); setNewLabel(""); setValidResult(null);
     logAppActivity("Account saved", acc.username);
-    toast({ title: "✅ Аккаунт сохранён", description: `@${acc.username}` });
+    toast({ title: `✅ ${t("sec.addAccount")}`, description: `@${acc.username}` });
     playSuccess();
   };
 
@@ -236,7 +238,7 @@ export default function Security() {
     const updated = accounts.filter(a => a.id !== id);
     saveAccounts(updated);
     setAccounts(updated);
-    toast({ title: "Удалено" });
+    toast({ title: t("common.delete") });
   };
 
   const switchAccount = async (acc: SavedAccount) => {
@@ -251,12 +253,12 @@ export default function Security() {
       saveAccounts(updated);
       setAccounts(updated);
       logAppActivity("Account switched", acc.username);
-      toast({ title: "✅ Аккаунт переключён", description: `Активен: @${r.name}` });
+      toast({ title: `✅ ${t("sec.active")}`, description: `@${r.name}` });
       playSuccess();
       loadSessionInfo();
     } catch (e) {
       playError();
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Не удалось переключиться", variant: "destructive" });
+      toast({ title: t("common.error"), description: e instanceof Error ? e.message : t("common.error"), variant: "destructive" });
     } finally { setSwitchingId(null); }
   };
 
@@ -271,7 +273,7 @@ export default function Security() {
       setProxyTestResult(r);
       if (r.ok) playSuccess(); else playError();
     } catch (e) {
-      setProxyTestResult({ ok: false, message: e instanceof Error ? e.message : "Ошибка" });
+      setProxyTestResult({ ok: false, message: e instanceof Error ? e.message : t("common.error") });
     } finally { setTestingProxy(false); }
   };
 
@@ -281,7 +283,7 @@ export default function Security() {
       if (!proxyInput.trim()) {
         saveProxy(null);
         setProxyConfig(null);
-        toast({ title: "Прокси удалён" });
+        toast({ title: t("sec.proxyDisconnected") });
         return;
       }
       const cfg: ProxyConfig = { url: proxyInput.trim(), enabled: proxyEnabled, addedAt: Date.now() };
@@ -293,7 +295,7 @@ export default function Security() {
         body: JSON.stringify({ url: cfg.url, enabled: cfg.enabled }),
       }).catch(() => {});
       logAppActivity("Proxy saved");
-      toast({ title: "✅ Прокси сохранён" });
+      toast({ title: `✅ ${t("sec.proxyConnected")}` });
       playSuccess();
     } finally { setSavingProxy(false); }
   };
@@ -313,7 +315,7 @@ export default function Security() {
     await apiFetch("/api/security/activity", { method: "DELETE" }).catch(() => {});
     localStorage.removeItem(ACTIVITY_KEY);
     setActivityLog([]);
-    toast({ title: "Логи очищены" });
+    toast({ title: t("sec.noLogs") });
   };
 
   useEffect(() => { if (tab === "activity") loadServerActivity(); }, [tab]);
@@ -339,8 +341,8 @@ export default function Security() {
           <Shield className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Безопасность и аккаунты</h1>
-          <p className="text-sm text-muted-foreground">Управление cookie, аккаунтами и сессиями</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("sec.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("sec.desc")}</p>
         </div>
       </div>
 
@@ -358,12 +360,12 @@ export default function Security() {
         <TabsContent value="cookies" className="mt-4 space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><Plus className="w-4 h-4 text-blue-500" /> Добавить аккаунт</CardTitle>
-              <CardDescription>Вставьте .ROBLOSECURITY cookie для верификации и сохранения</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Plus className="w-4 h-4 text-blue-500" /> {t("sec.addAccount")}</CardTitle>
+              <CardDescription>{t("sec.desc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Cookie (ROBLOSECURITY)</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("sec.cookie")} (ROBLOSECURITY)</label>
                 <div className="relative">
                   <Input
                     type={showCookie ? "text" : "password"}
@@ -378,17 +380,17 @@ export default function Security() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Метка (необязательно)</label>
-                <Input placeholder="Мой основной аккаунт..." value={newLabel} onChange={e => setNewLabel(e.target.value)} className="rounded-xl" />
+                <label className="text-xs font-medium text-muted-foreground">{t("sec.label")}</label>
+                <Input placeholder={t("sec.label")} value={newLabel} onChange={e => setNewLabel(e.target.value)} className="rounded-xl" />
               </div>
 
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1 rounded-xl gap-1.5" onClick={validateCookie} disabled={validating || !newCookie.trim()}>
                   {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  Проверить
+                  {t("sec.verify")}
                 </Button>
                 <Button className="flex-1 rounded-xl gap-1.5" onClick={saveAccount} disabled={!validResult?.valid}>
-                  <Plus className="w-4 h-4" /> Сохранить
+                  <Plus className="w-4 h-4" /> {t("common.save")}
                 </Button>
               </div>
 
@@ -405,12 +407,12 @@ export default function Security() {
                             <p className="text-xs text-muted-foreground">@{validResult.username} • ID: {validResult.userId}</p>
                           </div>
                         </div>
-                        <Badge className="bg-green-500/20 text-green-700 border-0">Действителен</Badge>
+                        <Badge className="bg-green-500/20 text-green-700 border-0">{t("sec.verified")}</Badge>
                       </div>
                     ) : (
                       <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
                         <XCircle className="w-5 h-5 text-red-500 shrink-0" />
-                        <p className="text-sm text-red-600">{validResult.error || "Недействительный cookie"}</p>
+                        <p className="text-sm text-red-600">{validResult.error || t("sec.invalid")}</p>
                       </div>
                     )}
                   </motion.div>
@@ -419,7 +421,7 @@ export default function Security() {
 
               <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-700 dark:text-amber-300 flex gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <p>Cookie хранятся локально в браузере. Никогда не передавайте их третьим лицам.</p>
+                <p>{t("sec.cookie")}</p>
               </div>
             </CardContent>
           </Card>
@@ -428,7 +430,7 @@ export default function Security() {
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Cookie className="w-4 h-4" /> Сохранённые аккаунты
+                  <Cookie className="w-4 h-4" /> {t("sec.accounts")}
                   <Badge variant="outline" className="ml-auto">{accounts.length}</Badge>
                 </CardTitle>
               </CardHeader>
@@ -439,14 +441,14 @@ export default function Security() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold truncate">{acc.label}</p>
-                        {acc.isActive && <Badge className="text-[9px] bg-green-500/20 text-green-700 border-0">Активен</Badge>}
+                        {acc.isActive && <Badge className="text-[9px] bg-green-500/20 text-green-700 border-0">{t("sec.active")}</Badge>}
                       </div>
-                      <p className="text-xs text-muted-foreground">@{acc.username} • добавлен {timeAgo(acc.addedAt)}</p>
+                      <p className="text-xs text-muted-foreground">@{acc.username} • {timeAgo(acc.addedAt)}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs rounded-lg" onClick={() => switchAccount(acc)} disabled={switchingId === acc.id}>
                         {switchingId === acc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogIn className="w-3.5 h-3.5" />}
-                        Войти
+                        {t("sec.connect")}
                       </Button>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 rounded-lg" onClick={() => deleteAccount(acc.id)}>
                         <Trash2 className="w-3.5 h-3.5" />
@@ -463,15 +465,15 @@ export default function Security() {
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2"><Users className="w-4 h-4 text-violet-500" /> Multi-Alt Manager</CardTitle>
-              <CardDescription>Быстрое переключение между аккаунтами</CardDescription>
+              <CardDescription>{t("sec.desc")}</CardDescription>
             </CardHeader>
             <CardContent>
               {accounts.length === 0 ? (
                 <div className="flex flex-col items-center py-10 text-muted-foreground gap-2">
                   <Users className="w-10 h-10 opacity-20" />
-                  <p className="text-sm">Нет сохранённых аккаунтов</p>
+                  <p className="text-sm">{t("sec.noAccounts")}</p>
                   <Button size="sm" variant="outline" className="rounded-xl mt-2" onClick={() => { playClick(); setTab("cookies"); }}>
-                    <Plus className="w-3.5 h-3.5 mr-1.5" /> Добавить аккаунт
+                    <Plus className="w-3.5 h-3.5 mr-1.5" /> {t("sec.addAccount")}
                   </Button>
                 </div>
               ) : (
@@ -489,14 +491,14 @@ export default function Security() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-semibold">{acc.label}</p>
-                          {acc.isActive && <Badge className="text-[9px] bg-white/20 text-white border-0">Активен</Badge>}
+                          {acc.isActive && <Badge className="text-[9px] bg-white/20 text-white border-0">{t("sec.active")}</Badge>}
                         </div>
                         <p className={`text-xs mt-0.5 ${acc.isActive ? "text-white/60" : "text-muted-foreground"}`}>
                           @{acc.username} • ID {acc.userId}
                         </p>
                         {acc.lastUsed && (
                           <p className={`text-[10px] mt-0.5 ${acc.isActive ? "text-white/40" : "text-muted-foreground/60"}`}>
-                            Последний вход: {timeAgo(acc.lastUsed)}
+                            {timeAgo(acc.lastUsed)}
                           </p>
                         )}
                       </div>
@@ -520,19 +522,19 @@ export default function Security() {
             <Card className="rounded-2xl border-border/50">
               <CardContent className="pt-4 text-center">
                 <p className="text-3xl font-bold">{accounts.length}</p>
-                <p className="text-xs text-muted-foreground mt-1">Сохранённых аккаунтов</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("sec.accounts")}</p>
               </CardContent>
             </Card>
             <Card className="rounded-2xl border-border/50">
               <CardContent className="pt-4 text-center">
                 <p className="text-3xl font-bold">{accounts.filter(a => a.isActive).length || 1}</p>
-                <p className="text-xs text-muted-foreground mt-1">Активных сессий</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("sec.sessions")}</p>
               </CardContent>
             </Card>
             <Card className="rounded-2xl border-border/50">
               <CardContent className="pt-4 text-center">
                 <p className="text-3xl font-bold">{accounts.filter(a => a.lastUsed && Date.now() - a.lastUsed < 86400000).length}</p>
-                <p className="text-xs text-muted-foreground mt-1">Использованы сегодня</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("sec.active")}</p>
               </CardContent>
             </Card>
           </div>
@@ -543,7 +545,7 @@ export default function Security() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
                 <CardTitle className="text-base flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500" /> Session Monitor</CardTitle>
-                <CardDescription>Статус активной сессии Roblox</CardDescription>
+                <CardDescription>{t("sec.currentSession")}</CardDescription>
               </div>
               <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={() => { loadSessionInfo(); checkSession(); }} disabled={sessionLoading}>
                 <RefreshCw className={`w-3.5 h-3.5 ${sessionLoading ? "animate-spin" : ""}`} />
@@ -554,9 +556,9 @@ export default function Security() {
                 <div className={`w-3 h-3 rounded-full shrink-0 ${sessionHealthy === true ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : sessionHealthy === false ? "bg-red-500" : "bg-gray-400"} ${sessionHealthy === true ? "animate-pulse" : ""}`} />
                 <div className="flex-1">
                   <p className="text-sm font-semibold">
-                    {sessionHealthy === true ? "Сессия активна" : sessionHealthy === false ? "Сессия истекла" : "Проверка..."}
+                    {sessionHealthy === true ? t("sec.active") : sessionHealthy === false ? t("sec.expired") : t("sec.verify") + "..."}
                   </p>
-                  {lastChecked && <p className="text-xs text-muted-foreground">Проверено: {timeAgo(lastChecked)}</p>}
+                  {lastChecked && <p className="text-xs text-muted-foreground">{t("sec.verify")}: {timeAgo(lastChecked)}</p>}
                 </div>
                 <Badge variant="outline" className={sessionHealthy === true ? "border-green-500/30 text-green-600" : "border-red-500/30 text-red-600"}>
                   {sessionHealthy === true ? "Online" : sessionHealthy === false ? "Offline" : "Checking"}
@@ -575,11 +577,11 @@ export default function Security() {
                     </div>
                   </div>
                   {[
-                    { icon: <Lock className="w-4 h-4" />, label: "Cookie (скрыт)", value: sessionInfo.maskedCookie, mono: true },
-                    { icon: <Clock className="w-4 h-4" />, label: "Сессия создана", value: sessionInfo.sessionCreatedAt ? timeAgo(sessionInfo.sessionCreatedAt) : "Неизвестно" },
-                    { icon: <Activity className="w-4 h-4" />, label: "Записей активности", value: String(sessionInfo.activityCount) },
-                    { icon: <Users className="w-4 h-4" />, label: "Сохранённых аккаунтов", value: String(accounts.length) },
-                    { icon: <Globe className="w-4 h-4" />, label: "Прокси", value: sessionInfo.proxyEnabled ? "Включён" : "Отключён" },
+                    { icon: <Lock className="w-4 h-4" />, label: t("sec.cookie"), value: sessionInfo.maskedCookie, mono: true },
+                    { icon: <Clock className="w-4 h-4" />, label: t("sec.currentSession"), value: sessionInfo.sessionCreatedAt ? timeAgo(sessionInfo.sessionCreatedAt) : "—" },
+                    { icon: <Activity className="w-4 h-4" />, label: t("sec.logs"), value: String(sessionInfo.activityCount) },
+                    { icon: <Users className="w-4 h-4" />, label: t("sec.accounts"), value: String(accounts.length) },
+                    { icon: <Globe className="w-4 h-4" />, label: t("sec.proxy"), value: sessionInfo.proxyEnabled ? t("sec.proxyConnected") : t("sec.proxyDisconnected") },
                   ].map(({ icon, label, value, mono }) => (
                     <div key={label} className="flex items-center gap-3 rounded-xl border border-border/50 p-3">
                       <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-muted-foreground">{icon}</div>
@@ -598,7 +600,7 @@ export default function Security() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <Shield className="w-10 h-10 opacity-20 mx-auto mb-2" />
-                  <p className="text-sm">Не удалось загрузить данные сессии</p>
+                  <p className="text-sm">{t("common.error")}</p>
                 </div>
               )}
             </CardContent>
@@ -609,21 +611,21 @@ export default function Security() {
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-green-500" /> Activity Logs</CardTitle>
-                <CardDescription>Хронология всех действий в приложении</CardDescription>
+                <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-green-500" /> {t("sec.logs")}</CardTitle>
+                <CardDescription>{t("sec.desc")}</CardDescription>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={loadServerActivity}>
                   <RefreshCw className="w-3.5 h-3.5" />
                 </Button>
                 <Button size="sm" variant="ghost" className="rounded-xl gap-1.5 text-red-500 hover:bg-red-500/10" onClick={clearActivity}>
-                  <Trash2 className="w-3.5 h-3.5" /> Очистить
+                  <Trash2 className="w-3.5 h-3.5" /> {t("common.delete")}
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <Input
-                placeholder="Фильтр по действию..."
+                placeholder={t("sec.logs")}
                 value={activityFilter}
                 onChange={e => setActivityFilter(e.target.value)}
                 className="rounded-xl"
@@ -631,7 +633,7 @@ export default function Security() {
               {filteredActivity.length === 0 ? (
                 <div className="flex flex-col items-center py-10 text-muted-foreground gap-2">
                   <Activity className="w-10 h-10 opacity-20" />
-                  <p className="text-sm">Нет записей активности</p>
+                  <p className="text-sm">{t("sec.noLogs")}</p>
                 </div>
               ) : (
                 <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
@@ -659,7 +661,7 @@ export default function Security() {
                 </div>
               )}
               <p className="text-xs text-muted-foreground text-center">
-                {filteredActivity.length} {activityFilter ? "найдено" : "записей"} • хранится до 500
+                {filteredActivity.length} {t("sec.logs")} • 500
               </p>
             </CardContent>
           </Card>
@@ -669,7 +671,7 @@ export default function Security() {
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2"><RefreshCw className="w-4 h-4 text-amber-500" /> Auto Cookie Refresh</CardTitle>
-              <CardDescription>Автоматическая проверка актуальности сессии каждые 30 секунд</CardDescription>
+              <CardDescription>{t("sec.desc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between rounded-xl border border-border/50 p-4">
@@ -678,8 +680,8 @@ export default function Security() {
                     {autoRefresh ? <Wifi className="w-5 h-5 text-green-500" /> : <WifiOff className="w-5 h-5 text-muted-foreground" />}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold">{autoRefresh ? "Мониторинг активен" : "Мониторинг выключен"}</p>
-                    <p className="text-xs text-muted-foreground">Проверка каждые 30 секунд</p>
+                    <p className="text-sm font-semibold">{autoRefresh ? t("sec.active") : t("sec.proxyDisconnected")}</p>
+                    <p className="text-xs text-muted-foreground">{t("sec.verify")}</p>
                   </div>
                 </div>
                 <Switch
@@ -688,7 +690,7 @@ export default function Security() {
                     setAutoRefresh(v);
                     localStorage.setItem("limitedink_auto_refresh", String(v));
                     playClick();
-                    if (v) toast({ title: "✅ Мониторинг включён", description: "Проверка сессии каждые 30 сек" });
+                    if (v) toast({ title: `✅ ${t("sec.active")}` });
                   }}
                 />
               </div>
@@ -697,23 +699,23 @@ export default function Security() {
                 <div className={`flex items-center gap-3 rounded-xl border p-3 ${sessionHealthy ? "border-green-500/20 bg-green-500/5" : "border-red-500/20 bg-red-500/5"}`}>
                   {sessionHealthy ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-500" />}
                   <div>
-                    <p className="text-sm font-semibold">{sessionHealthy ? "Cookie действителен" : "Cookie истёк!"}</p>
-                    <p className="text-xs text-muted-foreground">{lastChecked ? `Последняя проверка: ${timeAgo(lastChecked)}` : "Ещё не проверялось"}</p>
+                    <p className="text-sm font-semibold">{sessionHealthy ? t("sec.verified") : t("sec.expired")}</p>
+                    <p className="text-xs text-muted-foreground">{lastChecked ? `${t("sec.verify")}: ${timeAgo(lastChecked)}` : t("sec.verify")}</p>
                   </div>
                 </div>
               )}
 
               <Button className="w-full rounded-xl gap-1.5" variant="outline" onClick={checkSession} disabled={sessionLoading}>
-                <Zap className="w-4 h-4" /> Проверить сейчас
+                <Zap className="w-4 h-4" /> {t("sec.verify")}
               </Button>
 
               <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Что происходит при истечении cookie:</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("sec.expired")}:</p>
                 {[
-                  "Вы получаете уведомление с вибрацией",
-                  "Мониторинг продолжает работать",
-                  "Можно переключиться на альтернативный аккаунт в Multi-Alt",
-                  "Нужно будет заново войти в Roblox аккаунт",
+                  t("sec.expired"),
+                  t("sec.verify"),
+                  t("sec.accounts"),
+                  t("sec.connect"),
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
                     <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
@@ -724,7 +726,7 @@ export default function Security() {
 
               <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-xs text-blue-700 dark:text-blue-300 flex gap-2">
                 <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                <p>Roblox cookie обычно действует несколько месяцев. Он истекает при смене пароля, выходе с устройства или блокировке аккаунта.</p>
+                <p>{t("sec.cookie")}</p>
               </div>
             </CardContent>
           </Card>
@@ -733,14 +735,14 @@ export default function Security() {
         <TabsContent value="proxy" className="mt-4 space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4 text-blue-500" /> Proxy Support</CardTitle>
-              <CardDescription>Настройка прокси для работы с API Roblox</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4 text-blue-500" /> {t("sec.proxy")}</CardTitle>
+              <CardDescription>{t("sec.proxyConfig")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">URL прокси</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("sec.proxyUrl")}</label>
                 <Input
-                  placeholder="http://user:pass@host:port или socks5://host:port"
+                  placeholder="http://user:pass@host:port"
                   value={proxyInput}
                   onChange={e => { setProxyInput(e.target.value); setProxyTestResult(null); }}
                   className="rounded-xl font-mono text-xs"
@@ -749,8 +751,8 @@ export default function Security() {
 
               <div className="flex items-center justify-between rounded-xl border border-border/50 p-3">
                 <div>
-                  <p className="text-sm font-semibold">Прокси включён</p>
-                  <p className="text-xs text-muted-foreground">Применяется к запросам на сервере</p>
+                  <p className="text-sm font-semibold">{t("sec.proxyConnected")}</p>
+                  <p className="text-xs text-muted-foreground">{t("sec.proxyConfig")}</p>
                 </div>
                 <Switch checked={proxyEnabled} onCheckedChange={v => { setProxyEnabled(v); playClick(); }} />
               </div>
@@ -758,11 +760,11 @@ export default function Security() {
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1 rounded-xl gap-1.5" onClick={testProxy} disabled={testingProxy || !proxyInput.trim()}>
                   {testingProxy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
-                  Тест
+                  {t("sec.verify")}
                 </Button>
                 <Button className="flex-1 rounded-xl gap-1.5" onClick={saveProxyConfig} disabled={savingProxy}>
                   {savingProxy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  Сохранить
+                  {t("common.save")}
                 </Button>
                 {proxyConfig && (
                   <Button variant="ghost" className="rounded-xl text-red-500 hover:bg-red-500/10" onClick={() => { setProxyInput(""); saveProxyConfig(); }}>
@@ -777,9 +779,9 @@ export default function Security() {
                     <div className={`flex items-center gap-3 rounded-xl border p-3 ${proxyTestResult.ok ? "border-green-500/20 bg-green-500/5" : "border-red-500/20 bg-red-500/5"}`}>
                       {proxyTestResult.ok ? <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" /> : <XCircle className="w-5 h-5 text-red-500 shrink-0" />}
                       <div>
-                        <p className="text-sm font-semibold">{proxyTestResult.ok ? "Соединение установлено" : "Ошибка"}</p>
+                        <p className="text-sm font-semibold">{proxyTestResult.ok ? t("sec.proxyConnected") : t("common.error")}</p>
                         <p className="text-xs text-muted-foreground">{proxyTestResult.message}</p>
-                        {proxyTestResult.latency && <p className="text-xs text-muted-foreground">Задержка: {proxyTestResult.latency}ms</p>}
+                        {proxyTestResult.latency && <p className="text-xs text-muted-foreground">{proxyTestResult.latency}ms</p>}
                       </div>
                     </div>
                   </motion.div>
@@ -788,18 +790,18 @@ export default function Security() {
 
               {proxyConfig && (
                 <div className="rounded-xl border border-border/50 p-3 space-y-1.5">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Текущий прокси</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("sec.proxy")}</p>
                   <p className="text-xs font-mono text-foreground">{proxyConfig.url.replace(/\/\/(.+):(.+)@/, "//***:***@")}</p>
-                  <p className="text-xs text-muted-foreground">Добавлен {timeAgo(proxyConfig.addedAt)} • {proxyConfig.enabled ? "Активен" : "Отключён"}</p>
+                  <p className="text-xs text-muted-foreground">{timeAgo(proxyConfig.addedAt)} • {proxyConfig.enabled ? t("sec.active") : t("sec.proxyDisconnected")}</p>
                 </div>
               )}
 
               <div className="rounded-xl bg-secondary/50 border border-border/50 p-3 text-xs text-muted-foreground space-y-1.5">
-                <p className="font-semibold text-foreground">Поддерживаемые форматы:</p>
+                <p className="font-semibold text-foreground">{t("sec.proxyConfig")}:</p>
                 <p className="font-mono">http://user:pass@host:8080</p>
                 <p className="font-mono">https://host:8080</p>
                 <p className="font-mono">socks5://user:pass@host:1080</p>
-                <p className="mt-2">Прокси применяется на уровне сервера и шифрует трафик к Roblox API.</p>
+                <p className="mt-2">{t("sec.proxyConfig")}</p>
               </div>
             </CardContent>
           </Card>

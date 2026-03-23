@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useGetRobloxGroups } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   Share2, LayoutDashboard, Link2, Plus, Trash2, Pencil, Check, X, Loader2,
   RefreshCw, ExternalLink, ChevronUp, ChevronDown,
@@ -23,8 +24,11 @@ import { motion, AnimatePresence } from "framer-motion";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function getAuthHeaders(): Record<string, string> {
-  const { credentials } = getAuthCredentials();
-  return credentials ? { Authorization: `Bearer ${credentials}` } : {};
+  const { token, fingerprint } = getAuthCredentials();
+  const h: Record<string, string> = {};
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  if (fingerprint) h["X-Device-Fingerprint"] = fingerprint;
+  return h;
 }
 
 async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
@@ -40,19 +44,22 @@ async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
   return res.json();
 }
 
-function timeAgo(ts: number) {
+function timeAgo(ts: number, t: (key: string) => string) {
   const d = Date.now() - ts;
   const m = Math.floor(d / 60000);
-  if (m < 1) return "только что";
-  if (m < 60) return `${m}м назад`;
+  if (m < 1) return t("common.justNow");
+  if (m < 60) return `${m} ${t("common.minAgo")}`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}ч назад`;
-  return `${Math.floor(h / 24)}д назад`;
+  if (h < 24) return `${h} ${t("common.hAgo")}`;
+  const days = Math.floor(h / 24);
+  if (days < 30) return `${days} ${t("common.dAgo")}`;
+  return `${Math.floor(days / 30)} ${t("common.monthAgo")}`;
 }
 
 // ── AutoPostTab ───────────────────────────────────────────────────────────────
 function AutoPostTab({ groups }: { groups: any[] }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [config, setConfig] = useState<any>({ enabled: false, webhookId: "", groupId: "", template: "🆕 Новый товар: **{name}**\n💰 Цена: {price} Robux\n🔗 {link}", color: 5793266 });
   const [webhooks, setWebhooks] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -82,7 +89,7 @@ function AutoPostTab({ groups }: { groups: any[] }) {
     try {
       await apiFetch("/api/social-media/auto-post/config", { method: "POST", body: JSON.stringify(config) });
       toast({ title: "✅ Конфигурация сохранена" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
 
@@ -96,7 +103,7 @@ function AutoPostTab({ groups }: { groups: any[] }) {
       } else {
         toast({ title: "ℹ️ Нет новых товаров", description: message });
       }
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setChecking(false); }
   };
 
@@ -222,7 +229,7 @@ function AutoPostTab({ groups }: { groups: any[] }) {
               {h.thumbnailUrl ? <img src={h.thumbnailUrl} className="w-10 h-10 rounded-xl object-cover shrink-0" alt="" /> : <div className="w-10 h-10 rounded-xl bg-secondary shrink-0 flex items-center justify-center"><ImageIcon className="w-4 h-4 text-muted-foreground/50" /></div>}
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm truncate">{h.itemName}</p>
-                <p className="text-xs text-muted-foreground">{h.webhookName} • {timeAgo(h.postedAt)}</p>
+                <p className="text-xs text-muted-foreground">{h.webhookName} • {timeAgo(h.postedAt, t)}</p>
               </div>
               <Badge className={`text-[10px] shrink-0 ${h.success ? "bg-green-500/15 text-green-700 border-green-500/30" : "bg-red-500/15 text-red-700 border-red-500/30"}`}>
                 {h.success ? "✓ OK" : "✗ Fail"}
@@ -251,6 +258,7 @@ const PLATFORMS = Object.keys(PLATFORM_META);
 
 function SocialDashboard() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [dash, setDash] = useState<any>(null);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -282,7 +290,7 @@ function SocialDashboard() {
       setAccounts(p => [...p.filter(a => a.platform !== account.platform), account]);
       setShowAdd(false); setForm({ platform: "discord", handle: "", url: "", followers: "" });
       toast({ title: "✅ Аккаунт добавлен" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
 
@@ -323,7 +331,7 @@ function SocialDashboard() {
                 <div className={`w-2 h-2 rounded-full shrink-0 ${w.enabled ? "bg-green-500" : "bg-gray-300"}`} />
                 <span className="text-sm flex-1">{w.name}</span>
                 <Badge variant="outline" className="text-[10px]">{w.type}</Badge>
-                {w.lastTriggered ? <span className="text-[10px] text-muted-foreground">{timeAgo(w.lastTriggered)}</span> : <span className="text-[10px] text-muted-foreground/40">Не использовался</span>}
+                {w.lastTriggered ? <span className="text-[10px] text-muted-foreground">{timeAgo(w.lastTriggered, t)}</span> : <span className="text-[10px] text-muted-foreground/40">Не использовался</span>}
               </div>
             ))}
           </CardContent>
@@ -350,10 +358,10 @@ function SocialDashboard() {
                     <Input placeholder="@handle или название" value={form.handle} onChange={e => setForm(p => ({ ...p, handle: e.target.value }))} className="rounded-xl" />
                     <Input type="number" placeholder="Подписчики (необяз.)" value={form.followers} onChange={e => setForm(p => ({ ...p, followers: e.target.value }))} className="rounded-xl" />
                   </div>
-                  <Input placeholder="URL ссылка (необяз.)" value={form.url} onChange={e => setForm(p => ({ ...p, url: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder={t("sm.url")} value={form.url} onChange={e => setForm(p => ({ ...p, url: e.target.value }))} className="rounded-xl" />
                   <div className="flex gap-2">
                     <Button className="flex-1 rounded-xl" onClick={addAccount} disabled={saving || !form.handle}>
-                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Добавить
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {t("sm.addLink")}
                     </Button>
                     <Button variant="ghost" className="rounded-xl" onClick={() => setShowAdd(false)}><X className="w-4 h-4" /></Button>
                   </div>
@@ -364,7 +372,7 @@ function SocialDashboard() {
         </AnimatePresence>
 
         {accounts.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground"><Globe className="w-10 h-10 mx-auto mb-2 opacity-20" /><p className="text-sm">Добавьте аккаунты соцсетей группы</p></div>
+          <div className="text-center py-8 text-muted-foreground"><Globe className="w-10 h-10 mx-auto mb-2 opacity-20" /><p className="text-sm">{t("sm.noLinks")}</p></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {accounts.map(acc => {
@@ -399,7 +407,7 @@ function SocialDashboard() {
               {h.thumbnailUrl ? <img src={h.thumbnailUrl} className="w-8 h-8 rounded-lg object-cover shrink-0" alt="" /> : <div className="w-8 h-8 rounded-lg bg-secondary shrink-0" />}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{h.itemName}</p>
-                <p className="text-xs text-muted-foreground">{h.webhookName} • {timeAgo(h.postedAt)}</p>
+                <p className="text-xs text-muted-foreground">{h.webhookName} • {timeAgo(h.postedAt, t)}</p>
               </div>
               {h.success ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />}
             </div>
@@ -415,6 +423,7 @@ const LINK_COLORS = ["#000000", "#5865F2", "#1DA1F2", "#FF0000", "#E1306C", "#25
 
 function LinkHubTab() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [links, setLinks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -449,7 +458,7 @@ function LinkHubTab() {
       }
       setForm({ title: "", url: "", icon: "🔗", description: "", color: "#000000" });
       toast({ title: "✅ Ссылка сохранена" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
 
@@ -501,7 +510,7 @@ function LinkHubTab() {
   const FormSection = () => (
     <Card className="rounded-2xl border-black/20 bg-secondary/20">
       <CardContent className="pt-4 space-y-3">
-        <p className="text-sm font-semibold">{editId ? "Редактировать ссылку" : "Добавить ссылку"}</p>
+        <p className="text-sm font-semibold">{editId ? "Редактировать ссылку" : t("sm.addLink")}</p>
         <div className="grid grid-cols-2 gap-2">
           <Input placeholder="Название ссылки..." value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
           <Input placeholder="https://..." value={form.url} onChange={e => setForm(p => ({ ...p, url: e.target.value }))} className="rounded-xl" />
@@ -530,7 +539,7 @@ function LinkHubTab() {
         </div>
         <div className="flex gap-2">
           <Button className="flex-1 rounded-xl" onClick={saveLink} disabled={saving || !form.title || !form.url}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {editId ? "Сохранить" : "Добавить"}
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {editId ? "Сохранить" : t("sm.addLink")}
           </Button>
           <Button variant="ghost" className="rounded-xl" onClick={() => { setShowAdd(false); setEditId(null); setForm({ title: "", url: "", icon: "🔗", description: "", color: "#000000" }); }}>
             <X className="w-4 h-4" />
@@ -552,7 +561,7 @@ function LinkHubTab() {
             <Eye className="w-3.5 h-3.5" /> {preview ? "Список" : "Превью"}
           </Button>
           {!preview && <Button size="sm" className="rounded-xl gap-1.5" onClick={() => { setShowAdd(p => !p); setEditId(null); setForm({ title: "", url: "", icon: "🔗", description: "", color: "#000000" }); }}>
-            <Plus className="w-3.5 h-3.5" /> Добавить
+            <Plus className="w-3.5 h-3.5" /> {t("sm.addLink")}
           </Button>}
         </div>
       </div>
@@ -571,12 +580,12 @@ function LinkHubTab() {
           <Card className="rounded-3xl border-border/30 shadow-xl overflow-hidden">
             <div className="bg-gradient-to-br from-gray-900 to-gray-700 px-6 py-8 text-center">
               <div className="w-16 h-16 rounded-full bg-white/10 mx-auto flex items-center justify-center text-2xl mb-3">🔗</div>
-              <p className="text-white font-bold text-lg">Ссылки группы</p>
+              <p className="text-white font-bold text-lg">{t("sm.links")}</p>
               <p className="text-white/60 text-xs mt-1">Все наши соцсети и ресурсы</p>
             </div>
             <div className="bg-gray-50 p-4 space-y-2">
               {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-xl" />) :
-                links.length === 0 ? <p className="text-center text-gray-400 text-sm py-6">Нет ссылок</p> :
+                links.length === 0 ? <p className="text-center text-gray-400 text-sm py-6">{t("sm.noLinks")}</p> :
                   links.map(link => (
                     <a key={link.id} href={link.url} target="_blank" rel="noreferrer" className="block hover:scale-[1.01] transition-transform">
                       <LinkCard link={link} preview />
@@ -591,9 +600,9 @@ function LinkHubTab() {
         ) : links.length === 0 && !showAdd ? (
           <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
             <Link2 className="w-12 h-12 opacity-20" />
-            <p className="text-sm">Нет ссылок</p>
+            <p className="text-sm">{t("sm.noLinks")}</p>
             <p className="text-xs">Добавьте ссылки на соцсети, Discord, YouTube и другие ресурсы</p>
-            <Button size="sm" className="rounded-xl gap-1.5 mt-2" onClick={() => setShowAdd(true)}><Plus className="w-3.5 h-3.5" /> Добавить первую ссылку</Button>
+            <Button size="sm" className="rounded-xl gap-1.5 mt-2" onClick={() => setShowAdd(true)}><Plus className="w-3.5 h-3.5" /> {t("sm.addLink")}</Button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -622,15 +631,16 @@ function LinkHubTab() {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SocialMedia() {
   const { groups, loading: groupsLoading } = useGetRobloxGroups();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState("autopost");
 
   return (
     <div className="p-6 lg:p-10 w-full max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-          <Share2 className="w-7 h-7" /> Social Media Automation
+          <Share2 className="w-7 h-7" /> {t("sm.title")}
         </h1>
-        <p className="text-muted-foreground mt-1 text-sm">Автопостинг, дашборд соцсетей и страница ссылок группы</p>
+        <p className="text-muted-foreground mt-1 text-sm">{t("sm.desc")}</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -639,10 +649,10 @@ export default function SocialMedia() {
             <Zap className="w-3.5 h-3.5" /> Auto Post Discord
           </TabsTrigger>
           <TabsTrigger value="dashboard" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <LayoutDashboard className="w-3.5 h-3.5" /> Social Dashboard
+            <LayoutDashboard className="w-3.5 h-3.5" /> {t("sm.dashboard")}
           </TabsTrigger>
           <TabsTrigger value="linkhub" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Link2 className="w-3.5 h-3.5" /> Link Hub
+            <Link2 className="w-3.5 h-3.5" /> {t("sm.links")}
           </TabsTrigger>
         </TabsList>
 

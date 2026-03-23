@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   Trophy, BarChart2, Flame, Gift, Star, Lock, Zap, CheckCircle2,
   RefreshCw, Loader2, Crown, Medal, Award, Target, ArrowUp, TrendingUp
@@ -15,8 +16,11 @@ import { motion, AnimatePresence } from "framer-motion";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function getAuthHeaders(): Record<string, string> {
-  const { credentials } = getAuthCredentials();
-  return credentials ? { Authorization: `Bearer ${credentials}` } : {};
+  const { token, fingerprint } = getAuthCredentials();
+  const h: Record<string, string> = {};
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  if (fingerprint) h["X-Device-Fingerprint"] = fingerprint;
+  return h;
 }
 
 async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
@@ -46,26 +50,20 @@ interface DashData {
   metrics: Record<string, number | boolean>;
 }
 
-const LEVEL_NAMES: Record<number, string> = {
-  1: "Новичок", 2: "Исследователь", 3: "Любитель", 4: "Практик",
-  5: "Профи", 6: "Эксперт", 7: "Мастер", 8: "Гуру", 9: "Легенда", 10: "Иконa", 11: "Бог",
-};
 const LEVEL_COLORS: Record<number, string> = {
   1: "from-gray-400 to-gray-600", 2: "from-green-400 to-green-600", 3: "from-blue-400 to-blue-600",
   4: "from-indigo-400 to-indigo-600", 5: "from-purple-400 to-purple-600", 6: "from-pink-400 to-pink-600",
   7: "from-orange-400 to-orange-600", 8: "from-red-400 to-red-600", 9: "from-yellow-400 to-amber-600",
   10: "from-sky-400 to-cyan-600", 11: "from-black to-gray-700",
 };
-const ACH_CATEGORIES: Record<string, string> = {
-  platform: "🌐 Платформа", streak: "🔥 Стрики", finance: "💰 Финансы", content: "📝 Контент", social: "📣 Соцсети",
-};
 
-// ── XP Level Bar ──────────────────────────────────────────────────────────────
 function LevelBar({ data, loading }: { data: DashData | null; loading: boolean }) {
+  const { t } = useLanguage();
   if (loading || !data) return <Skeleton className="h-28 rounded-2xl" />;
   const { xp, level, streak } = data;
   const lv = level.level;
   const pct = Math.round(level.progress * 100);
+  const levelName = t(`gam.level${lv}` as any);
   return (
     <Card className="rounded-2xl border-border/50 overflow-hidden">
       <CardContent className="p-0">
@@ -73,8 +71,8 @@ function LevelBar({ data, loading }: { data: DashData | null; loading: boolean }
           <div className="flex items-center justify-between text-white">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-3xl font-black">Ур. {lv}</span>
-                <span className="text-white/80 text-base font-semibold">{LEVEL_NAMES[lv] || "Легенда"}</span>
+                <span className="text-3xl font-black">{t("gam.level")} {lv}</span>
+                <span className="text-white/80 text-base font-semibold">{levelName}</span>
               </div>
               <p className="text-white/70 text-xs mt-0.5">{xp.toLocaleString()} XP</p>
             </div>
@@ -83,13 +81,13 @@ function LevelBar({ data, loading }: { data: DashData | null; loading: boolean }
                 <span className="text-2xl">🔥</span>
                 <span className="text-2xl font-black">{streak.currentStreak}</span>
               </div>
-              <p className="text-white/70 text-xs mt-0.5">день подряд</p>
+              <p className="text-white/70 text-xs mt-0.5">{t("gam.days")}</p>
             </div>
           </div>
           <div className="mt-4 space-y-1">
             <div className="flex justify-between text-[11px] text-white/70">
-              <span>{xp - level.prevXP} XP сделано</span>
-              <span>{level.nextXP - xp} XP до Ур. {lv + 1}</span>
+              <span>{xp - level.prevXP} XP</span>
+              <span>{level.nextXP - xp} XP {t("gam.nextLevel")} {lv + 1}</span>
             </div>
             <div className="h-2.5 bg-white/20 rounded-full overflow-hidden">
               <motion.div className="h-full bg-white rounded-full" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, ease: "easeOut" }} />
@@ -98,10 +96,10 @@ function LevelBar({ data, loading }: { data: DashData | null; loading: boolean }
         </div>
         <div className="grid grid-cols-4 divide-x divide-border/50">
           {[
-            { label: "Достижений", value: data.achievements.filter(a => a.unlocked).length },
-            { label: "Вайти всего", value: streak.totalLogins },
-            { label: "Лучший стрик", value: streak.longestStreak },
-            { label: "Вайлстоуны", value: data.milestones.filter(m => m.claimed).length },
+            { label: t("gam.achievements"), value: data.achievements.filter(a => a.unlocked).length },
+            { label: t("gam.totalLogins"), value: streak.totalLogins },
+            { label: t("gam.bestStreak"), value: streak.longestStreak },
+            { label: t("gam.milestones"), value: data.milestones.filter(m => m.claimed).length },
           ].map(s => (
             <div key={s.label} className="text-center py-3">
               <p className="text-lg font-bold">{s.value}</p>
@@ -114,10 +112,13 @@ function LevelBar({ data, loading }: { data: DashData | null; loading: boolean }
   );
 }
 
-// ── Achievements ──────────────────────────────────────────────────────────────
 function AchievementsTab({ achievements, newlyUnlocked }: { achievements: Achievement[]; newlyUnlocked: string[] }) {
+  const { t } = useLanguage();
   const [filter, setFilter] = useState("all");
   const [showLocked, setShowLocked] = useState(true);
+  const ACH_CATEGORIES: Record<string, string> = {
+    platform: "🌐 " + t("gam.special"), streak: "🔥 " + t("gam.streak"), finance: "💰 " + t("gam.daily"), content: "📝 " + t("gam.weekly"), social: "📣 " + t("gam.special"),
+  };
   const categories = ["all", ...Object.keys(ACH_CATEGORIES)];
   const unlockedCount = achievements.filter(a => a.unlocked).length;
 
@@ -132,16 +133,17 @@ function AchievementsTab({ achievements, newlyUnlocked }: { achievements: Achiev
           {categories.map(c => (
             <button key={c} onClick={() => setFilter(c)}
               className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors ${filter === c ? "bg-black text-white" : "bg-secondary text-muted-foreground hover:bg-secondary/80"}`}>
-              {c === "all" ? `Все (${unlockedCount}/${achievements.length})` : ACH_CATEGORIES[c]}
+              {c === "all" ? `${t("gam.unlocked")} (${unlockedCount}/${achievements.length})` : ACH_CATEGORIES[c]}
             </button>
           ))}
         </div>
         <button onClick={() => setShowLocked(p => !p)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-          {showLocked ? "Скрыть заблокированные" : "Показать все"}
+          {showLocked ? t("gam.locked") : t("gam.unlocked")}
         </button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {filtered.length === 0 && <p className="col-span-full text-center text-muted-foreground text-sm py-8">{t("gam.noAchievements")}</p>}
         {filtered.map(ach => {
           const isNew = newlyUnlocked.includes(ach.id);
           return (
@@ -163,7 +165,6 @@ function AchievementsTab({ achievements, newlyUnlocked }: { achievements: Achiev
   );
 }
 
-// ── Leaderboard ───────────────────────────────────────────────────────────────
 const RANK_ICONS: Record<number, JSX.Element> = {
   1: <Crown className="w-4 h-4 text-yellow-500" />,
   2: <Medal className="w-4 h-4 text-gray-400" />,
@@ -171,6 +172,7 @@ const RANK_ICONS: Record<number, JSX.Element> = {
 };
 
 function LeaderboardTab({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
+  const { t } = useLanguage();
   const [sortBy, setSortBy] = useState<"xp" | "streak" | "invoices" | "drafts">("xp");
 
   const sorted = [...leaderboard].sort((a, b) => {
@@ -185,14 +187,13 @@ function LeaderboardTab({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-sm text-muted-foreground">Сортировать по:</p>
-        {[["xp", "⚡ XP"], ["streak", "🔥 Стрик"], ["invoices", "🧾 Счета"], ["drafts", "✏️ Черновики"]].map(([k, v]) => (
+        <p className="text-sm text-muted-foreground">{t("gam.rank")}:</p>
+        {[["xp", "⚡ XP"], ["streak", "🔥 " + t("gam.streak")], ["invoices", "🧾"], ["drafts", "✏️"]].map(([k, v]) => (
           <button key={k} onClick={() => setSortBy(k as any)}
             className={`text-xs px-2.5 py-1 rounded-lg font-semibold border transition-colors ${sortBy === k ? "bg-black text-white border-black" : "border-border text-muted-foreground hover:border-black/30"}`}>{v}</button>
         ))}
       </div>
 
-      {/* Top 3 podium */}
       <div className="flex items-end justify-center gap-3 py-4">
         {[sorted[1], sorted[0], sorted[2]].filter(Boolean).map((entry, idx) => {
           const heights = ["h-20", "h-28", "h-16"];
@@ -213,7 +214,6 @@ function LeaderboardTab({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
         })}
       </div>
 
-      {/* Full list */}
       <div className="space-y-1.5">
         {sorted.map((entry) => (
           <div key={entry.username + entry.rank}
@@ -225,10 +225,10 @@ function LeaderboardTab({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-semibold truncate">{entry.username}</p>
-                {entry.isMe && <Badge className="text-[9px] bg-black text-white shrink-0">Вы</Badge>}
+                {entry.isMe && <Badge className="text-[9px] bg-black text-white shrink-0">You</Badge>}
               </div>
               <div className="flex items-center gap-3 mt-0.5">
-                <span className="text-[10px] text-muted-foreground">🔥{entry.streak}д</span>
+                <span className="text-[10px] text-muted-foreground">🔥{entry.streak}{t("gam.days")}</span>
                 <span className="text-[10px] text-muted-foreground">🧾{entry.invoices}</span>
                 <span className="text-[10px] text-muted-foreground">✏️{entry.drafts}</span>
               </div>
@@ -243,9 +243,9 @@ function LeaderboardTab({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
 
       {meEntry && (
         <div className="rounded-xl border border-black/20 bg-black/5 p-3 text-center">
-          <p className="text-xs font-semibold">Ваше место: <span className="text-lg">#{meEntry.rank}</span> из {leaderboard.length}</p>
+          <p className="text-xs font-semibold">{t("gam.rank")}: <span className="text-lg">#{meEntry.rank}</span> / {leaderboard.length}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {meEntry.rank > 1 ? `${(sorted[meEntry.rank - 2]?.xp - meEntry.xp).toLocaleString()} XP до позиции #${meEntry.rank - 1}` : "🏆 Вы на первом месте!"}
+            {meEntry.rank > 1 ? `${(sorted[meEntry.rank - 2]?.xp - meEntry.xp).toLocaleString()} XP ${t("gam.nextLevel")} #${meEntry.rank - 1}` : "🏆"}
           </p>
         </div>
       )}
@@ -253,8 +253,8 @@ function LeaderboardTab({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
   );
 }
 
-// ── Daily Streak ──────────────────────────────────────────────────────────────
 function StreakTab({ streak, xp, level }: { streak: StreakData | null; xp: number; level: LevelInfo | null }) {
+  const { t } = useLanguage();
   if (!streak) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
 
   const STREAK_REWARDS = [
@@ -266,7 +266,6 @@ function StreakTab({ streak, xp, level }: { streak: StreakData | null; xp: numbe
     { days: 100, icon: "💎", label: "Legendary", xp: 2000 },
   ];
 
-  // Generate last 30 days
   const today = new Date();
   const last30 = Array.from({ length: 30 }, (_, i) => {
     const d = new Date(today);
@@ -289,31 +288,30 @@ function StreakTab({ streak, xp, level }: { streak: StreakData | null; xp: numbe
 
   return (
     <div className="space-y-5">
-      {/* Main streak card */}
       <Card className="rounded-2xl border-border/50 overflow-hidden">
         <div className="bg-gradient-to-br from-orange-400 to-red-500 p-6 text-center text-white">
           <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200 }}>
             <div className="text-5xl mb-1">🔥</div>
             <p className="text-6xl font-black">{cur}</p>
-            <p className="text-white/80 text-sm mt-1">день подряд</p>
+            <p className="text-white/80 text-sm mt-1">{t("gam.days")}</p>
           </motion.div>
           {nextReward && (
             <div className="mt-4 bg-white/15 rounded-xl px-4 py-2">
-              <p className="text-xs text-white/80">До следующей награды "{nextReward.label}" {nextReward.icon}</p>
+              <p className="text-xs text-white/80">{t("gam.nextLevel")} "{nextReward.label}" {nextReward.icon}</p>
               <div className="mt-1.5 h-2 bg-white/20 rounded-full overflow-hidden">
                 <motion.div className="h-full bg-white rounded-full" initial={{ width: 0 }}
                   animate={{ width: `${(cur / nextReward.days) * 100}%` }} transition={{ duration: 1 }} />
               </div>
-              <p className="text-[10px] text-white/60 mt-1">{cur}/{nextReward.days} дней (+{nextReward.xp} XP)</p>
+              <p className="text-[10px] text-white/60 mt-1">{cur}/{nextReward.days} {t("gam.days")} (+{nextReward.xp} XP)</p>
             </div>
           )}
         </div>
         <CardContent className="pt-0">
           <div className="grid grid-cols-3 divide-x divide-border/50">
             {[
-              { label: "Текущий стрик", value: cur + "д" },
-              { label: "Лучший стрик", value: streak.longestStreak + "д" },
-              { label: "Всего входов", value: streak.totalLogins },
+              { label: t("gam.streak"), value: cur + t("gam.days") },
+              { label: t("gam.bestStreak"), value: streak.longestStreak + t("gam.days") },
+              { label: t("gam.totalLogins"), value: streak.totalLogins },
             ].map(s => (
               <div key={s.label} className="text-center py-3">
                 <p className="text-xl font-bold">{s.value}</p>
@@ -324,9 +322,8 @@ function StreakTab({ streak, xp, level }: { streak: StreakData | null; xp: numbe
         </CardContent>
       </Card>
 
-      {/* Last 30 days heatmap */}
       <div className="space-y-2">
-        <p className="text-sm font-semibold text-muted-foreground">Последние 30 дней</p>
+        <p className="text-sm font-semibold text-muted-foreground">{t("gam.daily")}</p>
         <div className="flex gap-1 flex-wrap">
           {last30.map(d => {
             const active = isActiveDay(d);
@@ -338,14 +335,13 @@ function StreakTab({ streak, xp, level }: { streak: StreakData | null; xp: numbe
           })}
         </div>
         <div className="flex gap-3 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-secondary inline-block" /> Пропущено</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-400 inline-block" /> Вход</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-secondary inline-block" /> {t("gam.locked")}</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-400 inline-block" /> {t("gam.unlocked")}</span>
         </div>
       </div>
 
-      {/* Streak milestone rewards */}
       <div className="space-y-2">
-        <p className="text-sm font-semibold text-muted-foreground">Награды за стрик</p>
+        <p className="text-sm font-semibold text-muted-foreground">{t("gam.streak")}</p>
         {STREAK_REWARDS.map(r => {
           const reached = cur >= r.days;
           return (
@@ -353,11 +349,11 @@ function StreakTab({ streak, xp, level }: { streak: StreakData | null; xp: numbe
               <span className={`text-2xl ${reached ? "" : "grayscale"}`}>{r.icon}</span>
               <div className="flex-1">
                 <p className={`text-sm font-bold ${reached ? "" : "text-muted-foreground"}`}>{r.label}</p>
-                <p className="text-xs text-muted-foreground">{r.days} дней подряд</p>
+                <p className="text-xs text-muted-foreground">{r.days} {t("gam.days")}</p>
               </div>
               <div className="text-right">
                 <p className={`text-xs font-bold ${reached ? "text-orange-600" : "text-muted-foreground/40"}`}>+{r.xp} XP</p>
-                {reached ? <CheckCircle2 className="w-4 h-4 text-green-500 ml-auto mt-0.5" /> : <p className="text-[10px] text-muted-foreground">{r.days - cur}д</p>}
+                {reached ? <CheckCircle2 className="w-4 h-4 text-green-500 ml-auto mt-0.5" /> : <p className="text-[10px] text-muted-foreground">{r.days - cur}{t("gam.days")}</p>}
               </div>
             </div>
           );
@@ -367,8 +363,8 @@ function StreakTab({ streak, xp, level }: { streak: StreakData | null; xp: numbe
   );
 }
 
-// ── Milestones ────────────────────────────────────────────────────────────────
 function MilestonesTab({ milestones, onClaim }: { milestones: Milestone[]; onClaim: (id: string) => void }) {
+  const { t } = useLanguage();
   const claimedCount = milestones.filter(m => m.claimed).length;
   const reachableCount = milestones.filter(m => m.reached && !m.claimed).length;
 
@@ -376,11 +372,11 @@ function MilestonesTab({ milestones, onClaim }: { milestones: Milestone[]; onCla
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold">Вайлстоуны</p>
-          <p className="text-xs text-muted-foreground">{claimedCount}/{milestones.length} получено</p>
+          <p className="text-sm font-semibold">{t("gam.milestones")}</p>
+          <p className="text-xs text-muted-foreground">{claimedCount}/{milestones.length} {t("gam.claimed")}</p>
         </div>
         {reachableCount > 0 && (
-          <Badge className="bg-yellow-400/20 text-yellow-700 border-yellow-400/30 text-xs animate-pulse">🎁 {reachableCount} можно забрать!</Badge>
+          <Badge className="bg-yellow-400/20 text-yellow-700 border-yellow-400/30 text-xs animate-pulse">🎁 {reachableCount} {t("gam.claim")}!</Badge>
         )}
       </div>
 
@@ -414,10 +410,10 @@ function MilestonesTab({ milestones, onClaim }: { milestones: Milestone[]; onCla
                 </div>
 
                 {ms.claimed ? (
-                  <div className="flex items-center gap-1.5 text-green-600 text-xs font-semibold"><CheckCircle2 className="w-3.5 h-3.5" /> Получено!</div>
+                  <div className="flex items-center gap-1.5 text-green-600 text-xs font-semibold"><CheckCircle2 className="w-3.5 h-3.5" /> {t("gam.claimed")}!</div>
                 ) : canClaim ? (
                   <Button size="sm" className="w-full rounded-xl gap-1.5 bg-yellow-400 text-yellow-900 hover:bg-yellow-500 text-xs" onClick={() => onClaim(ms.id)}>
-                    <Gift className="w-3.5 h-3.5" /> Забрать {ms.reward}
+                    <Gift className="w-3.5 h-3.5" /> {t("gam.claim")} {ms.reward}
                   </Button>
                 ) : null}
               </CardContent>
@@ -429,8 +425,8 @@ function MilestonesTab({ milestones, onClaim }: { milestones: Milestone[]; onCla
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Gamification() {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [data, setData] = useState<DashData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -446,7 +442,7 @@ export default function Gamification() {
         setTimeout(() => {
           d.newlyUnlocked.forEach(id => {
             const ach = d.achievements.find(a => a.id === id);
-            if (ach) toast({ title: `🏆 Достижение разблокировано!`, description: `${ach.icon} ${ach.title} (+${ach.xp} XP)` });
+            if (ach) toast({ title: `🏆 ${t("gam.unlocked")}!`, description: `${ach.icon} ${ach.title} (+${ach.xp} XP)` });
           });
         }, 800);
         setShownNew(true);
@@ -457,24 +453,23 @@ export default function Gamification() {
 
   useEffect(() => {
     load();
-    // Track this section
     apiFetch("/api/gamification/visit", { method: "POST", body: JSON.stringify({ section: "gamification" }) }).catch(() => {});
   }, [load]);
 
   const claimMilestone = async (id: string) => {
     try {
       const { xpGained } = await apiFetch<{ xpGained: number }>(`/api/gamification/milestones/${id}/claim`, { method: "POST" });
-      toast({ title: `🎁 Награда получена! +${xpGained} XP` });
+      toast({ title: `🎁 ${t("gam.claimed")}! +${xpGained} XP` });
       load();
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
   };
 
   return (
     <div className="p-6 lg:p-10 w-full max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3"><Trophy className="w-7 h-7" /> Gamification</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Достижения, рейтинги, стрики и вайлстоуны</p>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3"><Trophy className="w-7 h-7" /> {t("gam.title")}</h1>
+          <p className="text-muted-foreground mt-1 text-sm">{t("gam.desc")}</p>
         </div>
         <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={load} disabled={loading}>
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -486,13 +481,13 @@ export default function Gamification() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1">
           <TabsTrigger value="achievements" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Star className="w-3.5 h-3.5" /> Достижения
+            <Star className="w-3.5 h-3.5" /> {t("gam.achievements")}
             {data && <span className="text-[9px] opacity-60">({data.achievements.filter(a => a.unlocked).length}/{data.achievements.length})</span>}
           </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><BarChart2 className="w-3.5 h-3.5" /> Рейтинг</TabsTrigger>
-          <TabsTrigger value="streak" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Flame className="w-3.5 h-3.5" /> Стрик</TabsTrigger>
+          <TabsTrigger value="leaderboard" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><BarChart2 className="w-3.5 h-3.5" /> {t("gam.leaderboard")}</TabsTrigger>
+          <TabsTrigger value="streak" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Flame className="w-3.5 h-3.5" /> {t("gam.streak")}</TabsTrigger>
           <TabsTrigger value="milestones" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Gift className="w-3.5 h-3.5" /> Вайлстоуны
+            <Gift className="w-3.5 h-3.5" /> {t("gam.milestones")}
             {data && data.milestones.filter(m => m.reached && !m.claimed).length > 0 && (
               <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
             )}

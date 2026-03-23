@@ -101,17 +101,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <NavItem href="/assistant" icon={<Bot className="w-4 h-4" />} label={t("nav.assistant")} isActive={location === "/assistant"} badge="AI" />
           <NavItem href="/competitors" icon={<Search className="w-4 h-4" />} label={t("nav.competitors")} isActive={location === "/competitors"} />
           <NavItem href="/sniper" icon={<Crosshair className="w-4 h-4" />} label={t("nav.sniper")} isActive={location === "/sniper"} />
-          <NavItem href="/automation" icon={<Cog className="w-4 h-4" />} label="Автоматизация" isActive={location === "/automation"} badge="BOT" />
-          <NavItem href="/ai-tools" icon={<Sparkles className="w-4 h-4" />} label="AI Инструменты" isActive={location === "/ai-tools"} badge="NEW" />
-          <NavItem href="/security" icon={<ShieldCheck className="w-4 h-4" />} label="Безопасность" isActive={location === "/security"} />
-          <NavItem href="/marketing" icon={<Megaphone className="w-4 h-4" />} label="Маркетинг" isActive={location === "/marketing"} />
-          <NavItem href="/game-manager" icon={<Gamepad2 className="w-4 h-4" />} label="Game Manager" isActive={location === "/game-manager"} badge="NEW" />
-          <NavItem href="/social-media" icon={<Share2 className="w-4 h-4" />} label="Social Media" isActive={location === "/social-media"} badge="NEW" />
-          <NavItem href="/finance" icon={<Receipt className="w-4 h-4" />} label="Finance" isActive={location === "/finance"} badge="NEW" />
-          <NavItem href="/content-planner" icon={<CalendarDays className="w-4 h-4" />} label="Content Planner" isActive={location === "/content-planner"} badge="NEW" />
-          <NavItem href="/gamification" icon={<Trophy className="w-4 h-4" />} label="Gamification" isActive={location === "/gamification"} badge="NEW" />
-          <NavItem href="/integrations" icon={<Plug className="w-4 h-4" />} label="Integrations" isActive={location === "/integrations"} badge="NEW" />
-          <NavItem href="/testing" icon={<FlaskConical className="w-4 h-4" />} label="Testing & QA" isActive={location === "/testing"} badge="NEW" />
+          <NavItem href="/automation" icon={<Cog className="w-4 h-4" />} label={t("nav.automation")} isActive={location === "/automation"} badge="BOT" />
+          <NavItem href="/ai-tools" icon={<Sparkles className="w-4 h-4" />} label={t("nav.aiTools")} isActive={location === "/ai-tools"} badge="NEW" />
+          <NavItem href="/security" icon={<ShieldCheck className="w-4 h-4" />} label={t("nav.security")} isActive={location === "/security"} />
+          <NavItem href="/marketing" icon={<Megaphone className="w-4 h-4" />} label={t("nav.marketing")} isActive={location === "/marketing"} />
+          <NavItem href="/game-manager" icon={<Gamepad2 className="w-4 h-4" />} label={t("nav.gameManager")} isActive={location === "/game-manager"} badge="NEW" />
+          <NavItem href="/social-media" icon={<Share2 className="w-4 h-4" />} label={t("nav.socialMedia")} isActive={location === "/social-media"} badge="NEW" />
+          <NavItem href="/finance" icon={<Receipt className="w-4 h-4" />} label={t("nav.finance")} isActive={location === "/finance"} badge="NEW" />
+          <NavItem href="/content-planner" icon={<CalendarDays className="w-4 h-4" />} label={t("nav.contentPlanner")} isActive={location === "/content-planner"} badge="NEW" />
+          <NavItem href="/gamification" icon={<Trophy className="w-4 h-4" />} label={t("nav.gamification")} isActive={location === "/gamification"} badge="NEW" />
+          <NavItem href="/integrations" icon={<Plug className="w-4 h-4" />} label={t("nav.integrations")} isActive={location === "/integrations"} badge="NEW" />
+          <NavItem href="/testing" icon={<FlaskConical className="w-4 h-4" />} label={t("nav.testing")} isActive={location === "/testing"} badge="NEW" />
         </div>
 
         <div className="space-y-1">

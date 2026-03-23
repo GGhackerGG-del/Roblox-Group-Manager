@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,6 +124,7 @@ const TYPE_OPTIONS = ["Shirt", "Pants", "T-Shirt", "Hoodie", "Jacket", "Dress", 
 
 export default function Marketing() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [tab, setTab] = useState("seo");
   const [lang, setLang] = useState("ru");
 
@@ -183,7 +185,7 @@ export default function Marketing() {
   };
 
   const handleError = (e: unknown) => {
-    toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Неизвестная ошибка", variant: "destructive" });
+    toast({ title: t("common.error"), description: e instanceof Error ? e.message : "Неизвестная ошибка", variant: "destructive" });
     playError();
   };
 
@@ -259,7 +261,7 @@ export default function Marketing() {
     try {
       const r = await apiFetch<{ ok: boolean; error?: string }>(`/api/marketing/webhooks/${id}/test`, { method: "POST" });
       if (r.ok) { playSuccess(); toast({ title: "✅ Тест успешен", description: "Уведомление отправлено" }); }
-      else { playError(); toast({ title: "Ошибка", description: r.error || "Не удалось отправить", variant: "destructive" }); }
+      else { playError(); toast({ title: t("common.error"), description: r.error || "Не удалось отправить", variant: "destructive" }); }
       loadWebhooks();
     } catch (e) { handleError(e); }
     finally { setTestingWebhookId(null); }
@@ -358,9 +360,9 @@ export default function Marketing() {
   const tabs = [
     { id: "seo", icon: <Search className="w-3.5 h-3.5" />, label: "SEO Optimizer" },
     { id: "keywords", icon: <BarChart2 className="w-3.5 h-3.5" />, label: "Keyword Research" },
-    { id: "trends", icon: <TrendingUp className="w-3.5 h-3.5" />, label: "Trend Tracker" },
-    { id: "webhooks", icon: <Bell className="w-3.5 h-3.5" />, label: "Webhooks" },
-    { id: "promotions", icon: <Calendar className="w-3.5 h-3.5" />, label: "Прomo Scheduler" },
+    { id: "trends", icon: <TrendingUp className="w-3.5 h-3.5" />, label: t("mkt.trendWatch") },
+    { id: "webhooks", icon: <Bell className="w-3.5 h-3.5" />, label: t("mkt.webhooks") },
+    { id: "promotions", icon: <Calendar className="w-3.5 h-3.5" />, label: t("mkt.promotions") },
   ];
 
   const categoryOptions = ["Shirts", "Pants", "T-Shirts", "Accessories", "Casual", "Streetwear", "Fantasy", "Military", "Anime", "Y2K", "Cottagecore"];
@@ -373,8 +375,8 @@ export default function Marketing() {
             <Megaphone className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Маркетинг и продвижение</h1>
-            <p className="text-sm text-muted-foreground">SEO, тренды, вебхуки и планирование акций</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t("mkt.title")}</h1>
+            <p className="text-sm text-muted-foreground">{t("mkt.desc")}</p>
           </div>
         </div>
         <Select value={lang} onValueChange={setLang}>
@@ -391,9 +393,9 @@ export default function Marketing() {
       <Tabs value={tab} onValueChange={v => { playClick(); setTab(v); }}>
         <div className="overflow-x-auto pb-1">
           <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1 flex-nowrap inline-flex">
-            {tabs.map(t => (
-              <TabsTrigger key={t.id} value={t.id} className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 gap-1.5 whitespace-nowrap">
-                {t.icon} {t.label}
+            {tabs.map(tb => (
+              <TabsTrigger key={tb.id} value={tb.id} className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 gap-1.5 whitespace-nowrap">
+                {tb.icon} {tb.label}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -660,7 +662,7 @@ export default function Marketing() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2">
-                <Input placeholder="Название товара..." value={newWatchName} onChange={e => setNewWatchName(e.target.value)} onKeyDown={e => {
+                <Input placeholder={t("mkt.searchTrends")} value={newWatchName} onChange={e => setNewWatchName(e.target.value)} onKeyDown={e => {
                   if (e.key === "Enter" && newWatchName.trim()) {
                     const item: WatchlistItem = { id: Math.random().toString(36).slice(2), name: newWatchName.trim(), type: newWatchType, addedAt: Date.now() };
                     saveWatchlist([...watchlist, item]);
@@ -702,7 +704,7 @@ export default function Marketing() {
               </Button>
 
               {watchlist.length === 0 && (
-                <p className="text-xs text-center text-muted-foreground py-2">Добавьте товары в вотч-лист для анализа трендов</p>
+                <p className="text-xs text-center text-muted-foreground py-2">{t("mkt.noWatchlist")}</p>
               )}
             </CardContent>
           </Card>
@@ -763,7 +765,7 @@ export default function Marketing() {
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold flex items-center gap-2"><Bell className="w-4 h-4 text-violet-500" /> Discord / Telegram Webhooks</h2>
             <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAddWebhook(p => !p)}>
-              <Plus className="w-3.5 h-3.5" /> Добавить
+              <Plus className="w-3.5 h-3.5" /> {t("mkt.addWebhook")}
             </Button>
           </div>
 
@@ -790,7 +792,7 @@ export default function Marketing() {
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">
-                        {newWebhookForm.type === "discord" ? "Webhook URL" : "Telegram Chat ID"}
+                        {newWebhookForm.type === "discord" ? t("mkt.webhookUrl") : "Telegram Chat ID"}
                       </label>
                       <Input
                         placeholder={newWebhookForm.type === "discord" ? "https://discord.com/api/webhooks/..." : "-100123456789"}
@@ -834,7 +836,7 @@ export default function Marketing() {
           ) : webhooks.length === 0 ? (
             <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
               <Bell className="w-12 h-12 opacity-20" />
-              <p className="text-sm">Нет настроенных вебхуков</p>
+              <p className="text-sm">{t("mkt.noWebhooks")}</p>
               <p className="text-xs">Добавьте Discord или Telegram для получения уведомлений</p>
             </div>
           ) : (
@@ -861,7 +863,7 @@ export default function Marketing() {
                         <Switch checked={wh.enabled} onCheckedChange={v => toggleWebhook(wh.id, v)} />
                         <Button size="sm" variant="outline" className="rounded-lg gap-1 h-8 text-xs" onClick={() => testWebhook(wh.id)} disabled={testingWebhookId === wh.id}>
                           {testingWebhookId === wh.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                          Тест
+                          {t("mkt.testWebhook")}
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 rounded-lg" onClick={() => deleteWebhook(wh.id)}>
                           <Trash2 className="w-3.5 h-3.5" />
@@ -891,7 +893,7 @@ export default function Marketing() {
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold flex items-center gap-2"><Calendar className="w-4 h-4 text-orange-500" /> Promotion Scheduler</h2>
             <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAddPromo(p => !p)}>
-              <Plus className="w-3.5 h-3.5" /> Новая акция
+              <Plus className="w-3.5 h-3.5" /> {t("mkt.createPromo")}
             </Button>
           </div>
 
@@ -905,7 +907,7 @@ export default function Marketing() {
                   <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Название *</label>
+                        <label className="text-xs font-medium text-muted-foreground">{t("mkt.promoName")} *</label>
                         <Input placeholder="Летняя распродажа..." value={promoForm.title} onChange={e => setPromoForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
                       </div>
                       <div className="space-y-1.5">
@@ -921,19 +923,19 @@ export default function Marketing() {
                       <Textarea placeholder="Подробное описание условий акции..." value={promoForm.description} onChange={e => setPromoForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={2} />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Скидка %</label>
+                      <label className="text-xs font-medium text-muted-foreground">{t("mkt.discount")}</label>
                       <Input type="number" min="0" max="100" value={promoForm.discountPercent} onChange={e => setPromoForm(p => ({ ...p, discountPercent: e.target.value }))} className="rounded-xl" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Начало *</label>
+                        <label className="text-xs font-medium text-muted-foreground">{t("mkt.startDate")} *</label>
                         <div className="flex gap-2">
                           <Input type="date" value={promoForm.startDate} onChange={e => setPromoForm(p => ({ ...p, startDate: e.target.value }))} className="rounded-xl text-xs flex-1" />
                           <Input type="time" value={promoForm.startTime} onChange={e => setPromoForm(p => ({ ...p, startTime: e.target.value }))} className="rounded-xl text-xs w-24" />
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Конец *</label>
+                        <label className="text-xs font-medium text-muted-foreground">{t("mkt.endDate")} *</label>
                         <div className="flex gap-2">
                           <Input type="date" value={promoForm.endDate} onChange={e => setPromoForm(p => ({ ...p, endDate: e.target.value }))} className="rounded-xl text-xs flex-1" />
                           <Input type="time" value={promoForm.endTime} onChange={e => setPromoForm(p => ({ ...p, endTime: e.target.value }))} className="rounded-xl text-xs w-24" />
@@ -965,7 +967,7 @@ export default function Marketing() {
           ) : promotions.length === 0 ? (
             <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
               <Calendar className="w-12 h-12 opacity-20" />
-              <p className="text-sm">Нет запланированных акций</p>
+              <p className="text-sm">{t("mkt.noPromos")}</p>
               <p className="text-xs">Создайте первую промо-акцию для вашей группы</p>
             </div>
           ) : (

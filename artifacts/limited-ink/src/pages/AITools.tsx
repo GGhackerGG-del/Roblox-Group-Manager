@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playClick, playSuccess } from "@/hooks/useSounds";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -73,6 +74,7 @@ const LANG_OPTIONS = [
 
 export default function AITools() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [tab, setTab] = useState("description");
   const [lang, setLang] = useState("ru");
 
@@ -113,8 +115,8 @@ export default function AITools() {
   const [chatbotLoading, setChatbotLoading] = useState(false);
 
   const handleError = useCallback((e: unknown) => {
-    toast({ title: "AI Error", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
-  }, [toast]);
+    toast({ title: t("common.error"), description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+  }, [toast, t]);
 
   const genDescription = async () => {
     if (!descForm.name.trim()) return;
@@ -191,12 +193,12 @@ export default function AITools() {
   };
 
   const tabs = [
-    { id: "description", icon: <FileText className="w-3.5 h-3.5" />, label: "Description", badge: "AI" },
-    { id: "title", icon: <Sparkles className="w-3.5 h-3.5" />, label: "Title", badge: "AI" },
-    { id: "keywords", icon: <Hash className="w-3.5 h-3.5" />, label: "Keywords", badge: "SEO" },
-    { id: "design", icon: <Palette className="w-3.5 h-3.5" />, label: "Designer", badge: "IMG" },
-    { id: "trend", icon: <TrendingUp className="w-3.5 h-3.5" />, label: "Trends", badge: "AI" },
-    { id: "chatbot", icon: <MessageSquare className="w-3.5 h-3.5" />, label: "Chatbot", badge: "BOT" },
+    { id: "description", icon: <FileText className="w-3.5 h-3.5" />, label: t("ai.descTab"), badge: "AI" },
+    { id: "title", icon: <Sparkles className="w-3.5 h-3.5" />, label: t("ai.titleTab"), badge: "AI" },
+    { id: "keywords", icon: <Hash className="w-3.5 h-3.5" />, label: t("ai.keywordsTab"), badge: "SEO" },
+    { id: "design", icon: <Palette className="w-3.5 h-3.5" />, label: t("ai.designerTab"), badge: "IMG" },
+    { id: "trend", icon: <TrendingUp className="w-3.5 h-3.5" />, label: t("ai.trendsTab"), badge: "AI" },
+    { id: "chatbot", icon: <MessageSquare className="w-3.5 h-3.5" />, label: t("ai.chatbotTab"), badge: "BOT" },
   ];
 
   const typeOptions = ["Shirt", "Pants", "T-Shirt", "Hoodie", "Jacket", "Dress", "Outfit"];
@@ -225,8 +227,8 @@ export default function AITools() {
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">AI Tools</h1>
-            <p className="text-sm text-muted-foreground">Smart tools for creating and promoting Roblox clothing</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t("ai.title")}</h1>
+            <p className="text-sm text-muted-foreground">{t("ai.desc")}</p>
           </div>
         </div>
         <Select value={lang} onValueChange={setLang}>
@@ -242,10 +244,10 @@ export default function AITools() {
       <Tabs value={tab} onValueChange={v => { playClick(); setTab(v); }}>
         <div className="overflow-x-auto pb-1">
           <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1 flex-nowrap inline-flex">
-            {tabs.map(t => (
-              <TabsTrigger key={t.id} value={t.id} className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 gap-1.5 whitespace-nowrap">
-                {t.icon} {t.label}
-                <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${tab === t.id ? "bg-white/20 text-white" : "bg-violet-500/15 text-violet-500"}`}>{t.badge}</span>
+            {tabs.map(tb => (
+              <TabsTrigger key={tb.id} value={tb.id} className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 gap-1.5 whitespace-nowrap">
+                {tb.icon} {tb.label}
+                <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${tab === tb.id ? "bg-white/20 text-white" : "bg-violet-500/15 text-violet-500"}`}>{tb.badge}</span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -254,38 +256,38 @@ export default function AITools() {
         <TabsContent value="description" className="mt-4 space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-violet-500" /> AI Description Writer</CardTitle>
-              <CardDescription>Generate selling descriptions for Roblox clothing (always in English)</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-violet-500" /> {t("ai.descWriter")}</CardTitle>
+              <CardDescription>{t("ai.descWriterDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Name *</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.name")}</label>
                   <Input placeholder="Neon Streetwear Hoodie" value={descForm.name} onChange={e => setDescForm(p => ({ ...p, name: e.target.value }))} className="rounded-xl" onKeyDown={e => e.key === "Enter" && genDescription()} />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Type</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.type")}</label>
                   <Select value={descForm.type} onValueChange={v => setDescForm(p => ({ ...p, type: v }))}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>{typeOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Style</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.style")}</label>
                   <Input placeholder="Streetwear, Anime, Military..." value={descForm.style} onChange={e => setDescForm(p => ({ ...p, style: e.target.value }))} className="rounded-xl" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Colors</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.colors")}</label>
                   <Input placeholder="Black, neon green, white..." value={descForm.colors} onChange={e => setDescForm(p => ({ ...p, colors: e.target.value }))} className="rounded-xl" />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Mood / Vibe</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("ai.mood")}</label>
                 <Input placeholder="Dark, mysterious, futuristic..." value={descForm.mood} onChange={e => setDescForm(p => ({ ...p, mood: e.target.value }))} className="rounded-xl" />
               </div>
               <Button className="w-full rounded-xl gap-2" onClick={genDescription} disabled={descLoading || !descForm.name.trim()}>
                 {descLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                Generate Description
+                {t("ai.generateDesc")}
               </Button>
             </CardContent>
           </Card>
@@ -296,20 +298,20 @@ export default function AITools() {
                   <CardContent className="pt-4 space-y-4">
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Full Description</p>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("ai.fullDesc")}</p>
                         <CopyButton text={descResult.description} />
                       </div>
                       <p className="text-sm leading-relaxed">{descResult.description}</p>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Short Description</p>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("ai.shortDesc")}</p>
                         <CopyButton text={descResult.shortDescription} />
                       </div>
                       <p className="text-sm text-muted-foreground">{descResult.shortDescription}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Tags</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{t("ai.tags")}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {descResult.tags.map(tag => (
                           <Badge key={tag} variant="secondary" className="text-xs cursor-pointer hover:bg-violet-500/20" onClick={() => navigator.clipboard.writeText(tag)}>
@@ -328,21 +330,21 @@ export default function AITools() {
         <TabsContent value="title" className="mt-4 space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber-500" /> AI Title Generator</CardTitle>
-              <CardDescription>Generate catchy titles for maximum sales (always in English)</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber-500" /> {t("ai.titleGen")}</CardTitle>
+              <CardDescription>{t("ai.titleGenDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Item Description *</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("ai.itemDesc")}</label>
                 <Textarea placeholder="Describe your clothing briefly..." value={titleForm.description} onChange={e => setTitleForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={3} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Style</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.style")}</label>
                   <Input placeholder="Anime, Streetwear..." value={titleForm.style} onChange={e => setTitleForm(p => ({ ...p, style: e.target.value }))} className="rounded-xl" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Type</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.type")}</label>
                   <Select value={titleForm.type} onValueChange={v => setTitleForm(p => ({ ...p, type: v }))}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>{typeOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
@@ -351,7 +353,7 @@ export default function AITools() {
               </div>
               <Button className="w-full rounded-xl gap-2" onClick={genTitles} disabled={titleLoading || !titleForm.description.trim()}>
                 {titleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                Generate Titles
+                {t("ai.generateTitles")}
               </Button>
             </CardContent>
           </Card>
@@ -360,7 +362,7 @@ export default function AITools() {
               <ResultCard>
                 <Card className="rounded-2xl border-amber-500/20 bg-amber-500/5">
                   <CardContent className="pt-4 space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">8 Title Variants</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">{t("ai.titleVariants")}</p>
                     {titleResult.titles.map((title, i) => (
                       <div key={i} className="flex items-center gap-3 rounded-xl border border-border/50 bg-card p-3">
                         <span className="text-xs font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
@@ -379,17 +381,17 @@ export default function AITools() {
         <TabsContent value="keywords" className="mt-4 space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><Hash className="w-4 h-4 text-green-500" /> AI Keyword Suggester</CardTitle>
-              <CardDescription>SEO optimization for maximum search visibility (always in English)</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Hash className="w-4 h-4 text-green-500" /> {t("ai.kwSuggester")}</CardTitle>
+              <CardDescription>{t("ai.kwSuggesterDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Name</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.name")}</label>
                   <Input placeholder="Clothing name..." value={kwForm.name} onChange={e => setKwForm(p => ({ ...p, name: e.target.value }))} className="rounded-xl" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Type</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.type")}</label>
                   <Select value={kwForm.type} onValueChange={v => setKwForm(p => ({ ...p, type: v }))}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>{typeOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
@@ -397,12 +399,12 @@ export default function AITools() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Description</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("ai.itemDesc")}</label>
                 <Textarea placeholder="Brief description..." value={kwForm.description} onChange={e => setKwForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={2} />
               </div>
               <Button className="w-full rounded-xl gap-2 bg-green-600 hover:bg-green-700" onClick={genKeywords} disabled={kwLoading || (!kwForm.name.trim() && !kwForm.description.trim())}>
                 {kwLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                Find Keywords
+                {t("ai.findKeywords")}
               </Button>
             </CardContent>
           </Card>
@@ -411,10 +413,10 @@ export default function AITools() {
               <ResultCard>
                 <div className="space-y-3">
                   {[
-                    { label: "Primary Keywords", items: kwResult.primary, color: "text-green-500", bg: "bg-green-500/5 border-green-500/20" },
-                    { label: "Secondary Keywords", items: kwResult.secondary, color: "text-blue-500", bg: "bg-blue-500/5 border-blue-500/20" },
-                    { label: "Long-tail Phrases", items: kwResult.longTail, color: "text-violet-500", bg: "bg-violet-500/5 border-violet-500/20" },
-                    { label: "Hashtags", items: kwResult.hashtags, color: "text-amber-500", bg: "bg-amber-500/5 border-amber-500/20" },
+                    { label: t("ai.primaryKw"), items: kwResult.primary, color: "text-green-500", bg: "bg-green-500/5 border-green-500/20" },
+                    { label: t("ai.secondaryKw"), items: kwResult.secondary, color: "text-blue-500", bg: "bg-blue-500/5 border-blue-500/20" },
+                    { label: t("ai.longTail"), items: kwResult.longTail, color: "text-violet-500", bg: "bg-violet-500/5 border-violet-500/20" },
+                    { label: t("ai.hashtags"), items: kwResult.hashtags, color: "text-amber-500", bg: "bg-amber-500/5 border-amber-500/20" },
                   ].map(({ label, items, color, bg }) => (
                     <Card key={label} className={`rounded-2xl border ${bg}`}>
                       <CardContent className="pt-4">
@@ -441,12 +443,12 @@ export default function AITools() {
         <TabsContent value="design" className="mt-4 space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><Palette className="w-4 h-4 text-pink-500" /> AI Clothing Designer</CardTitle>
-              <CardDescription>Generate clothing designs with AI (image generation)</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Palette className="w-4 h-4 text-pink-500" /> {t("ai.clothingDesigner")}</CardTitle>
+              <CardDescription>{t("ai.clothingDesignerDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Design Description *</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("ai.designDesc")}</label>
                 <Textarea
                   placeholder="e.g.: dark blue hoodie with Japanese characters and neon accents..."
                   value={designForm.description}
@@ -457,19 +459,19 @@ export default function AITools() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Style</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.style")}</label>
                   <Input placeholder="Streetwear, Anime, Y2K..." value={designForm.style} onChange={e => setDesignForm(p => ({ ...p, style: e.target.value }))} className="rounded-xl" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Colors</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.colors")}</label>
                   <Input placeholder="Black, red, gold..." value={designForm.colors} onChange={e => setDesignForm(p => ({ ...p, colors: e.target.value }))} className="rounded-xl" />
                 </div>
               </div>
               <div className="rounded-xl bg-secondary/50 p-3 text-xs text-muted-foreground">
-                💡 Design is generated by AI (~30-60 sec). You can download the result and use it as a base.
+                💡 {t("ai.designHint")}
               </div>
               <Button className="w-full rounded-xl gap-2 bg-pink-600 hover:bg-pink-700" onClick={genDesign} disabled={designLoading || !designForm.description.trim()}>
-                {designLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating (~30-60 sec)</> : <><Palette className="w-4 h-4" /> Create Design</>}
+                {designLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> {t("ai.generating")}</> : <><Palette className="w-4 h-4" /> {t("ai.createDesign")}</>}
               </Button>
             </CardContent>
           </Card>
@@ -479,13 +481,13 @@ export default function AITools() {
                 <Card className="rounded-2xl border-pink-500/20 bg-pink-500/5">
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Generated Design</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("ai.generatedDesign")}</p>
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" className="rounded-xl gap-1.5 h-8" onClick={genDesign} disabled={designLoading}>
-                          <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+                          <RefreshCw className="w-3.5 h-3.5" /> {t("ai.regenerate")}
                         </Button>
                         <Button size="sm" className="rounded-xl gap-1.5 h-8" onClick={downloadDesign}>
-                          <Download className="w-3.5 h-3.5" /> Download
+                          <Download className="w-3.5 h-3.5" /> {t("ai.download")}
                         </Button>
                       </div>
                     </div>
@@ -502,22 +504,22 @@ export default function AITools() {
         <TabsContent value="trend" className="mt-4 space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-500" /> AI Trend Predictor</CardTitle>
-              <CardDescription>Market analysis & trend predictions for Roblox marketplace</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-500" /> {t("ai.trendPredictor")}</CardTitle>
+              <CardDescription>{t("ai.trendPredictorDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Category</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.category")}</label>
                   <Select value={trendForm.category} onValueChange={v => setTrendForm(p => ({ ...p, category: v }))}>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="All categories" /></SelectTrigger>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder={t("ai.allCategories")} /></SelectTrigger>
                     <SelectContent>{categoryOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Timeframe</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.timeframe")}</label>
                   <Select value={trendForm.timeframe} onValueChange={v => setTrendForm(p => ({ ...p, timeframe: v }))}>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Current" /></SelectTrigger>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder={t("ai.current")} /></SelectTrigger>
                     <SelectContent>
                       {["This week", "This month", "This season", "Next month"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                     </SelectContent>
@@ -526,7 +528,7 @@ export default function AITools() {
               </div>
               <Button className="w-full rounded-xl gap-2 bg-blue-600 hover:bg-blue-700" onClick={genTrends} disabled={trendLoading}>
                 {trendLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
-                Analyze Trends
+                {t("ai.analyzeTrends")}
               </Button>
             </CardContent>
           </Card>
@@ -536,11 +538,11 @@ export default function AITools() {
                 <div className="space-y-3">
                   <Card className="rounded-2xl border-blue-500/20 bg-blue-500/5">
                     <CardContent className="pt-4">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Summary</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{t("ai.summary")}</p>
                       <p className="text-sm">{trendResult.summary}</p>
                       {trendResult.bestUploadTime && (
                         <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
-                          <Clock className="w-3.5 h-3.5" /> Best upload time: <span className="font-semibold text-foreground">{trendResult.bestUploadTime}</span>
+                          <Clock className="w-3.5 h-3.5" /> {t("ai.bestUploadTime")}: <span className="font-semibold text-foreground">{trendResult.bestUploadTime}</span>
                         </div>
                       )}
                     </CardContent>
@@ -549,7 +551,7 @@ export default function AITools() {
                   <Card className="rounded-2xl border-green-500/20 bg-green-500/5">
                     <CardContent className="pt-4">
                       <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                        <ChevronUp className="w-3.5 h-3.5" /> Hot Styles
+                        <ChevronUp className="w-3.5 h-3.5" /> {t("ai.hotStyles")}
                       </p>
                       <div className="space-y-2">
                         {trendResult.hotStyles.map((s, i) => (
@@ -569,7 +571,7 @@ export default function AITools() {
                   <div className="grid grid-cols-2 gap-3">
                     <Card className="rounded-2xl border-border/50">
                       <CardContent className="pt-4">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Rising Colors</p>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{t("ai.risingColors")}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {trendResult.risingColors.map(c => <Badge key={c} variant="outline" className="text-xs">{c}</Badge>)}
                         </div>
@@ -578,7 +580,7 @@ export default function AITools() {
                     <Card className="rounded-2xl border-border/50">
                       <CardContent className="pt-4">
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
-                          <ChevronDown className="w-3.5 h-3.5 text-red-500" /> Declining
+                          <ChevronDown className="w-3.5 h-3.5 text-red-500" /> {t("ai.declining")}
                         </p>
                         <div className="flex flex-wrap gap-1.5">
                           {trendResult.decliningStyles.map(s => <Badge key={s} variant="secondary" className="text-xs text-red-500/70">{s}</Badge>)}
@@ -589,7 +591,7 @@ export default function AITools() {
 
                   <Card className="rounded-2xl border-violet-500/20 bg-violet-500/5">
                     <CardContent className="pt-4">
-                      <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-2">Opportunities</p>
+                      <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-2">{t("ai.opportunities")}</p>
                       <ul className="space-y-1.5">
                         {trendResult.opportunities.map((o, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm">
@@ -608,12 +610,12 @@ export default function AITools() {
         <TabsContent value="chatbot" className="mt-4 space-y-4">
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><MessageSquare className="w-4 h-4 text-green-500" /> AI Chatbot</CardTitle>
-              <CardDescription>Auto-generate replies for community posts and messages</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><MessageSquare className="w-4 h-4 text-green-500" /> {t("ai.chatbotTitle")}</CardTitle>
+              <CardDescription>{t("ai.chatbotDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Message/Post *</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("ai.communityPost")}</label>
                 <Textarea
                   placeholder="Paste a member's message you want to reply to..."
                   value={chatbotForm.post}
@@ -624,20 +626,20 @@ export default function AITools() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Reply Tone</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.tone")}</label>
                   <Select value={chatbotForm.tone} onValueChange={v => setChatbotForm(p => ({ ...p, tone: v }))}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>{toneOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Group Context</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("ai.groupContext")}</label>
                   <Input placeholder="Group name/topic..." value={chatbotForm.groupContext} onChange={e => setChatbotForm(p => ({ ...p, groupContext: e.target.value }))} className="rounded-xl" />
                 </div>
               </div>
               <Button className="w-full rounded-xl gap-2 bg-green-600 hover:bg-green-700" onClick={genChatbot} disabled={chatbotLoading || !chatbotForm.post.trim()}>
                 {chatbotLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
-                Generate Replies
+                {t("ai.generateReplies")}
               </Button>
             </CardContent>
           </Card>
@@ -649,17 +651,17 @@ export default function AITools() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div>
-                          <p className="text-xs text-muted-foreground">Post Sentiment</p>
+                          <p className="text-xs text-muted-foreground">{t("ai.sentiment")}</p>
                           <p className={`text-sm font-semibold capitalize ${sentimentColor[chatbotResult.sentiment] || ""}`}>{chatbotResult.sentiment}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">Action</p>
+                          <p className="text-xs text-muted-foreground">{t("ai.recommendedAction")}</p>
                           <p className="text-sm font-semibold">{actionLabel[chatbotResult.suggestedAction] || chatbotResult.suggestedAction}</p>
                         </div>
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">3 Reply Options</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{t("ai.suggestedReplies")}</p>
                       <div className="space-y-2">
                         {chatbotResult.replies.map((reply, i) => (
                           <div key={i} className="rounded-xl border border-border/50 bg-card p-3">
