@@ -152,6 +152,16 @@ declare module "express-session" {
       notes: string;
       createdAt: number;
     }>;
+    streakData?: {
+      currentStreak: number;
+      longestStreak: number;
+      lastLoginDate: string;
+      totalLogins: number;
+      streakStartDate: string;
+    };
+    unlockedAchievements?: string[];
+    visitedSections?: string[];
+    claimedMilestones?: string[];
   }
 }
 

@@ -21,6 +21,7 @@ import gameManagerRouter from "./gameManager";
 import socialMediaRouter from "./socialMedia";
 import financeRouter from "./finance";
 import contentPlannerRouter from "./contentPlanner";
+import gamificationRouter from "./gamification";
 
 const router: IRouter = Router();
 
@@ -57,6 +58,7 @@ router.use("/game-manager", requireLicense);
 router.use("/social-media", requireLicense);
 router.use("/finance", requireLicense);
 router.use("/content", requireLicense);
+router.use("/gamification", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
@@ -75,5 +77,6 @@ router.use(gameManagerRouter);
 router.use(socialMediaRouter);
 router.use(financeRouter);
 router.use(contentPlannerRouter);
+router.use(gamificationRouter);
 
 export default router;
