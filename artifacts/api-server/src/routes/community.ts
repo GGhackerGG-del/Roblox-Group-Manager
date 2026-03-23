@@ -183,7 +183,12 @@ router.get("/community/group-chats", async (req, res): Promise<void> => {
     if (!lastMsgMap[m.chatId]) lastMsgMap[m.chatId] = m;
   }
 
-  res.json({ chats: chats.map(c => ({ ...c, memberCount: countMap[c.id] || 0, lastMessage: lastMsgMap[c.id] || null })) });
+  res.json({ chats: chats.map(c => {
+    const robloxGroupMatch = c.name.match(/^\[roblox-group:(\d+)\]\s*/);
+    const robloxGroupId = robloxGroupMatch ? parseInt(robloxGroupMatch[1]) : null;
+    const displayName = robloxGroupMatch ? c.name.replace(robloxGroupMatch[0], '') : c.name;
+    return { ...c, name: displayName, robloxGroupId, memberCount: countMap[c.id] || 0, lastMessage: lastMsgMap[c.id] || null };
+  }) });
 });
 
 router.post("/community/group-chats", async (req, res): Promise<void> => {
@@ -272,6 +277,42 @@ router.post("/community/group-chats/:id/members", async (req, res): Promise<void
   if (exists) { res.status(409).json({ error: "Already a member" }); return; }
   await db.insert(groupChatMembers).values({ chatId, userId: targetUserId, role: "member" });
   res.json({ ok: true });
+});
+
+// ── Roblox Group Chat (auto-created) ──────────────────────────────────────────
+
+router.post("/community/roblox-group-chat", async (req, res): Promise<void> => {
+  const me = await getMyUser(req);
+  if (!me) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const { groupId, groupName } = req.body as { groupId?: number; groupName?: string };
+  if (!groupId || !groupName) { res.status(400).json({ error: "groupId and groupName required" }); return; }
+
+  const tag = `[roblox-group:${groupId}]`;
+  const existing = await db.query.groupChats.findFirst({
+    where: sql`${groupChats.name} LIKE ${tag + '%'}`,
+  });
+
+  if (existing) {
+    const membership = await db.query.groupChatMembers.findFirst({
+      where: and(eq(groupChatMembers.chatId, existing.id), eq(groupChatMembers.userId, me.id)),
+    });
+    if (!membership) {
+      await db.insert(groupChatMembers).values({ chatId: existing.id, userId: me.id, role: "admin" });
+    }
+    const memberCount = await db.select({ total: count() }).from(groupChatMembers).where(eq(groupChatMembers.chatId, existing.id));
+    res.json({ chat: { ...existing, name: existing.name.replace(tag, '').trim(), robloxGroupId: groupId, memberCount: memberCount[0]?.total || 0 } });
+    return;
+  }
+
+  const [chat] = await db.insert(groupChats).values({
+    name: `${tag} ${groupName}`,
+    createdById: me.id,
+    avatarColor: "#000000",
+  }).returning();
+
+  await db.insert(groupChatMembers).values({ chatId: chat.id, userId: me.id, role: "admin" });
+
+  res.json({ chat: { ...chat, name: groupName, robloxGroupId: groupId, memberCount: 1 } });
 });
 
 // ── Collaboration ─────────────────────────────────────────────────────────────

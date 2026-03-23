@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getAuthCredentials } from "@workspace/api-client-react";
+import { getAuthCredentials, useGetRobloxGroups } from "@workspace/api-client-react";
 import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1058,6 +1058,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 }) {
   const { toast } = useToast();
   const { t } = useLanguage();
+  const { data: groupsData } = useGetRobloxGroups();
   const [conversations, setConversations] = useState<DmConversation[]>([]);
   const [groupChats, setGroupChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1074,6 +1075,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [chatMembers, setChatMembers] = useState<any[]>([]);
   const [showAddMember, setShowAddMember] = useState(false);
   const [addMemberInput, setAddMemberInput] = useState("");
+  const [robloxGroupChatCreated, setRobloxGroupChatCreated] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
 
@@ -1087,6 +1089,19 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
       setGroupChats(gcData.chats);
     } catch {} finally { setLoading(false); }
   }, []);
+
+  useEffect(() => {
+    if (!robloxGroupChatCreated && groupsData?.groups?.length && myUser) {
+      const ownerGroup = groupsData.groups.find((g: any) => g.role === "owner" || g.role === "Owner");
+      if (ownerGroup) {
+        setRobloxGroupChatCreated(true);
+        apiFetch<{ chat: any }>("/api/community/roblox-group-chat", {
+          method: "POST",
+          body: JSON.stringify({ groupId: ownerGroup.group?.id || ownerGroup.id, groupName: ownerGroup.group?.name || ownerGroup.name }),
+        }).then(() => fetchAll()).catch(() => {});
+      }
+    }
+  }, [groupsData, myUser, robloxGroupChatCreated, fetchAll]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -1227,18 +1242,19 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
               <div className="p-3 space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
             ) : (
               <>
-                {groupChats.map(gc => (
+                {[...groupChats].sort((a, b) => (b.robloxGroupId ? 1 : 0) - (a.robloxGroupId ? 1 : 0)).map(gc => (
                   <div
                     key={`gc-${gc.id}`}
                     onClick={() => openGroup(gc)}
-                    className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${active?.kind === "group" && active.chat.id === gc.id ? "bg-secondary/70" : ""}`}
+                    className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${active?.kind === "group" && active.chat.id === gc.id ? "bg-secondary/70" : ""} ${gc.robloxGroupId ? "bg-secondary/20" : ""}`}
                   >
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: gc.avatarColor || "#6366f1" }}>
-                      {gc.name.charAt(0)}
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: gc.robloxGroupId ? "#000" : (gc.avatarColor || "#6366f1") }}>
+                      {gc.robloxGroupId ? <Users className="w-4 h-4" /> : gc.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <p className="text-xs font-semibold truncate">{gc.name}</p>
+                        {gc.robloxGroupId && <Badge className="text-[8px] h-4 px-1 shrink-0 bg-black text-white border-0">Roblox</Badge>}
                         <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0">{gc.memberCount || "?"}</Badge>
                       </div>
                       {gc.lastMessage && <p className="text-[10px] text-muted-foreground truncate">{gc.lastMessage.content}</p>}
