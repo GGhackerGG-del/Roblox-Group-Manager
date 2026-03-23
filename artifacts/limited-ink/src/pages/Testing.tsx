@@ -16,6 +16,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Info, RefreshCw, User
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import RobloxCharacterViewer from "@/components/RobloxCharacterViewer";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 function getAuthHeaders(): Record<string, string> {
@@ -645,12 +646,11 @@ function AvatarPreviewTab() {
   const [clothingFile, setClothingFile] = useState<File | null>(null);
   const [clothingUrl, setClothingUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [composited, setComposited] = useState(false);
+  const [skinColor, setSkinColor] = useState("#d4a574");
 
   const fetchAvatar = async () => {
     if (!username.trim()) return;
-    setLoading(true); setAvatarData(null); setComposited(false);
+    setLoading(true); setAvatarData(null);
     try {
       const d = await api<any>(`/api/quality/roblox-avatar?username=${encodeURIComponent(username.trim())}`);
       setAvatarData(d);
@@ -665,61 +665,6 @@ function AvatarPreviewTab() {
     const reader = new FileReader();
     reader.onload = e => setClothingUrl(e.target?.result as string);
     reader.readAsDataURL(f);
-    setComposited(false);
-  };
-
-  // Canvas composite: draw avatar + clothing overlay
-  const composite = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !avatarData?.imageUrl || !clothingUrl) return;
-    const ctx = canvas.getContext("2d")!;
-    const W = 420; const H = 420;
-    canvas.width = W; canvas.height = H;
-
-    const avatarImg = new Image();
-    avatarImg.crossOrigin = "anonymous";
-    const clothingImg = new Image();
-
-    const draw = () => {
-      ctx.clearRect(0, 0, W, H);
-      ctx.drawImage(avatarImg, 0, 0, W, H);
-
-      // overlay clothing based on type
-      ctx.globalAlpha = 0.85;
-      if (clothingType === "shirt") {
-        // torso area on avatar (~120-300 x, ~120-280 y for 420px)
-        ctx.drawImage(clothingImg, 55, 130, 310, 180);
-      } else if (clothingType === "pants") {
-        ctx.drawImage(clothingImg, 80, 270, 260, 150);
-      } else if (clothingType === "tshirt") {
-        // T-shirt = front graphic on chest center
-        const scale = 120;
-        ctx.drawImage(clothingImg, W / 2 - scale / 2, 145, scale, scale);
-      } else {
-        ctx.drawImage(clothingImg, 60, 80, 300, 260);
-      }
-      ctx.globalAlpha = 1;
-      setComposited(true);
-    };
-
-    let loaded = 0;
-    const onLoad = () => { loaded++; if (loaded === 2) draw(); };
-    avatarImg.onload = onLoad;
-    clothingImg.onload = onLoad;
-    avatarImg.onerror = () => { ctx.drawImage(clothingImg, 0, 0, W, H); setComposited(true); };
-    avatarImg.src = avatarData.imageUrl;
-    clothingImg.src = clothingUrl;
-  }, [avatarData, clothingUrl, clothingType]);
-
-  useEffect(() => { if (avatarData && clothingUrl) composite(); }, [avatarData, clothingUrl, clothingType]);
-
-  const downloadPreview = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const link = document.createElement("a");
-    link.download = "avatar-preview.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
   };
 
   return (
@@ -738,13 +683,24 @@ function AvatarPreviewTab() {
 
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">{t("test.clothingType")}</Label>
-            <Select value={clothingType} onValueChange={v => { setClothingType(v); setComposited(false); }}>
+            <Select value={clothingType} onValueChange={v => setClothingType(v)}>
               <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {t(v.labelKey)}</SelectItem>)}</SelectContent>
+              <SelectContent>{Object.entries(CLOTHING_SPECS).filter(([k]) => k !== "custom").map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {t(v.labelKey)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
 
           <DropZone onFile={handleClothingFile} file={clothingFile} label={t("test.dropFile")} />
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("test.skinColor") || "Skin Color"}</Label>
+            <div className="flex items-center gap-2">
+              {["#d4a574", "#c68642", "#8d5524", "#f5d0a9", "#e0ac69", "#503335", "#f1c27d"].map(c => (
+                <button key={c} onClick={() => setSkinColor(c)}
+                  className={`w-7 h-7 rounded-full border-2 transition-all ${skinColor === c ? "border-black scale-110 ring-2 ring-black/20" : "border-border/50 hover:border-black/30"}`}
+                  style={{ backgroundColor: c }} />
+              ))}
+            </div>
+          </div>
 
           {avatarData && (
             <Card className="rounded-2xl border-border/50">
@@ -758,27 +714,21 @@ function AvatarPreviewTab() {
         </div>
 
         <div className="space-y-3">
-          <div className="rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-b from-blue-50/50 to-gray-50 dark:from-blue-950/20 dark:to-secondary/10 flex items-center justify-center relative" style={{ minHeight: 340 }}>
-            {!avatarData && !clothingUrl ? (
-              <div className="text-center text-muted-foreground p-8">
-                <Eye className="w-12 h-12 opacity-10 mx-auto mb-3" />
-                <p className="text-sm">{t("test.loadAvatarHint")}</p>
+          <div className="rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-b from-gray-50 to-gray-100 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center relative" style={{ minHeight: 420 }}>
+            <RobloxCharacterViewer
+              clothingUrl={clothingUrl}
+              clothingType={clothingType as any}
+              skinColor={skinColor}
+            />
+            {!clothingUrl && (
+              <div className="absolute bottom-4 left-0 right-0 text-center">
+                <p className="text-xs text-muted-foreground bg-background/80 backdrop-blur-sm inline-block px-3 py-1 rounded-lg">{t("test.loadClothingHint")}</p>
               </div>
-            ) : (
-              <>
-                <canvas ref={canvasRef} className={`max-w-full max-h-full ${composited ? "opacity-100" : "opacity-0"} transition-opacity`} />
-                {!composited && avatarData && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <img src={avatarData.imageUrl} alt="base" className="max-h-full object-contain opacity-50" crossOrigin="anonymous" />
-                    {!clothingUrl && <div className="absolute bottom-4 text-xs text-muted-foreground">{t("test.loadClothingHint")}</div>}
-                  </div>
-                )}
-              </>
             )}
+            <div className="absolute top-3 right-3">
+              <p className="text-[10px] text-muted-foreground bg-background/60 backdrop-blur-sm px-2 py-0.5 rounded-md">🖱️ {t("test.dragToRotate") || "Drag to rotate"}</p>
+            </div>
           </div>
-          {composited && (
-            <Button variant="outline" className="w-full rounded-xl gap-1.5" onClick={downloadPreview}><Upload className="w-4 h-4" /> {t("test.downloadPreview")}</Button>
-          )}
         </div>
       </div>
 
