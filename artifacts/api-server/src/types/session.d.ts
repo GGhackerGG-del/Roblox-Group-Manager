@@ -19,6 +19,19 @@ declare module "express-session" {
       avatarUrl: string | null;
     }>;
     robloxOpenCloudApiKey?: string;
+    sessionCreatedAt?: number;
+    activityLog?: Array<{
+      id: string;
+      action: string;
+      detail?: string;
+      ts: number;
+      userId?: number;
+    }>;
+    proxyConfig?: {
+      url: string;
+      enabled: boolean;
+      addedAt: number;
+    };
   }
 }
 

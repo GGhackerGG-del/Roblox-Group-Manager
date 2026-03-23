@@ -14,6 +14,7 @@ import pnlRouter from "./pnl";
 import forumRouter from "./forum";
 import automationRouter from "./automation";
 import aiToolsRouter from "./aiTools";
+import securityRouter from "./security";
 
 const router: IRouter = Router();
 
@@ -43,6 +44,7 @@ router.use("/pnl", requireLicense);
 router.use("/forum", requireLicense);
 router.use("/automation", requireLicense);
 router.use("/ai-tools", requireLicense);
+router.use("/security", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
@@ -54,5 +56,6 @@ router.use(pnlRouter);
 router.use(forumRouter);
 router.use(automationRouter);
 router.use(aiToolsRouter);
+router.use(securityRouter);
 
 export default router;
