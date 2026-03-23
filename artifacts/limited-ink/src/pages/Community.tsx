@@ -1233,7 +1233,12 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
         apiFetch<{ chat: any }>("/api/community/roblox-group-chat", {
           method: "POST",
           body: JSON.stringify({ groupId: ownerGroup.group?.id || ownerGroup.id, groupName: ownerGroup.group?.name || ownerGroup.name }),
-        }).then(() => fetchAll()).catch(() => {});
+        }).then((data) => {
+          fetchAll();
+          if (data?.chat && !active) {
+            openGroup(data.chat);
+          }
+        }).catch(() => {});
       }
     }
   }, [groupsData, myUser, robloxGroupChatCreated, fetchAll]);
@@ -1723,12 +1728,15 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
           ) : (
             <>
               <div className="p-4 border-b border-border bg-secondary/30 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: active.chat.avatarColor || "#6366f1" }}>
-                  {active.chat.name.charAt(0)}
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: active.chat.robloxGroupId ? "#000" : (active.chat.avatarColor || "#6366f1") }}>
+                  {active.chat.robloxGroupId ? <Users className="w-4 h-4" /> : active.chat.name.charAt(0)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm">{active.chat.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{chatMembers.length} {t("com.members")}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold text-sm">{active.chat.name}</p>
+                    {active.chat.robloxGroupId && <Badge className="text-[8px] h-4 px-1 shrink-0 bg-black text-white border-0">Roblox</Badge>}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{chatMembers.length} {t("com.members")} {active.chat.robloxGroupId ? `· ${t("com.workChat")}` : ""}</p>
                 </div>
                 <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" onClick={callActive ? endCall : startCall} disabled={callConnecting} title={t("com.voiceCall")}>
                   {callConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : callActive ? <PhoneOff className="w-4 h-4 text-red-500" /> : <Phone className="w-4 h-4" />}
