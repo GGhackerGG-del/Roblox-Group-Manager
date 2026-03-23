@@ -320,11 +320,14 @@ function VisitHistoryTab({ games, groupId }: { games: Game[]; groupId: string })
       .finally(() => setLoading(false));
   }, [selectedUid]);
 
-  const chartData = snapshots.map(s => ({
-    time: new Date(s.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    playing: s.playing,
-    visits: s.visits,
-  }));
+  const chartData = snapshots.map(s => {
+    const d = new Date(s.ts);
+    const span = snapshots.length > 1 ? snapshots[snapshots.length - 1].ts - snapshots[0].ts : 0;
+    const label = span > 86400000
+      ? d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return { time: label, playing: s.playing, visits: s.visits };
+  });
 
   return (
     <div className="space-y-4">
