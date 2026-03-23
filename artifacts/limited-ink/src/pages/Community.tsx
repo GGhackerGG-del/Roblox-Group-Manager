@@ -897,7 +897,11 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
   );
 }
 
-// ── Chat Tab ──────────────────────────────────────────────────────────────────
+// ── Chat Tab (unified: DMs + Group Chats) ────────────────────────────────────
+
+type ActiveChatTarget =
+  | { kind: "dm"; user: PlatformUser }
+  | { kind: "group"; chat: any };
 
 function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   myUser: PlatformUser | null;
@@ -906,187 +910,358 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 }) {
   const { toast } = useToast();
   const { t } = useLanguage();
-  const [chatMode, setChatMode] = useState<"dm" | "group">(initialChatUser ? "dm" : "dm");
   const [conversations, setConversations] = useState<DmConversation[]>([]);
+  const [groupChats, setGroupChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeChat, setActiveChat] = useState<PlatformUser | null>(null);
-  const [messages, setMessages] = useState<DmMessage[]>([]);
+  const [active, setActive] = useState<ActiveChatTarget | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [chatName, setChatName] = useState("");
+  const [memberInput, setMemberInput] = useState("");
+  const [pendingMembers, setPendingMembers] = useState<any[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [chatMembers, setChatMembers] = useState<any[]>([]);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [addMemberInput, setAddMemberInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
 
-  useEffect(() => {
-    if (initialChatUser) setChatMode("dm");
-  }, [initialChatUser]);
-
-  const fetchConversations = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     try {
-      const d = await apiFetch<{ conversations: DmConversation[] }>("/api/social/messages");
-      setConversations(d.conversations);
+      const [dmData, gcData] = await Promise.all([
+        apiFetch<{ conversations: DmConversation[] }>("/api/social/messages").catch(() => ({ conversations: [] as DmConversation[] })),
+        apiFetch<{ chats: any[] }>("/api/community/group-chats").catch(() => ({ chats: [] as any[] })),
+      ]);
+      setConversations(dmData.conversations);
+      setGroupChats(gcData.chats);
     } catch {} finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchConversations(); }, [fetchConversations]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const openChat = useCallback(async (user: PlatformUser) => {
-    setActiveChat(user);
+  const openDm = useCallback(async (user: PlatformUser) => {
+    setActive({ kind: "dm", user });
     setLoadingMsgs(true);
+    setShowAddMember(false);
     try {
       const d = await apiFetch<{ messages: DmMessage[] }>(`/api/social/messages/${user.id}`);
       setMessages(d.messages);
     } catch {} finally { setLoadingMsgs(false); }
   }, []);
 
+  const openGroup = useCallback(async (chat: any) => {
+    setActive({ kind: "group", chat });
+    setLoadingMsgs(true);
+    setShowAddMember(false);
+    try {
+      const [msgsData, membersData] = await Promise.all([
+        apiFetch<{ messages: any[] }>(`/api/community/group-chats/${chat.id}/messages`),
+        apiFetch<{ members: any[] }>(`/api/community/group-chats/${chat.id}/members`),
+      ]);
+      setMessages(msgsData.messages);
+      setChatMembers(membersData.members);
+    } catch {} finally { setLoadingMsgs(false); }
+  }, []);
+
   useEffect(() => {
-    if (initialChatUser) { openChat(initialChatUser); onClearInitial(); }
-  }, [initialChatUser, openChat, onClearInitial]);
+    if (initialChatUser) { openDm(initialChatUser); onClearInitial(); }
+  }, [initialChatUser, openDm, onClearInitial]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!text.trim() || !activeChat) return;
+  const handleSendDm = async () => {
+    if (!text.trim() || !active || active.kind !== "dm") return;
     setSending(true);
     try {
-      const d = await apiFetch<{ message: DmMessage }>(`/api/social/messages/${activeChat.id}`, {
-        method: "POST",
-        body: JSON.stringify({ content: text.trim() }),
+      const d = await apiFetch<{ message: DmMessage }>(`/api/social/messages/${active.user.id}`, {
+        method: "POST", body: JSON.stringify({ content: text.trim() }),
       });
       setMessages(prev => [...prev, d.message]);
       setText("");
-      fetchConversations();
+      fetchAll();
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to send message" });
+      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось отправить" });
     } finally { setSending(false); }
   };
 
-  if (chatMode === "group") {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-xl border border-border overflow-hidden">
-            <button onClick={() => setChatMode("dm")} className="px-4 py-1.5 text-xs font-semibold bg-secondary/40 hover:bg-secondary transition-colors">ЛС</button>
-            <button onClick={() => setChatMode("group")} className="px-4 py-1.5 text-xs font-semibold bg-black text-white">Группочаты</button>
-          </div>
-        </div>
-        <GroupChatTab myUser={myUser} />
-      </div>
-    );
-  }
+  const handleSendGroup = async () => {
+    if (!text.trim() || !active || active.kind !== "group") return;
+    setSending(true);
+    try {
+      const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${active.chat.id}/messages`, {
+        method: "POST", body: JSON.stringify({ content: text.trim() }),
+      });
+      setMessages(prev => [...prev, message]);
+      setText("");
+    } catch {} finally { setSending(false); }
+  };
+
+  const handleSend = () => {
+    if (!active) return;
+    if (active.kind === "dm") handleSendDm();
+    else handleSendGroup();
+  };
+
+  const searchUser = async (username: string) => {
+    if (!username.trim()) return null;
+    try {
+      const users = await apiFetch<any[]>(`/api/social/users/search?q=${encodeURIComponent(username)}`);
+      return (users as any[]).find((u: any) => u.robloxUsername.toLowerCase() === username.toLowerCase() || u.displayName.toLowerCase() === username.toLowerCase());
+    } catch { return null; }
+  };
+
+  const addPendingMember = async () => {
+    const user = await searchUser(memberInput);
+    if (!user) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+    if (pendingMembers.find(m => m.id === user.id)) return;
+    setPendingMembers(p => [...p, user]);
+    setMemberInput("");
+  };
+
+  const createGroupChat = async () => {
+    if (!chatName.trim() || pendingMembers.length < 2) return;
+    setCreating(true);
+    try {
+      const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      const { chat } = await apiFetch<{ chat: any }>("/api/community/group-chats", {
+        method: "POST",
+        body: JSON.stringify({ name: chatName.trim(), memberIds: pendingMembers.map(m => m.id), avatarColor: color }),
+      });
+      setGroupChats(p => [chat, ...p]);
+      setShowCreate(false); setChatName(""); setPendingMembers([]);
+      openGroup(chat);
+      toast({ title: "Групповой чат создан" });
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    finally { setCreating(false); }
+  };
+
+  const addMemberToChat = async () => {
+    if (!active || active.kind !== "group" || !addMemberInput.trim()) return;
+    const user = await searchUser(addMemberInput);
+    if (!user) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+    try {
+      await apiFetch(`/api/community/group-chats/${active.chat.id}/members`, { method: "POST", body: JSON.stringify({ targetUserId: user.id }) });
+      const { members } = await apiFetch<{ members: any[] }>(`/api/community/group-chats/${active.chat.id}/members`);
+      setChatMembers(members);
+      setAddMemberInput(""); setShowAddMember(false);
+      toast({ title: "Участник добавлен" });
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+  };
+
+  const timeAgoShort = (date: string) => {
+    const d = Date.now() - new Date(date).getTime();
+    const m = Math.floor(d / 60000);
+    if (m < 1) return "сейчас";
+    if (m < 60) return `${m}м`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}ч`;
+    return `${Math.floor(h / 24)}д`;
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="flex rounded-xl border border-border overflow-hidden">
-          <button onClick={() => setChatMode("dm")} className="px-4 py-1.5 text-xs font-semibold bg-black text-white">ЛС</button>
-          <button onClick={() => setChatMode("group")} className="px-4 py-1.5 text-xs font-semibold bg-secondary/40 hover:bg-secondary transition-colors">Группочаты</button>
-        </div>
-      </div>
-    <div className="flex gap-4 h-[620px]">
-      {/* Sidebar */}
-      <div className="w-72 shrink-0 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
-        <div className="p-3 border-b border-border bg-secondary/40">
-          <p className="font-bold text-sm">Messages</p>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="p-3 space-y-2">{[1, 2].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
-          ) : conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
-              <MessageSquare className="w-8 h-8 mb-2 opacity-30" strokeWidth={1} />
-              <p className="text-xs font-medium">No chats yet</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Go to Friends → Chat to start</p>
-            </div>
-          ) : (
-            conversations.map(({ conversation, otherUser, lastMessage, unreadCount }) => (
-              <div
-                key={conversation.id}
-                onClick={() => openChat(otherUser)}
-                className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${activeChat?.id === otherUser?.id ? "bg-secondary/70" : ""}`}
-              >
-                <div className="relative">
-                  <Avatar className="w-9 h-9 border border-border shrink-0">
-                    <AvatarImage src={otherUser?.avatarUrl || robloxHeadshot(otherUser?.robloxUserId || 0)} />
-                    <AvatarFallback className="text-xs font-bold">{otherUser?.displayName?.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  {unreadCount > 0 && (
-                    <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-black rounded-full flex items-center justify-center text-[9px] text-white font-bold">
-                      {unreadCount}
+    <div className="space-y-3">
+      <div className="flex gap-4 h-[620px]">
+        {/* Sidebar */}
+        <div className="w-72 shrink-0 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-3 border-b border-border bg-secondary/40 flex items-center justify-between">
+            <p className="font-bold text-sm">Чаты</p>
+            <Button size="sm" variant="ghost" className="rounded-xl h-7 w-7 p-0" onClick={() => setShowCreate(p => !p)} title="Создать групповой чат">
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="p-3 space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
+            ) : (
+              <>
+                {groupChats.map(gc => (
+                  <div
+                    key={`gc-${gc.id}`}
+                    onClick={() => openGroup(gc)}
+                    className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${active?.kind === "group" && active.chat.id === gc.id ? "bg-secondary/70" : ""}`}
+                  >
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: gc.avatarColor || "#6366f1" }}>
+                      {gc.name.charAt(0)}
                     </div>
-                  )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-semibold truncate">{gc.name}</p>
+                        <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0">{gc.memberCount || "?"}</Badge>
+                      </div>
+                      {gc.lastMessage && <p className="text-[10px] text-muted-foreground truncate">{gc.lastMessage.content}</p>}
+                    </div>
+                    {gc.lastMessage && <span className="text-[9px] text-muted-foreground shrink-0">{timeAgoShort(gc.lastMessage.createdAt)}</span>}
+                  </div>
+                ))}
+
+                {conversations.map(({ conversation, otherUser, lastMessage, unreadCount }) => (
+                  <div
+                    key={`dm-${conversation.id}`}
+                    onClick={() => openDm(otherUser)}
+                    className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${active?.kind === "dm" && active.user.id === otherUser?.id ? "bg-secondary/70" : ""}`}
+                  >
+                    <div className="relative">
+                      <Avatar className="w-9 h-9 border border-border shrink-0">
+                        <AvatarImage src={otherUser?.avatarUrl || robloxHeadshot(otherUser?.robloxUserId || 0)} />
+                        <AvatarFallback className="text-xs font-bold">{otherUser?.displayName?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      {unreadCount > 0 && (
+                        <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-black rounded-full flex items-center justify-center text-[9px] text-white font-bold">
+                          {unreadCount}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold truncate">{otherUser?.displayName}</p>
+                      {lastMessage && <p className="text-[10px] text-muted-foreground truncate">{lastMessage.content}</p>}
+                    </div>
+                  </div>
+                ))}
+
+                {groupChats.length === 0 && conversations.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
+                    <MessageSquare className="w-8 h-8 mb-2 opacity-30" strokeWidth={1} />
+                    <p className="text-xs font-medium">Нет чатов</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Создайте групповой чат или напишите другу</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Main area */}
+        <div className="flex-1 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
+          {showCreate ? (
+            <div className="flex-1 flex flex-col p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">Создать групповой чат</h3>
+                <Button size="sm" variant="ghost" className="rounded-xl h-7 w-7 p-0" onClick={() => setShowCreate(false)}><X className="w-4 h-4" /></Button>
+              </div>
+              <Input placeholder="Название чата..." value={chatName} onChange={e => setChatName(e.target.value)} className="rounded-xl" />
+              <div className="flex gap-2">
+                <Input placeholder="Добавить участника по username..." value={memberInput} onChange={e => setMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addPendingMember()} className="rounded-xl flex-1 text-sm" />
+                <Button variant="outline" className="rounded-xl" onClick={addPendingMember}><Plus className="w-4 h-4" /></Button>
+              </div>
+              {pendingMembers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {pendingMembers.map(m => (
+                    <Badge key={m.id} variant="secondary" className="gap-1.5 text-xs">
+                      {m.displayName}
+                      <button onClick={() => setPendingMembers(p => p.filter(x => x.id !== m.id))}><X className="w-3 h-3" /></button>
+                    </Badge>
+                  ))}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold truncate">{otherUser?.displayName}</p>
-                  {lastMessage && <p className="text-[10px] text-muted-foreground truncate">{lastMessage.content}</p>}
+              )}
+              <p className="text-xs text-muted-foreground">Минимум 2 участника (+ вы)</p>
+              <Button className="rounded-xl" onClick={createGroupChat} disabled={creating || !chatName.trim() || pendingMembers.length < 2}>
+                {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />} Создать
+              </Button>
+            </div>
+          ) : !active ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+              <MessageSquare className="w-12 h-12 mb-3 opacity-30" strokeWidth={1} />
+              <p className="font-medium">Выберите чат</p>
+              <p className="text-sm mt-1 text-muted-foreground/70">Или создайте групповой чат</p>
+            </div>
+          ) : active.kind === "dm" ? (
+            <>
+              <div className="p-4 border-b border-border bg-secondary/30 flex items-center gap-3">
+                <Avatar className="w-8 h-8 border border-border">
+                  <AvatarImage src={active.user.avatarUrl || robloxHeadshot(active.user.robloxUserId)} />
+                  <AvatarFallback className="text-xs font-bold">{active.user.displayName.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold text-sm">{active.user.displayName}</p>
+                  <p className="text-xs text-muted-foreground">@{active.user.robloxUsername}</p>
                 </div>
               </div>
-            ))
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {loadingMsgs ? (
+                  <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">Нет сообщений. Скажите привет!</div>
+                ) : (
+                  messages.map(msg => {
+                    const isOwn = myUser && msg.senderId === myUser.id;
+                    return (
+                      <div key={msg.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${isOwn ? "bg-black text-white rounded-br-md" : "bg-secondary rounded-bl-md"}`}>
+                          {msg.content}
+                          <p className={`text-[10px] mt-1 ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>{timeAgo(msg.createdAt, t)}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+              {myUser && (
+                <div className="p-3 border-t border-border flex gap-2 items-center">
+                  <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={`Сообщение ${active.user.displayName}...`} className="rounded-xl flex-1" />
+                  <Button onClick={handleSend} disabled={sending || !text.trim()} size="sm" className="rounded-xl px-3 h-9 shrink-0">
+                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="p-4 border-b border-border bg-secondary/30 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: active.chat.avatarColor || "#6366f1" }}>
+                  {active.chat.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{active.chat.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{chatMembers.length} участников</p>
+                </div>
+                <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
+              </div>
+              {showAddMember && (
+                <div className="flex gap-2 px-4 py-2 border-b border-border">
+                  <Input placeholder="Добавить участника..." value={addMemberInput} onChange={e => setAddMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addMemberToChat()} className="rounded-xl flex-1 text-xs h-8" />
+                  <Button size="sm" className="rounded-xl h-8" onClick={addMemberToChat}><Check className="w-3.5 h-3.5" /></Button>
+                </div>
+              )}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {loadingMsgs ? (
+                  <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">Нет сообщений. Начните общение!</div>
+                ) : (
+                  messages.map(msg => {
+                    const isMe = myUser && msg.senderId === myUser.id;
+                    return (
+                      <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                        {!isMe && <Avatar className="w-7 h-7 border border-border shrink-0 mb-0.5"><AvatarImage src={msg.sender?.avatarUrl || robloxHeadshot(msg.sender?.robloxUserId || 0)} /><AvatarFallback className="text-[10px]">{msg.sender?.displayName?.charAt(0) || "?"}</AvatarFallback></Avatar>}
+                        <div className={`max-w-[70%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
+                          {!isMe && <p className="text-[10px] text-muted-foreground px-1">{msg.sender?.displayName}</p>}
+                          <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>{msg.content}</div>
+                          <p className="text-[10px] text-muted-foreground px-1">{timeAgoShort(msg.createdAt)}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+              {myUser && (
+                <div className="p-3 border-t border-border flex gap-2 items-center">
+                  <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder="Сообщение..." className="rounded-xl flex-1" />
+                  <Button onClick={handleSend} disabled={sending || !text.trim()} size="sm" className="rounded-xl px-3 h-9 shrink-0">
+                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
-
-      {/* Chat window */}
-      <div className="flex-1 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
-        {!activeChat ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-            <MessageSquare className="w-12 h-12 mb-3 opacity-30" strokeWidth={1} />
-            <p className="font-medium">Select a conversation</p>
-            <p className="text-sm mt-1 text-muted-foreground/70">Choose a chat from the list</p>
-          </div>
-        ) : (
-          <>
-            <div className="p-4 border-b border-border bg-secondary/30 flex items-center gap-3">
-              <Avatar className="w-8 h-8 border border-border">
-                <AvatarImage src={activeChat.avatarUrl || robloxHeadshot(activeChat.robloxUserId)} />
-                <AvatarFallback className="text-xs font-bold">{activeChat.displayName.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="font-semibold text-sm">{activeChat.displayName}</p>
-                <p className="text-xs text-muted-foreground">@{activeChat.robloxUsername}</p>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {loadingMsgs ? (
-                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-              ) : messages.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">No messages yet. Say hello! 👋</div>
-              ) : (
-                messages.map(msg => {
-                  const isOwn = myUser && msg.senderId === myUser.id;
-                  return (
-                    <div key={msg.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${isOwn ? "bg-black text-white rounded-br-md" : "bg-secondary rounded-bl-md"}`}>
-                        {msg.content}
-                        <p className={`text-[10px] mt-1 ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>{timeAgo(msg.createdAt, t)}</p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {myUser && (
-              <div className="p-3 border-t border-border flex gap-2 items-center">
-                <Input
-                  value={text}
-                  onChange={e => setText(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
-                  placeholder={`Message ${activeChat.displayName}...`}
-                  className="rounded-xl flex-1"
-                />
-                <Button onClick={handleSend} disabled={sending || !text.trim()} size="sm" className="rounded-xl px-3 h-9 shrink-0">
-                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
     </div>
   );
 }
