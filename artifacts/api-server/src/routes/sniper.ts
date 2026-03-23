@@ -462,4 +462,100 @@ router.post("/sniper/buy", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/sniper/rap-history/:assetId", async (req, res): Promise<void> => {
+  const assetId = parseInt(req.params.assetId, 10);
+  if (isNaN(assetId)) { res.status(400).json({ error: "Invalid asset ID." }); return; }
+
+  const cookie = req.session.robloxCookie;
+  const headers: Record<string, string> = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/json",
+  };
+  if (cookie) headers["Cookie"] = `.ROBLOSECURITY=${cookie}`;
+
+  try {
+    const [resaleResp, detailsResp] = await Promise.all([
+      fetch(`${ECONOMY_API}/v1/assets/${assetId}/resale-data`, { headers }),
+      fetch(`${ECONOMY_API}/v2/assets/${assetId}/details`, { headers }),
+    ]);
+
+    let resaleData: {
+      assetStock?: number; sales?: number; numberRemaining?: number;
+      recentAveragePrice?: number; originalPrice?: number;
+      priceDataPoints?: Array<{ value: number; date: string }>;
+      volumeDataPoints?: Array<{ value: number; date: string }>;
+    } = {};
+
+    let details: { Name?: string; IsLimited?: boolean; IsLimitedUnique?: boolean } = {};
+
+    if (resaleResp.ok) resaleData = await resaleResp.json();
+    if (detailsResp.ok) details = await detailsResp.json();
+
+    const item = (await fetchRolimonsItems()).find(i => i.id === assetId);
+    if (item && !item.thumbnailUrl) await addThumbnails([item]);
+
+    res.json({
+      assetId,
+      name: details.Name || item?.name || `Item #${assetId}`,
+      rap: item?.rap || resaleData.recentAveragePrice || 0,
+      value: item?.value || 0,
+      thumbnailUrl: item?.thumbnailUrl || null,
+      priceDataPoints: resaleData.priceDataPoints || [],
+      volumeDataPoints: resaleData.volumeDataPoints || [],
+      recentAveragePrice: resaleData.recentAveragePrice || 0,
+      assetStock: resaleData.assetStock,
+      numberRemaining: resaleData.numberRemaining,
+      originalPrice: resaleData.originalPrice,
+    });
+  } catch (err) {
+    console.error("[Sniper] RAP history error:", err);
+    res.status(502).json({ error: "Failed to fetch RAP history." });
+  }
+});
+
+router.get("/sniper/item/:assetId", async (req, res): Promise<void> => {
+  const assetId = parseInt(req.params.assetId, 10);
+  if (isNaN(assetId)) { res.status(400).json({ error: "Invalid asset ID." }); return; }
+  try {
+    const items = await fetchRolimonsItems();
+    const item = items.find(i => i.id === assetId);
+    if (!item) { res.status(404).json({ error: "Item not found in Rolimons database." }); return; }
+    if (!item.thumbnailUrl) await addThumbnails([item]);
+    res.json({ item });
+  } catch (err) {
+    res.status(502).json({ error: "Failed to fetch item." });
+  }
+});
+
+router.get("/sniper/underprice", async (req, res): Promise<void> => {
+  const cookie = req.session.robloxCookie;
+  if (!cookie) { res.status(401).json({ error: "Roblox session required to check catalog prices." }); return; }
+  try {
+    const all = await fetchRolimonsItems();
+    const candidates = [...all]
+      .filter(i => i.rap > 200 && i.demand >= 0)
+      .sort((a, b) => b.rap - a.rap)
+      .slice(0, 600);
+
+    await addCatalogPrices(candidates, cookie);
+
+    const underprice = candidates
+      .filter(i => i.catalogPrice != null && i.catalogPrice > 0 && i.rap > 0 && i.catalogPrice < i.rap * 0.88)
+      .sort((a, b) => (1 - b.catalogPrice! / b.rap) - (1 - a.catalogPrice! / a.rap))
+      .slice(0, 60);
+
+    await addThumbnails(underprice);
+
+    res.json({
+      items: underprice.map(i => ({
+        ...i,
+        discount: Math.round((1 - i.catalogPrice! / i.rap) * 100),
+      })),
+    });
+  } catch (err) {
+    console.error("[Sniper] Underprice error:", err);
+    res.status(502).json({ error: "Failed to fetch underprice items." });
+  }
+});
+
 export default router;
