@@ -151,6 +151,44 @@ router.get("/automation/members/:groupId", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/automation/search-member/:groupId", async (req, res): Promise<void> => {
+  const cookie = req.session.robloxCookie;
+  if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
+  const { groupId } = req.params;
+  const username = (req.query.username as string || "").trim();
+  if (!username) { res.status(400).json({ error: "username required" }); return; }
+  try {
+    const userResp = await fetch("https://users.roblox.com/v1/usernames/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": UA },
+      body: JSON.stringify({ usernames: [username], excludeBannedUsers: false }),
+    });
+    if (!userResp.ok) { res.status(userResp.status).json({ error: `Roblox Users API ${userResp.status}` }); return; }
+    const userData = await userResp.json() as { data: Array<{ requestedUsername: string; id: number; name: string; displayName: string }> };
+    if (!userData.data?.length) { res.json({ members: [] }); return; }
+
+    const members: Array<{ user: { userId: number; username: string; displayName: string }; role: { id: number; name: string; rank: number } }> = [];
+    for (const u of userData.data) {
+      const grpResp = await fetch(`${GROUPS_API}/v2/users/${u.id}/groups/roles`, {
+        headers: { "User-Agent": UA, "Accept": "application/json" },
+      });
+      if (!grpResp.ok) continue;
+      const grpData = await grpResp.json() as { data: Array<{ group: { id: number }; role: { id: number; name: string; rank: number } }> };
+      const membership = grpData.data?.find(g => String(g.group.id) === String(groupId));
+      if (membership) {
+        members.push({
+          user: { userId: u.id, username: u.name, displayName: u.displayName },
+          role: membership.role,
+        });
+      }
+    }
+    res.json({ members });
+  } catch (err) {
+    console.error("[Automation] search-member error:", err);
+    res.status(502).json({ error: "Failed to search member." });
+  }
+});
+
 router.patch("/automation/rank/:groupId/:userId", async (req, res): Promise<void> => {
   const cookie = req.session.robloxCookie;
   if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }

@@ -181,21 +181,21 @@ export default function Automation() {
     if (!q.trim() || !groupId) return;
     if (forExile) setExileLoading(true); else setMemberSearchLoading(true);
     try {
-      const roleId = forExile ? exileRoleFilter : undefined;
-      const params = new URLSearchParams({ limit: "50" });
-      if (roleId) params.set("roleId", roleId);
-      const data = await apiFetch<{ members: Member[] }>(`/api/automation/members/${groupId}?${params}`);
-      const filtered = (data.members || []).filter(m =>
-        m.user.username.toLowerCase().includes(q.toLowerCase()) ||
-        m.user.displayName.toLowerCase().includes(q.toLowerCase())
-      );
-      if (forExile) setExileResults(filtered.slice(0, 10));
-      else setMemberSearchResults(filtered.slice(0, 10));
-    } catch { }
+      const params = new URLSearchParams({ username: q.trim() });
+      const data = await apiFetch<{ members: Member[] }>(`/api/automation/search-member/${groupId}?${params}`);
+      const results = data.members || [];
+      if (forExile) setExileResults(results.slice(0, 10));
+      else setMemberSearchResults(results.slice(0, 10));
+      if (results.length === 0) {
+        toast({ title: "Не найден", description: `Участник «${q.trim()}» не состоит в этой группе`, variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Ошибка поиска", description: e instanceof Error ? e.message : "Ошибка", variant: "destructive" });
+    }
     finally {
       if (forExile) setExileLoading(false); else setMemberSearchLoading(false);
     }
-  }, [groupId, exileRoleFilter]);
+  }, [groupId]);
 
   const changeRank = async (userId: number, roleId: number) => {
     setRankingId(userId);
