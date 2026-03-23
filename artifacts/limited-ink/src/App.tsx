@@ -85,6 +85,14 @@ const STATIC_PAGES = [
   { path: "/ai-tools", key: "ai-tools" },
   { path: "/security", key: "security" },
   { path: "/marketing", key: "marketing" },
+  { path: "/game-manager", key: "game-manager" },
+  { path: "/social-media", key: "social-media" },
+  { path: "/finance", key: "finance" },
+  { path: "/content-planner", key: "content-planner" },
+  { path: "/gamification", key: "gamification" },
+  { path: "/integrations", key: "integrations" },
+  { path: "/team", key: "team" },
+  { path: "/testing", key: "testing" },
 ];
 
 function PersistentPages() {
