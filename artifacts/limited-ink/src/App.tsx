@@ -29,7 +29,6 @@ import Finance from "@/pages/Finance";
 import ContentPlanner from "@/pages/ContentPlanner";
 import Gamification from "@/pages/Gamification";
 import Integrations from "@/pages/Integrations";
-import Team from "@/pages/Team";
 import Testing from "@/pages/Testing";
 
 
@@ -91,7 +90,6 @@ const STATIC_PAGES = [
   { path: "/content-planner", key: "content-planner" },
   { path: "/gamification", key: "gamification" },
   { path: "/integrations", key: "integrations" },
-  { path: "/team", key: "team" },
   { path: "/testing", key: "testing" },
 ];
 
@@ -128,7 +126,6 @@ function PersistentPages() {
       <div className={location === "/content-planner" ? "block" : "hidden"}><ContentPlanner /></div>
       <div className={location === "/gamification" ? "block" : "hidden"}><Gamification /></div>
       <div className={location === "/integrations" ? "block" : "hidden"}><Integrations /></div>
-      <div className={location === "/team" ? "block" : "hidden"}><Team /></div>
       <div className={location === "/testing" ? "block" : "hidden"}><Testing /></div>
       {isGroupPage && <GroupView id={groupId!} />}
     </DashboardLayout>

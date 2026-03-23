@@ -111,7 +111,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <NavItem href="/content-planner" icon={<CalendarDays className="w-4 h-4" />} label="Content Planner" isActive={location === "/content-planner"} badge="NEW" />
           <NavItem href="/gamification" icon={<Trophy className="w-4 h-4" />} label="Gamification" isActive={location === "/gamification"} badge="NEW" />
           <NavItem href="/integrations" icon={<Plug className="w-4 h-4" />} label="Integrations" isActive={location === "/integrations"} badge="NEW" />
-          <NavItem href="/team" icon={<Users className="w-4 h-4" />} label="Team" isActive={location === "/team"} badge="NEW" />
           <NavItem href="/testing" icon={<FlaskConical className="w-4 h-4" />} label="Testing & QA" isActive={location === "/testing"} badge="NEW" />
         </div>
 
