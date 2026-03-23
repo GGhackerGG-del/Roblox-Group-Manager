@@ -87,12 +87,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </Link>
         </div>
 
-        <div className="px-4 pt-4 space-y-1">
+        <div className="flex-1 overflow-y-auto px-4 pb-4 custom-scrollbar">
+        <div className="pt-4 space-y-1">
           <NavItem href="/profile" icon={<UserCircle className="w-4 h-4" />} label={t("nav.profile")} isActive={location === "/profile"} />
           <NavItem href="/community" icon={<MessageSquare className="w-4 h-4" />} label={t("nav.community")} isActive={location === "/community"} />
         </div>
 
-        <div className="px-4 pt-3 space-y-1">
+        <div className="pt-3 space-y-1">
           <h3 className="px-2 text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
             <Sparkles className="w-3 h-3" /> {t("nav.tools")}
           </h3>
@@ -113,7 +114,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <NavItem href="/testing" icon={<FlaskConical className="w-4 h-4" />} label="Testing & QA" isActive={location === "/testing"} badge="NEW" />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 custom-scrollbar">
+        <div className="space-y-1">
           <h3 className="px-2 text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 mt-3 flex items-center gap-2">
             <Users className="w-3.5 h-3.5" /> {t("nav.groups")}
           </h3>
@@ -154,6 +155,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           ) : (
             <p className="px-2 text-sm text-muted-foreground py-2">{t("nav.noGroups")}</p>
           )}
+        </div>
         </div>
 
         <div className="p-4 border-t border-border/50 bg-card space-y-3">
