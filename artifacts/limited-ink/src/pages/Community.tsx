@@ -3312,7 +3312,7 @@ const CATEGORY_LABEL_KEYS: Record<string, string> = {
   avatar: "com.catAvatar", plugin: "com.catPlugin", asset: "com.catAsset", script: "com.catScript",
 };
 
-function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
+function MarketplaceTab({ myUser, onChatUser }: { myUser: PlatformUser | null; onChatUser: (user: PlatformUser) => void }) {
   const { toast } = useToast();
   const { t } = useLanguage();
   const [listings, setListings] = useState<any[]>([]);
@@ -3320,8 +3320,9 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
   const [category, setCategory] = useState("all");
   const [sort, setSort] = useState("newest");
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", category: "template", previewUrl: "", downloadUrl: "", price: "0", tags: "" });
+  const [form, setForm] = useState({ title: "", description: "", category: "template", previewUrl: "", downloadUrl: "", tags: "" });
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
 
   const loadListings = async () => {
     setLoading(true);
@@ -3361,13 +3362,23 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
       const tags = form.tags.split(",").map(t => t.trim()).filter(Boolean);
       const { listing } = await apiFetch<{ listing: any }>("/api/community/marketplace", {
         method: "POST",
-        body: JSON.stringify({ ...form, price: parseInt(form.price) || 0, tags }),
+        body: JSON.stringify({ ...form, price: 0, tags }),
       });
       setListings(p => [listing, ...p]);
-      setShowCreate(false); setForm({ title: "", description: "", category: "template", previewUrl: "", downloadUrl: "", price: "0", tags: "" });
+      setShowCreate(false); setForm({ title: "", description: "", category: "template", previewUrl: "", downloadUrl: "", tags: "" });
       toast({ title: t("com.listingPublished") });
     } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setCreating(false); }
+  };
+
+  const deleteListing = async (id: number) => {
+    setDeleting(id);
+    try {
+      await apiFetch(`/api/community/marketplace/${id}`, { method: "DELETE" });
+      setListings(p => p.filter(l => l.id !== id));
+      toast({ title: t("com.listingDeleted") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
+    finally { setDeleting(null); }
   };
 
   return (
@@ -3406,10 +3417,7 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
                   <Input placeholder={t("com.previewUrlPlaceholder")} value={form.previewUrl} onChange={e => setForm(p => ({ ...p, previewUrl: e.target.value }))} className="rounded-xl text-xs" />
                   <Input placeholder={t("com.downloadUrlPlaceholder")} value={form.downloadUrl} onChange={e => setForm(p => ({ ...p, downloadUrl: e.target.value }))} className="rounded-xl text-xs" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder={t("com.tagsPlaceholder")} value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} className="rounded-xl text-xs" />
-                  <Input type="number" placeholder={t("com.pricePlaceholder")} value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} className="rounded-xl" />
-                </div>
+                <Input placeholder={t("com.tagsPlaceholder")} value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} className="rounded-xl text-xs" />
                 <div className="flex gap-2">
                   <Button className="flex-1 rounded-xl" onClick={createListing} disabled={creating || !form.title || !form.description}>
                     {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />} {t("com.publish")}
@@ -3453,13 +3461,32 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
                       <p className="font-semibold text-sm leading-tight">{item.title}</p>
                       <Badge variant="outline" className="text-[9px] mt-0.5">{CATEGORY_LABEL_KEYS[item.category] ? t(CATEGORY_LABEL_KEYS[item.category]) : item.category}</Badge>
                     </div>
-                    {item.price > 0 ? <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/30 shrink-0">{item.price} 💎</Badge> : <Badge className="text-[10px] bg-green-500/15 text-green-700 border-0 shrink-0">{t("com.free")}</Badge>}
+                    {myUser && item.sellerId === myUser.id && (
+                      <button
+                        onClick={() => deleteListing(item.id)}
+                        disabled={deleting === item.id}
+                        className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-1"
+                        title={t("com.deleteListing")}
+                      >
+                        {deleting === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground line-clamp-2 flex-1">{item.description}</p>
                   {tags.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {tags.slice(0, 3).map((t: string) => <span key={t} className="text-[9px] rounded bg-secondary px-1.5 py-0.5 text-muted-foreground">#{t}</span>)}
                     </div>
+                  )}
+                  {myUser && item.seller && item.sellerId !== myUser.id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl text-xs gap-1.5 w-full"
+                      onClick={() => onChatUser(item.seller as PlatformUser)}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" /> {t("com.writeToSeller")}
+                    </Button>
                   )}
                   <div className="flex items-center gap-2 pt-1 border-t border-border/50">
                     {item.seller && (
@@ -3593,7 +3620,7 @@ export default function Community() {
             <ChatTab myUser={myUser} initialChatUser={chatInitUser} onClearInitial={() => setChatInitUser(null)} />
           </TabsContent>
           <TabsContent value="marketplace" className="mt-0">
-            <MarketplaceTab myUser={myUser} />
+            <MarketplaceTab myUser={myUser} onChatUser={handleChatUser} />
           </TabsContent>
         </div>
       </Tabs>
