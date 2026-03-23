@@ -33,11 +33,11 @@ router.post("/ai-tools/description", async (req, res): Promise<void> => {
     };
     if (!name) { res.status(400).json({ error: "name is required" }); return; }
 
-    const lang = language === "ru" ? "Russian" : "English";
     const result = await chatJSON<{ description: string; shortDescription: string; tags: string[] }>(
       `You are an expert Roblox clothing copywriter. Generate compelling item descriptions for Roblox UGC clothing.
 Always respond in JSON: { "description": "...(150-250 words)", "shortDescription": "...(30-50 words)", "tags": ["tag1", ...10 tags] }
-Respond in ${lang}. Be creative, engaging, and use Roblox clothing market language.`,
+IMPORTANT: Always respond in English. Descriptions, short descriptions, and tags must all be in English.
+Be creative, engaging, and use Roblox clothing market language.`,
       `Name: ${name}\nType: ${type || "Shirt"}\nStyle: ${style || "Casual"}\nColors: ${colors || "Mixed"}\nMood: ${mood || "Cool"}`
     );
     res.json(result);
@@ -53,12 +53,11 @@ router.post("/ai-tools/title", async (req, res): Promise<void> => {
     };
     if (!description) { res.status(400).json({ error: "description is required" }); return; }
 
-    const lang = language === "ru" ? "Russian" : "English";
     const result = await chatJSON<{ titles: string[] }>(
       `You are an expert Roblox clothing title creator. Generate catchy, searchable titles for Roblox UGC clothing.
 Return JSON: { "titles": ["title1", ..., "title8"] }
 Rules: under 64 chars each, use emojis strategically, mix styles (trendy, descriptive, brand-like).
-Respond in ${lang}.`,
+IMPORTANT: Always respond in English. All titles must be in English.`,
       `Description: ${description}\nStyle: ${style || "Casual"}\nType: ${type || "Shirt"}`
     );
     res.json(result);
@@ -74,7 +73,6 @@ router.post("/ai-tools/keywords", async (req, res): Promise<void> => {
     };
     if (!name && !description) { res.status(400).json({ error: "name or description required" }); return; }
 
-    const lang = language === "ru" ? "Russian" : "English";
     const result = await chatJSON<{
       primary: string[]; secondary: string[]; longTail: string[]; hashtags: string[];
     }>(
@@ -85,7 +83,7 @@ Return JSON: {
   "longTail": [...5 long-tail search phrases],
   "hashtags": [...8 hashtags without #]
 }
-Respond in ${lang}.`,
+IMPORTANT: Always respond in English. All keywords, phrases, and hashtags must be in English.`,
       `Name: ${name || ""}\nDescription: ${description || ""}\nType: ${type || "Shirt"}`
     );
     res.json(result);
@@ -152,7 +150,7 @@ router.post("/ai-tools/trend", async (req, res): Promise<void> => {
       category?: string; timeframe?: string; language?: string;
     };
 
-    const lang = language === "ru" ? "Russian" : "English";
+    const lang = language === "en" ? "English" : "Russian";
     const result = await chatJSON<{
       hotStyles: Array<{ name: string; growth: string; description: string }>;
       risingColors: string[];
@@ -170,7 +168,7 @@ Return JSON: {
   "bestUploadTime": "...",
   "summary": "...2-3 sentences overall market summary"
 }
-Respond in ${lang}.`,
+Style names must always be in English. Respond descriptions/summaries in ${lang}.`,
       `Category: ${category || "All clothing"}\nTimeframe: ${timeframe || "Current season"}`
     );
     res.json(result);
@@ -186,7 +184,7 @@ router.post("/ai-tools/price", async (req, res): Promise<void> => {
       demand?: string; competitorPrices?: string; language?: string;
     };
 
-    const lang = language === "ru" ? "Russian" : "English";
+    const lang = language === "en" ? "English" : "Russian";
     const result = await chatJSON<{
       recommendedPrice: number;
       priceRange: { min: number; max: number };
@@ -220,7 +218,7 @@ router.post("/ai-tools/chatbot-reply", async (req, res): Promise<void> => {
     };
     if (!post) { res.status(400).json({ error: "post is required" }); return; }
 
-    const lang = language === "ru" ? "Russian" : "English";
+    const lang = language === "en" ? "English" : "Russian";
     const result = await chatJSON<{
       replies: Array<{ text: string; tone: string }>;
       sentiment: "positive" | "neutral" | "negative" | "question";
