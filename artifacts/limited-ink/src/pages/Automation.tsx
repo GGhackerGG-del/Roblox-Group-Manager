@@ -303,7 +303,9 @@ export default function Automation() {
       else setWallPosts(data.posts || []);
       setWallNextCursor(data.nextPageCursor);
     } catch (e: unknown) {
-      toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      const msg = e instanceof Error ? e.message : String(e);
+      const is429 = msg.includes("429") || msg.includes("rate");
+      toast({ title: t("common.error"), description: is429 ? t("auto.rateLimited") : msg, variant: "destructive" });
     } finally { setWallLoading(false); }
   }, [groupId, toast, t]);
 
@@ -383,10 +385,14 @@ export default function Automation() {
     } finally { setActivityLoading(false); }
   }, [groupId, activityRoleFilter, toast, t]);
 
+  const prevGroupIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!groupId) return;
-    setJoinRequests([]); setWallPosts([]); setMemberSearchResults([]); setExileResults([]);
-    setCurrentShout(null); setScheduledShouts([]); setActivityMembers([]); setRoles([]);
+    if (prevGroupIdRef.current !== groupId) {
+      prevGroupIdRef.current = groupId;
+      setJoinRequests([]); setWallPosts([]); setMemberSearchResults([]); setExileResults([]);
+      setCurrentShout(null); setScheduledShouts([]); setActivityMembers([]); setRoles([]);
+    }
     if (tab === "join-requests") loadJoinRequests();
     else if (tab === "auto-rank" || tab === "auto-exile" || tab === "payout") loadRoles();
     else if (tab === "shout") loadShout();
