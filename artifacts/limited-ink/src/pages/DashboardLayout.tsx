@@ -13,6 +13,26 @@ import { usePageCache } from "@/contexts/PageCacheContext";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+const SECTION_MAP: Record<string, string> = {
+  "/profile": "profile",
+  "/community": "community",
+  "/assistant": "assistant",
+  "/competitors": "competitors",
+  "/sniper": "sniper",
+  "/automation": "automation",
+  "/ai-tools": "ai-tools",
+  "/security": "security",
+  "/marketing": "marketing",
+  "/game-manager": "game-manager",
+  "/social-media": "social-media",
+  "/finance": "finance",
+  "/content-planner": "content-planner",
+  "/gamification": "gamification",
+  "/integrations": "integrations",
+  "/testing": "testing",
+  "/settings": "settings",
+};
+
 interface NavItemProps {
   href: string;
   icon: React.ReactNode;
@@ -49,6 +69,25 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { t } = useLanguage();
   const cache = usePageCache();
   const prefetchedRef = useRef<Set<string>>(new Set());
+  const trackedSectionsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const section = SECTION_MAP[location] || (location.startsWith("/group/") ? "groups" : null);
+    if (!section) return;
+    if (trackedSectionsRef.current.has(section)) return;
+    const { token, fingerprint } = getAuthCredentials();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
+    fetch(`${BASE}/api/gamification/visit`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({ section }),
+    }).then(r => {
+      if (r.ok) trackedSectionsRef.current.add(section);
+    }).catch(() => {});
+  }, [location]);
 
   const { data: groupsData, isLoading: isLoadingGroups } = useGetRobloxGroups();
 

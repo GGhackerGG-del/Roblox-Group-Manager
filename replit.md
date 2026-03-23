@@ -91,7 +91,7 @@ Generated via Orval from `lib/api-spec/openapi.yaml`. All endpoints use POST (in
 Uses Replit AI Integrations proxy for OpenAI. Environment variables `AI_INTEGRATIONS_OPENAI_BASE_URL` and `AI_INTEGRATIONS_OPENAI_API_KEY` are auto-configured. Model: `gpt-5.2`, uses `max_completion_tokens` (not `max_tokens`).
 
 ### Database
-PostgreSQL via Drizzle ORM. Schema in `lib/db/src/schema/licenses.ts`.
+PostgreSQL via Drizzle ORM. Schema in `lib/db/src/schema/`.
 ```sql
 CREATE TABLE licenses (
   id SERIAL PRIMARY KEY,
@@ -102,7 +102,29 @@ CREATE TABLE licenses (
   expires_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE gamification_profiles (
+  id SERIAL PRIMARY KEY,
+  roblox_user_id BIGINT UNIQUE NOT NULL,
+  username TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  avatar_url TEXT,
+  xp INTEGER DEFAULT 0,
+  level INTEGER DEFAULT 1,
+  streak INTEGER DEFAULT 0,
+  invoices INTEGER DEFAULT 0,
+  drafts INTEGER DEFAULT 0,
+  achievements_count INTEGER DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
 ```
+
+### Gamification System
+- Section visit tracking in `DashboardLayout.tsx` — fires POST to `/api/gamification/visit` on every page navigation, server-side validated against whitelist
+- Achievements computed dynamically from session data (invoices, drafts, todos, goals, social accounts, visited sections, streak)
+- Leaderboard backed by `gamification_profiles` DB table — stores real user XP/stats, shows Roblox avatars
+- XP → Level progression with 11 tiers (0→7000 XP)
+- Milestones with claimable XP rewards
 
 ## Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string (auto-provided by Replit)

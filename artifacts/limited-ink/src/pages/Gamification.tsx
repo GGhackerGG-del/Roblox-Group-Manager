@@ -35,7 +35,7 @@ async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
 
 interface Achievement { id: string; title: string; desc: string; icon: string; category: string; xp: number; unlocked: boolean }
 interface Milestone { id: string; title: string; desc: string; icon: string; reward: string; target: number; current: number; metric: string; xp: number; reached: boolean; claimed: boolean }
-interface LeaderboardEntry { username: string; avatar: string; xp: number; streak: number; invoices: number; drafts: number; rank: number; isMe: boolean; days?: number }
+interface LeaderboardEntry { username: string; avatar: string; robloxUserId?: number; xp: number; streak: number; invoices: number; drafts: number; rank: number; isMe: boolean; days?: number }
 interface StreakData { currentStreak: number; longestStreak: number; lastLoginDate: string; totalLogins: number; streakStartDate: string }
 interface LevelInfo { level: number; nextXP: number; prevXP: number; progress: number }
 
@@ -200,8 +200,12 @@ function LeaderboardTab({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
           const actualRank = idx === 0 ? 2 : idx === 1 ? 1 : 3;
           return (
             <div key={entry.username} className="flex flex-col items-center gap-1.5">
-              <div className={`relative text-2xl w-12 h-12 rounded-2xl flex items-center justify-center font-bold ${entry.isMe ? "bg-black text-white ring-2 ring-offset-1 ring-black" : "bg-secondary"}`}>
-                {entry.avatar}
+              <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center font-bold overflow-hidden ${entry.isMe ? "ring-2 ring-offset-1 ring-black" : ""}`}>
+                {entry.robloxUserId && entry.avatar?.startsWith("http") ? (
+                  <img src={entry.avatar} alt={entry.username} className="w-full h-full object-cover" />
+                ) : (
+                  <div className={`w-full h-full flex items-center justify-center text-2xl ${entry.isMe ? "bg-black text-white" : "bg-secondary"}`}>{entry.avatar || "⭐"}</div>
+                )}
                 {actualRank <= 3 && <div className="absolute -top-1.5 -right-1.5">{RANK_ICONS[actualRank]}</div>}
               </div>
               <div className={`rounded-xl w-20 flex flex-col items-center justify-end pb-2 text-center ${heights[idx]} ${actualRank === 1 ? "bg-yellow-400/20 border border-yellow-400/30" : "bg-secondary/50"}`}>
@@ -221,7 +225,11 @@ function LeaderboardTab({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
             <div className="w-7 text-center shrink-0">
               {RANK_ICONS[entry.rank] || <span className="text-sm font-bold text-muted-foreground">#{entry.rank}</span>}
             </div>
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 ${entry.isMe ? "bg-black text-white" : "bg-secondary"}`}>{entry.avatar}</div>
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 overflow-hidden ${entry.isMe ? "bg-black text-white" : "bg-secondary"}`}>
+              {entry.robloxUserId && entry.avatar?.startsWith("http") ? (
+                <img src={entry.avatar} alt={entry.username} className="w-full h-full object-cover" />
+              ) : (entry.avatar || "⭐")}
+            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-semibold truncate">{entry.username}</p>

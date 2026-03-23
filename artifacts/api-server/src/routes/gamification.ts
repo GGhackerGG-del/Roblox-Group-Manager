@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { db, gamificationProfiles } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -9,31 +11,25 @@ const YESTERDAY = () => {
   return d.toISOString().slice(0, 10);
 };
 
-// All achievement definitions
 const ACHIEVEMENTS = [
-  // Platform
   { id: "early_adopter", title: "Early Adopter", desc: "Первый вход в платформу", icon: "🚀", category: "platform", xp: 50 },
   { id: "explorer", title: "Исследователь", desc: "Посетил 5+ разделов платформы", icon: "🗺️", category: "platform", xp: 100 },
   { id: "power_user", title: "Power User", desc: "Посетил все разделы платформы", icon: "⚡", category: "platform", xp: 200 },
-  // Streaks
   { id: "streak_3", title: "On Fire", desc: "3-дневный стрик входов", icon: "🔥", category: "streak", xp: 75 },
   { id: "streak_7", title: "Unstoppable", desc: "7-дневный стрик входов", icon: "💪", category: "streak", xp: 150 },
   { id: "streak_30", title: "Dedicated", desc: "30-дневный стрик входов", icon: "🌟", category: "streak", xp: 500 },
   { id: "logins_10", title: "Постоянный", desc: "10 входов за всё время", icon: "🔑", category: "streak", xp: 100 },
   { id: "logins_50", title: "Преданный", desc: "50 входов за всё время", icon: "💎", category: "streak", xp: 300 },
-  // Finance
   { id: "first_invoice", title: "Первый счёт", desc: "Создал первый счёт", icon: "🧾", category: "finance", xp: 75 },
   { id: "paid_invoice", title: "Первая оплата", desc: "Получил первый оплаченный счёт", icon: "💰", category: "finance", xp: 150 },
   { id: "invoices_10", title: "Бухгалтер", desc: "Создал 10+ счетов", icon: "📊", category: "finance", xp: 200 },
   { id: "first_goal", title: "Целеустремлённый", desc: "Создал финансовую цель", icon: "🎯", category: "finance", xp: 75 },
   { id: "goal_complete", title: "Финансист", desc: "Достиг финансовой цели", icon: "🏆", category: "finance", xp: 250 },
-  // Content
   { id: "first_draft", title: "Первый черновик", desc: "Создал первый черновик", icon: "✏️", category: "content", xp: 50 },
   { id: "drafts_10", title: "Контент-мейкер", desc: "Создал 10+ черновиков", icon: "🎬", category: "content", xp: 150 },
   { id: "calendar_5", title: "Планировщик", desc: "Добавил 5+ событий в календарь", icon: "📅", category: "content", xp: 100 },
   { id: "todos_10", title: "Task Master", desc: "Выполнил 10+ задач", icon: "✅", category: "content", xp: 150 },
   { id: "reminder_set", title: "Пунктуальный", desc: "Создал напоминание о дедлайне", icon: "🔔", category: "content", xp: 50 },
-  // Social
   { id: "social_connected", title: "Connected", desc: "Добавил аккаунт соцсети", icon: "🌐", category: "social", xp: 75 },
   { id: "autopost_on", title: "Автоматор", desc: "Включил авто-публикацию в Discord", icon: "🤖", category: "social", xp: 100 },
   { id: "links_hub", title: "Link Master", desc: "Добавил 3+ ссылки в Link Hub", icon: "🔗", category: "social", xp: 100 },
@@ -72,29 +68,24 @@ function getMetrics(session: any) {
 function computeUnlocked(session: any): string[] {
   const m = getMetrics(session);
   const unlocked: string[] = [];
-  // Platform
-  unlocked.push("early_adopter"); // Always unlocked (they're logged in)
+  unlocked.push("early_adopter");
   if (m.visited >= 5) unlocked.push("explorer");
   if (m.visited >= 12) unlocked.push("power_user");
-  // Streaks
   if (m.streak >= 3) unlocked.push("streak_3");
   if (m.streak >= 7) unlocked.push("streak_7");
   if (m.streak >= 30) unlocked.push("streak_30");
   if (m.totalLogins >= 10) unlocked.push("logins_10");
   if (m.totalLogins >= 50) unlocked.push("logins_50");
-  // Finance
   if (m.invoices >= 1) unlocked.push("first_invoice");
   if (m.paidInvoices >= 1) unlocked.push("paid_invoice");
   if (m.invoices >= 10) unlocked.push("invoices_10");
   if (m.goals >= 1) unlocked.push("first_goal");
   if (m.completedGoals >= 1) unlocked.push("goal_complete");
-  // Content
   if (m.drafts >= 1) unlocked.push("first_draft");
   if (m.drafts >= 10) unlocked.push("drafts_10");
   if (m.calendar >= 5) unlocked.push("calendar_5");
   if (m.todosDone >= 10) unlocked.push("todos_10");
   if ((session.contentReminders || []).length >= 1) unlocked.push("reminder_set");
-  // Social
   if (m.socialAccounts >= 1) unlocked.push("social_connected");
   if (m.autoPostOn) unlocked.push("autopost_on");
   if (m.links >= 3) unlocked.push("links_hub");
@@ -135,22 +126,56 @@ function xpToLevel(xp: number) {
   return { level, nextXP, prevXP, progress: nextXP > prevXP ? (xp - prevXP) / (nextXP - prevXP) : 1 };
 }
 
-const LEADERBOARD_SEEDS = [
-  { username: "RbxKing_Pro", avatar: "👑", days: 45, xp: 3200, streak: 12, invoices: 28, drafts: 45 },
-  { username: "ClothingBoss", avatar: "👔", days: 30, xp: 2100, streak: 8, invoices: 15, drafts: 31 },
-  { username: "LimitedHunter", avatar: "💎", days: 60, xp: 4800, streak: 21, invoices: 42, drafts: 67 },
-  { username: "GroupOwner88", avatar: "🏆", days: 20, xp: 1300, streak: 5, invoices: 9, drafts: 18 },
-  { username: "RbxDesigner", avatar: "🎨", days: 90, xp: 6200, streak: 30, invoices: 55, drafts: 89 },
-  { username: "FashionMogul", avatar: "👗", days: 15, xp: 850, streak: 3, invoices: 6, drafts: 12 },
-  { username: "LimitedFlip", avatar: "📈", days: 35, xp: 2600, streak: 15, invoices: 20, drafts: 37 },
-];
+async function upsertProfile(robloxUserId: number, username: string, displayName: string, avatarUrl: string | null, xp: number, level: number, streak: number, invoices: number, drafts: number, achievementsCount: number) {
+  try {
+    const existing = await db.select().from(gamificationProfiles).where(eq(gamificationProfiles.robloxUserId, robloxUserId)).limit(1);
+    if (existing.length > 0) {
+      await db.update(gamificationProfiles).set({
+        username, displayName, avatarUrl, xp, level, streak, invoices, drafts, achievementsCount, updatedAt: new Date(),
+      }).where(eq(gamificationProfiles.robloxUserId, robloxUserId));
+    } else {
+      await db.insert(gamificationProfiles).values({
+        robloxUserId, username, displayName, avatarUrl, xp, level, streak, invoices, drafts, achievementsCount, updatedAt: new Date(),
+      });
+    }
+  } catch (e) {
+    console.error("[Gamification] Failed to upsert profile:", e);
+  }
+}
 
-// ── Routes ────────────────────────────────────────────────────────────────────
+async function getLeaderboard() {
+  try {
+    const profiles = await db.select().from(gamificationProfiles);
+    return profiles
+      .sort((a, b) => b.xp - a.xp)
+      .slice(0, 50)
+      .map((p, i) => ({
+        username: p.displayName || p.username,
+        avatar: p.avatarUrl || "",
+        robloxUserId: p.robloxUserId,
+        xp: p.xp,
+        streak: p.streak,
+        invoices: p.invoices,
+        drafts: p.drafts,
+        rank: i + 1,
+        isMe: false,
+      }));
+  } catch (e) {
+    console.error("[Gamification] Failed to get leaderboard:", e);
+    return [];
+  }
+}
 
-// Track section visits
+const VALID_SECTIONS = new Set([
+  "profile", "community", "assistant", "competitors", "sniper", "automation",
+  "ai-tools", "security", "marketing", "game-manager", "social-media",
+  "finance", "content-planner", "gamification", "integrations", "testing",
+  "settings", "groups",
+]);
+
 router.post("/gamification/visit", (req, res): void => {
   const { section } = req.body;
-  if (!section) { res.status(400).json({ error: "Section required" }); return; }
+  if (!section || !VALID_SECTIONS.has(section)) { res.status(400).json({ error: "Invalid section" }); return; }
   if (!req.session.visitedSections) req.session.visitedSections = [];
   if (!req.session.visitedSections.includes(section)) {
     req.session.visitedSections.push(section);
@@ -158,12 +183,10 @@ router.post("/gamification/visit", (req, res): void => {
   req.session.save(() => res.json({ ok: true, visited: req.session.visitedSections }));
 });
 
-// Main gamification data
-router.get("/gamification/dashboard", (req, res): void => {
+router.get("/gamification/dashboard", async (req, res): Promise<void> => {
   const today = TODAY();
   const yesterday = YESTERDAY();
 
-  // Update streak
   if (!req.session.streakData) {
     req.session.streakData = {
       currentStreak: 1, longestStreak: 1, lastLoginDate: today,
@@ -190,26 +213,38 @@ router.get("/gamification/dashboard", (req, res): void => {
   const levelInfo = xpToLevel(xp);
   const metrics = getMetrics(req.session);
 
-  // New achievements since last check
   const prevUnlocked = req.session.unlockedAchievements || [];
   const newlyUnlocked = unlocked.filter(id => !prevUnlocked.includes(id));
   req.session.unlockedAchievements = unlocked;
   req.session.save(() => {});
 
-  // Build leaderboard — insert current user based on XP
+  const robloxProfile = req.session.robloxProfile;
+  const robloxUserId = req.session.robloxUserId;
+  const username = robloxProfile?.name || "User";
+  const displayName = robloxProfile?.displayName || username;
+  const avatarUrl = robloxProfile?.avatarUrl || null;
+
+  if (robloxUserId) {
+    await upsertProfile(robloxUserId, username, displayName, avatarUrl, xp, levelInfo.level, metrics.streak, metrics.invoices, metrics.drafts, unlocked.length);
+  }
+
+  const dbBoard = await getLeaderboard();
+
   const userEntry = {
-    username: "Вы",
-    avatar: "⭐",
+    username: displayName,
+    avatar: avatarUrl || "⭐",
+    robloxUserId: robloxUserId || 0,
     xp,
     streak: req.session.streakData?.currentStreak || 1,
     invoices: metrics.invoices,
     drafts: metrics.drafts,
     isMe: true,
   };
-  const board = [
-    ...LEADERBOARD_SEEDS.map(s => ({ ...s, isMe: false })),
-    userEntry,
-  ].sort((a, b) => b.xp - a.xp).map((e, i) => ({ ...e, rank: i + 1 }));
+
+  const boardWithoutMe = dbBoard.filter(e => e.robloxUserId !== robloxUserId);
+  const board = [...boardWithoutMe, userEntry]
+    .sort((a, b) => b.xp - a.xp)
+    .map((e, i) => ({ ...e, rank: i + 1 }));
 
   res.json({
     streak: req.session.streakData,
@@ -223,7 +258,6 @@ router.get("/gamification/dashboard", (req, res): void => {
   });
 });
 
-// Claim a milestone reward
 router.post("/gamification/milestones/:id/claim", (req, res): void => {
   if (!req.session.claimedMilestones) req.session.claimedMilestones = [];
   const ms = MILESTONES.find(m => m.id === req.params.id);
