@@ -570,12 +570,13 @@ function PlayerDropAlertTab({ games }: { games: Game[] }) {
 
 // ── Main GameManager Page ─────────────────────────────────────────────────────
 export default function GameManager() {
-  const { groups, loading: groupsLoading } = useGetRobloxGroups();
+  const { data: groupsData, isLoading: groupsLoading } = useGetRobloxGroups();
+  const groups = groupsData?.groups || [];
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("places");
 
   useEffect(() => {
-    if (groups?.length && !selectedGroupId) setSelectedGroupId(String(groups[0].id));
+    if (groups.length && !selectedGroupId) setSelectedGroupId(String(groups[0].id));
   }, [groups]);
 
   const { games, loading: gamesLoading, error, refresh } = useGroupGames(selectedGroupId);
