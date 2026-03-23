@@ -110,6 +110,48 @@ declare module "express-session" {
       deadline: number | null;
       createdAt: number;
     }>;
+    contentDrafts?: Array<{
+      id: string;
+      title: string;
+      type: string;
+      content: string;
+      thumbnailUrl: string;
+      scheduledAt: number | null;
+      status: "draft" | "ready" | "scheduled" | "published";
+      tags: string[];
+      createdAt: number;
+      updatedAt: number;
+    }>;
+    contentTodos?: Array<{
+      id: string;
+      title: string;
+      description: string;
+      priority: "low" | "medium" | "high";
+      category: string;
+      dueDate: number | null;
+      done: boolean;
+      createdAt: number;
+    }>;
+    contentReminders?: Array<{
+      id: string;
+      title: string;
+      description: string;
+      type: string;
+      dueAt: number;
+      notifyDaysBefore: number;
+      notified: boolean;
+      createdAt: number;
+    }>;
+    contentCalendarEvents?: Array<{
+      id: string;
+      title: string;
+      type: string;
+      date: string;
+      color: string;
+      draftId: string | null;
+      notes: string;
+      createdAt: number;
+    }>;
   }
 }
 

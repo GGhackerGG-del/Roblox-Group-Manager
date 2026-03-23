@@ -26,6 +26,7 @@ import Marketing from "@/pages/Marketing";
 import GameManager from "@/pages/GameManager";
 import SocialMedia from "@/pages/SocialMedia";
 import Finance from "@/pages/Finance";
+import ContentPlanner from "@/pages/ContentPlanner";
 
 
 const queryClient = new QueryClient({
@@ -112,6 +113,7 @@ function PersistentPages() {
       <div className={location === "/game-manager" ? "block" : "hidden"}><GameManager /></div>
       <div className={location === "/social-media" ? "block" : "hidden"}><SocialMedia /></div>
       <div className={location === "/finance" ? "block" : "hidden"}><Finance /></div>
+      <div className={location === "/content-planner" ? "block" : "hidden"}><ContentPlanner /></div>
       {isGroupPage && <GroupView id={groupId!} />}
     </DashboardLayout>
   );
