@@ -248,6 +248,15 @@ export default function Assistant() {
     const currentImage = attachedImage;
     const userMsg: Message = { role: "user", content, attachedImage: currentImage || undefined };
 
+    const apiMessages = [
+      ...messagesRef.current.map(m => ({
+        role: m.role,
+        content: m.content,
+        ...(m.attachedImage ? { imageBase64: m.attachedImage } : {}),
+      })),
+      { role: "user" as const, content, ...(currentImage ? { imageBase64: currentImage } : {}) },
+    ];
+
     setMessages(prev => [...prev, userMsg, { role: "assistant" as const, content: "" }]);
     setInput("");
     setAttachedImage(null);
@@ -258,13 +267,6 @@ export default function Assistant() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
       if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
-
-      const currentMessages = [...messagesRef.current];
-      const apiMessages = currentMessages.slice(0, -1).map(m => ({
-        role: m.role,
-        content: m.content,
-        ...(m.attachedImage ? { imageBase64: m.attachedImage } : {}),
-      }));
 
       const resp = await fetch(`${BASE}/api/assistant/chat`, {
         method: "POST",
