@@ -88,6 +88,28 @@ declare module "express-session" {
       url: string;
       followers: number | null;
     }>;
+    invoices?: Array<{
+      id: string;
+      number: string;
+      clientName: string;
+      clientEmail: string;
+      currency: "robux" | "usd" | "rub";
+      items: Array<{ description: string; qty: number; price: number }>;
+      notes: string;
+      status: "draft" | "sent" | "paid" | "overdue";
+      createdAt: number;
+      dueDate: number | null;
+    }>;
+    financialGoals?: Array<{
+      id: string;
+      title: string;
+      category: string;
+      targetAmount: number;
+      currentAmount: number;
+      currency: string;
+      deadline: number | null;
+      createdAt: number;
+    }>;
   }
 }
 
