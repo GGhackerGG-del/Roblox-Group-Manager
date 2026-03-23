@@ -13,6 +13,7 @@ import sniperRouter from "./sniper";
 import pnlRouter from "./pnl";
 import forumRouter from "./forum";
 import automationRouter from "./automation";
+import aiToolsRouter from "./aiTools";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,7 @@ router.use("/sniper", requireLicense);
 router.use("/pnl", requireLicense);
 router.use("/forum", requireLicense);
 router.use("/automation", requireLicense);
+router.use("/ai-tools", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
@@ -51,5 +53,6 @@ router.use(sniperRouter);
 router.use(pnlRouter);
 router.use(forumRouter);
 router.use(automationRouter);
+router.use(aiToolsRouter);
 
 export default router;

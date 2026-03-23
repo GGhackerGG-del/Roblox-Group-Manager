@@ -100,6 +100,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <NavItem href="/competitors" icon={<Search className="w-4 h-4" />} label={t("nav.competitors")} isActive={location === "/competitors"} />
           <NavItem href="/sniper" icon={<Crosshair className="w-4 h-4" />} label={t("nav.sniper")} isActive={location === "/sniper"} />
           <NavItem href="/automation" icon={<Cog className="w-4 h-4" />} label="Автоматизация" isActive={location === "/automation"} badge="BOT" />
+          <NavItem href="/ai-tools" icon={<Sparkles className="w-4 h-4" />} label="AI Инструменты" isActive={location === "/ai-tools"} badge="NEW" />
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 custom-scrollbar">
