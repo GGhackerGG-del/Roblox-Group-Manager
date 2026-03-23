@@ -410,8 +410,6 @@ export default function Sniper() {
     { id: "deals", icon: <TrendingUp className="w-3.5 h-3.5" />, label: t("sniper.deals") },
     { id: "underprice", icon: <TrendingDown className="w-3.5 h-3.5" />, label: "Underprice" },
     { id: "watchlist", icon: <Eye className="w-3.5 h-3.5" />, label: `${t("sniper.watchlist")} (${watchlist.length})` },
-    { id: "bot", icon: <Bot className="w-3.5 h-3.5" />, label: "Snipe Bot" },
-    { id: "rap", icon: <BarChart3 className="w-3.5 h-3.5" />, label: "RAP History" },
     { id: "trade", icon: <ArrowLeftRight className="w-3.5 h-3.5" />, label: "Trade Calc" },
     { id: "log", icon: <ClipboardList className="w-3.5 h-3.5" />, label: `Deal Log (${dealLog.length})` },
   ];
@@ -491,8 +489,8 @@ export default function Sniper() {
               ) : underprice.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
                   <TrendingDown className="w-10 h-10 opacity-20" />
-                  <p className="text-sm">Войдите в Roblox для поиска недооценённых предметов</p>
-                  <p className="text-xs opacity-60">Требуется активная сессия Roblox</p>
+                  <p className="text-sm">Нет недооценённых предметов</p>
+                  <p className="text-xs opacity-60">Нажмите "Обновить" для поиска</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
@@ -612,199 +610,6 @@ export default function Sniper() {
                       </div>
                     </div>
                   ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="bot" className="mt-4 space-y-4">
-          <Card className="rounded-2xl border-border/50">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2"><Bot className="w-4 h-4" /> Snipe Bot</CardTitle>
-              <CardDescription>Автоматический мониторинг вошлиста — покупает при достижении целевой цены</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="flex items-center gap-4 rounded-xl border border-border/50 p-4 bg-card">
-                <div className="flex-1">
-                  <p className="font-semibold text-sm">Автоматический мониторинг</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Бот будет проверять цены каждые N секунд</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Select value={botInterval} onValueChange={setBotInterval} disabled={botActive}>
-                    <SelectTrigger className="w-24 h-8 text-xs rounded-lg">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="30">30 сек</SelectItem>
-                      <SelectItem value="60">1 мин</SelectItem>
-                      <SelectItem value="120">2 мин</SelectItem>
-                      <SelectItem value="300">5 мин</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    onClick={() => { playClick(); setBotActive(v => !v); }}
-                    disabled={watchlist.length === 0}
-                    className={`rounded-xl gap-1.5 ${botActive ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}`}
-                  >
-                    {botActive ? <><XCircle className="w-4 h-4" /> Остановить</> : <><Zap className="w-4 h-4" /> Запустить</>}
-                  </Button>
-                </div>
-              </div>
-
-              {watchlist.length === 0 && (
-                <div className="text-center py-6 text-sm text-muted-foreground">
-                  Добавь предметы в вошлист для использования бота
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Вошлист бота ({watchlist.length})</p>
-                {watchlist.map(entry => (
-                  <div key={entry.assetId} className="flex items-center gap-3 rounded-xl border border-border/50 p-2.5 bg-card/50">
-                    {entry.thumbnailUrl ? (
-                      <img src={entry.thumbnailUrl} alt={entry.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-muted shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{entry.name}</p>
-                      <p className="text-xs text-muted-foreground">Цель: {formatRobux(entry.maxPrice)} R$</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {entry.livePrice != null && (
-                        <Badge variant={entry.livePrice <= entry.maxPrice ? "default" : "outline"} className={`text-[10px] ${entry.livePrice <= entry.maxPrice ? "bg-green-600" : ""}`}>
-                          {formatRobux(entry.livePrice)} R$
-                        </Badge>
-                      )}
-                      <Badge variant="outline" className={`text-[10px] gap-1 ${entry.autoBuy ? "border-amber-500 text-amber-600" : ""}`}>
-                        {entry.autoBuy ? <><Zap className="w-2.5 h-2.5" /> Auto</> : <><Bell className="w-2.5 h-2.5" /> Alert</>}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-xl bg-secondary/50 border border-border/50 p-4 text-xs text-muted-foreground space-y-1.5">
-                <p className="font-semibold text-foreground text-sm">Как работает бот:</p>
-                <p>• <Zap className="inline w-3 h-3 text-amber-500" /> <strong>Auto-Buy</strong> — предметы с включённым Auto-Buy покупаются автоматически</p>
-                <p>• <Bell className="inline w-3 h-3 text-blue-500" /> <strong>Alert</strong> — предметы без Auto-Buy показывают уведомление о снижении цены</p>
-                <p>• Включи Auto-Buy для нужных предметов в разделе "Watchlist"</p>
-                <p>• Бот работает только пока страница открыта</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="rap" className="mt-4 space-y-4">
-          <Card className="rounded-2xl border-border/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><BarChart3 className="w-4 h-4" /> RAP History</CardTitle>
-              <CardDescription>График изменения цены (RAP) лимитки за последнее время</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Название или Asset ID..."
-                  value={rapSearch}
-                  onChange={e => setRapSearch(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && searchRapItem(rapSearch)}
-                  className="rounded-xl"
-                />
-                <Button onClick={() => searchRapItem(rapSearch)} disabled={rapSearchLoading} className="rounded-xl gap-1.5">
-                  {rapSearchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Найти
-                </Button>
-              </div>
-
-              {rapSearchResults.length > 0 && (
-                <div className="rounded-xl border border-border/50 overflow-hidden">
-                  {rapSearchResults.map((item, i) => (
-                    <button
-                      key={item.id}
-                      onClick={() => { playClick(); setRapSearch(item.name); loadRapHistory(item.id); }}
-                      className={`w-full flex items-center gap-3 p-2.5 text-left hover:bg-accent/50 transition-colors text-sm ${i > 0 ? "border-t border-border/50" : ""}`}
-                    >
-                      {item.thumbnailUrl ? (
-                        <img src={item.thumbnailUrl} alt={item.name} className="w-9 h-9 rounded-lg object-cover shrink-0" />
-                      ) : <div className="w-9 h-9 rounded-lg bg-muted shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">RAP: {formatRobux(item.rap)} • Value: {formatRobux(item.value)}</p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {rapLoading && <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>}
-
-              {rapData && !rapLoading && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 rounded-xl border border-border/50 p-3 bg-card">
-                    {rapData.thumbnailUrl ? (
-                      <img src={rapData.thumbnailUrl} alt={rapData.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
-                    ) : <div className="w-14 h-14 rounded-lg bg-muted shrink-0" />}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold">{rapData.name}</p>
-                      <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
-                        <span>RAP: <strong className="text-foreground">{formatRobux(rapData.rap)}</strong></span>
-                        <span>Value: <strong className="text-foreground">{formatRobux(rapData.value)}</strong></span>
-                        {rapData.originalPrice && <span>Orig: <strong className="text-foreground">{formatRobux(rapData.originalPrice)}</strong></span>}
-                        {rapData.numberRemaining != null && <span>Remaining: <strong className="text-foreground">{rapData.numberRemaining.toLocaleString()}</strong></span>}
-                      </div>
-                    </div>
-                    <a href={`https://www.roblox.com/catalog/${rapData.assetId}`} target="_blank" rel="noreferrer">
-                      <Button size="sm" variant="outline" className="rounded-xl gap-1.5">
-                        <ExternalLink className="w-3.5 h-3.5" /> Roblox
-                      </Button>
-                    </a>
-                  </div>
-
-                  {rapData.priceDataPoints.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Цена продажи</p>
-                      <div className="rounded-xl border border-border/50 p-3 bg-card">
-                        <ResponsiveContainer width="100%" height={200}>
-                          <LineChart data={rapData.priceDataPoints.map(p => ({ ...p, date: formatDate(p.date) }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                            <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={v => formatRobux(v)} />
-                            <Tooltip
-                              contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                              formatter={(v: number) => [`${v.toLocaleString()} R$`, "Цена"]}
-                            />
-                            <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} dot={false} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
-                      <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                      Исторические данные недоступны для этого предмета
-                    </div>
-                  )}
-
-                  {rapData.volumeDataPoints.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Объём продаж</p>
-                      <div className="rounded-xl border border-border/50 p-3 bg-card">
-                        <ResponsiveContainer width="100%" height={120}>
-                          <BarChart data={rapData.volumeDataPoints.map(p => ({ ...p, date: formatDate(p.date) }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis dataKey="date" tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
-                            <YAxis tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
-                            <Tooltip
-                              contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                              formatter={(v: number) => [v, "Продаж"]}
-                            />
-                            <Bar dataKey="value" fill="#6366f1" radius={[3, 3, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </CardContent>
