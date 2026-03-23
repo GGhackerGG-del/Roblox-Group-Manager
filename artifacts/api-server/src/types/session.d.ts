@@ -152,6 +152,7 @@ declare module "express-session" {
       notes: string;
       createdAt: number;
     }>;
+    qualityChecklists?: Array<{ id: string; name: string; clothingType: string; items: Array<{ id: string; text: string; done: boolean; required: boolean }>; createdAt: number; lastUsed: number | null }>;
     teamStaff?: Array<{ id: string; username: string; robloxId: string; displayName: string; avatarUrl: string; role: string; department: string; status: "active" | "inactive" | "suspended"; joinedAt: number; notes: string; salary: number }>;
     teamRoles?: Array<{ id: string; name: string; color: string; level: number; permissions: string[] }>;
     teamPerformance?: Array<{ id: string; staffId: string; date: number; tasksCompleted: number; rating: number; note: string; category: string }>;
