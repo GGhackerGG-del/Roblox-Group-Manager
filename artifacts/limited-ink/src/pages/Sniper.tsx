@@ -18,7 +18,7 @@ import {
   Loader2, Search, TrendingUp, TrendingDown, Minus, Star,
   RefreshCw, ShoppingCart, Eye, ExternalLink, Crosshair, Zap,
   Bell, BarChart3, ArrowLeftRight, AlertTriangle, ClipboardList,
-  Plus, Trash2, ChevronRight, Activity, Package, Tag, Clock,
+  Plus, Trash2, ChevronRight, ChevronDown, Activity, Package, Tag, Clock,
   Image as ImageIcon, CheckCircle2, XCircle, Bot,
 } from "lucide-react";
 import { playClick, playSuccess, playError, playTabSwitch } from "@/hooks/useSounds";
@@ -154,6 +154,9 @@ export default function Sniper() {
   const [deals, setDeals] = useState<LimitedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dealsLoading, setDealsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalItems, setTotalItems] = useState(0);
 
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>(() => {
     try { return JSON.parse(localStorage.getItem("sniper_watchlist") || "[]"); } catch { return []; }
@@ -202,13 +205,34 @@ export default function Sniper() {
   const fetchItems = useCallback(async (q?: string) => {
     setLoading(true);
     try {
-      const params = q ? `?search=${encodeURIComponent(q)}` : "";
-      const data = await apiFetch<{ items: LimitedItem[]; total: number }>(`/api/sniper/items${params}`);
+      const params = new URLSearchParams();
+      if (q) params.set("search", q);
+      params.set("offset", "0");
+      params.set("limit", "200");
+      const data = await apiFetch<{ items: LimitedItem[]; total: number; hasMore: boolean }>(`/api/sniper/items?${params}`);
       setItems(data.items || []);
+      setHasMore(data.hasMore || false);
+      setTotalItems(data.total || 0);
     } catch (e: unknown) {
       toast({ title: t("sniper.error"), description: e instanceof Error ? e.message : t("sniper.failedLoad"), variant: "destructive" });
     } finally { setLoading(false); }
   }, [toast, t]);
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      params.set("offset", String(items.length));
+      params.set("limit", "200");
+      const data = await apiFetch<{ items: LimitedItem[]; total: number; hasMore: boolean }>(`/api/sniper/items?${params}`);
+      setItems(prev => [...prev, ...(data.items || [])]);
+      setHasMore(data.hasMore || false);
+      setTotalItems(data.total || 0);
+    } catch (e: unknown) {
+      toast({ title: t("sniper.error"), description: e instanceof Error ? e.message : t("sniper.failedLoad"), variant: "destructive" });
+    } finally { setLoadingMore(false); }
+  }, [toast, t, search, items.length]);
 
   const fetchDeals = useCallback(async () => {
     setDealsLoading(true);
@@ -450,9 +474,21 @@ export default function Sniper() {
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
-              {items.map(item => <ItemCard key={item.id} item={item} onWatch={toggleWatch} watching={!!watchlist.find(w => w.assetId === item.id)} />)}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
+                {items.map(item => <ItemCard key={item.id} item={item} onWatch={toggleWatch} watching={!!watchlist.find(w => w.assetId === item.id)} />)}
+              </div>
+              {totalItems > 0 && (
+                <p className="text-xs text-muted-foreground text-center">{t("sniper.showingOf").replace("{shown}", String(items.length)).replace("{total}", String(totalItems))}</p>
+              )}
+              {hasMore && (
+                <div className="flex justify-center pt-2">
+                  <Button variant="outline" className="rounded-xl gap-1.5" onClick={loadMore} disabled={loadingMore}>
+                    {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronDown className="w-4 h-4" />} {t("sniper.loadMore")}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
 

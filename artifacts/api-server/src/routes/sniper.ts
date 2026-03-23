@@ -228,7 +228,9 @@ router.get("/sniper/items", async (_req, res): Promise<void> => {
     }
 
     const sorted = [...items].sort((a, b) => b.rap - a.rap);
-    const page = sorted.slice(0, 200);
+    const offset = Math.max(0, parseInt(String(_req.query.offset || "0")) || 0);
+    const limit = Math.min(200, Math.max(1, parseInt(String(_req.query.limit || "200")) || 200));
+    const page = sorted.slice(offset, offset + limit);
     await addThumbnails(page);
 
     const cookie = _req.session.robloxCookie;
@@ -236,7 +238,7 @@ router.get("/sniper/items", async (_req, res): Promise<void> => {
       await addCatalogPrices(page, cookie);
     }
 
-    res.json({ items: page, total: items.length });
+    res.json({ items: page, total: items.length, offset, limit, hasMore: offset + limit < items.length });
   } catch (err) {
     console.error("[Sniper] Error:", err);
     res.status(502).json({ error: "Failed to fetch limited items." });
