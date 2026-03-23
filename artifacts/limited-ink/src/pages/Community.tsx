@@ -337,6 +337,7 @@ function PostCard({ post, myUserId, onLike, onDelete, onComment, onUserClick }: 
   onComment: (post: Post) => void;
   onUserClick: (userId: number) => void;
 }) {
+  const { t } = useLanguage();
   const isOwn = myUserId === post.authorId;
 
   return (
