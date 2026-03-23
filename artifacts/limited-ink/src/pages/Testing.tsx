@@ -306,73 +306,67 @@ function ValidatorTab() {
 }
 
 // ── Moderation Risk Scanner Tab ───────────────────────────────────────────────
-type RiskFactor = { label: string; score: number; detail: string; weight: number };
+type AIModResult = {
+  riskScore: number;
+  riskLevel: string;
+  issues: Array<{ type: string; description: string; severity: string }>;
+  detectedText: string | null;
+  suggestion: string;
+};
 
 function RiskScannerTab() {
   const { t } = useLanguage();
+  const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [factors, setFactors] = useState<RiskFactor[]>([]);
-  const [totalRisk, setTotalRisk] = useState<number | null>(null);
+  const [result, setResult] = useState<AIModResult | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const scan = useCallback(async (f: File) => {
     setAnalyzing(true);
-    setFactors([]); setTotalRisk(null);
-    const reader = new FileReader();
-    reader.onload = e => setPreviewUrl(e.target?.result as string);
-    reader.readAsDataURL(f);
+    setResult(null);
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const url = e.target?.result as string;
+        setPreviewUrl(url);
+        resolve(url);
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(f);
+    });
 
     try {
-      const { img, data } = await loadImageData(f);
-      const newFactors: RiskFactor[] = [];
-
-      // Skin tone
-      const skinRatio = analyzeSkinTone(data);
-      newFactors.push({
-        label: "Телесные тона",
-        score: Math.min(skinRatio * 2, 1),
-        detail: skinRatio > 0.5 ? `${Math.round(skinRatio * 100)}% пикселей — оттенки кожи. Высокий риск` : skinRatio > 0.25 ? `${Math.round(skinRatio * 100)}% телесных тонов — умеренный риск` : `${Math.round(skinRatio * 100)}% — в норме`,
-        weight: 0.4,
+      const res = await fetch(`${BASE}/api/banshield/analyze-image`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ imageBase64: dataUrl }),
       });
-
-      // High transparency ratio (might hide content)
-      const transRatio = transparentRatio(data);
-      const hiddenRisk = transRatio > 0.9 ? 0.2 : 0;
-      newFactors.push({ label: "Скрытый контент", score: hiddenRisk, detail: hiddenRisk > 0 ? "Изображение почти пустое — возможно скрытый контент" : `✓ ${t("test.transparency")} в норме`, weight: 0.1 });
-
-      // Contrast (very high contrast can indicate offensive content)
-      const contrast = analyzeContrast(data);
-      const contrastRisk = contrast > 0.95 ? 0.3 : contrast > 0.85 ? 0.1 : 0;
-      newFactors.push({ label: "Экстремальный контраст", score: contrastRisk, detail: contrastRisk > 0.2 ? "Очень высокий контраст — может содержать скрытые элементы" : contrastRisk > 0 ? "Повышенный контраст" : "✓ Контраст в норме", weight: 0.2 });
-
-      // Color variety (very low = solid color block, moderate is ok)
-      const variety = analyzeColorVariety(data);
-      const varietyRisk = variety < 0.02 ? 0.2 : 0;
-      newFactors.push({ label: "Однородность цвета", score: varietyRisk, detail: varietyRisk > 0 ? "Слишком однородные цвета — возможен обход правил" : "✓ Разнообразие цветов в порядке", weight: 0.1 });
-
-      // Dimensions risk
-      const w = img.naturalWidth; const h = img.naturalHeight;
-      const dimRisk = (w !== 585 || h !== 559) && (w !== 292 || h !== 280) && (w !== 128 || h !== 128) ? 0.1 : 0;
-      newFactors.push({ label: t("test.dimensions"), score: dimRisk, detail: dimRisk > 0 ? `${w}×${h}px не соответствует стандартным шаблонам Roblox` : "✓ Стандартный размер шаблона", weight: 0.1 });
-
-      // Aspect ratio extremes
-      const ratio = w / h;
-      const ratioRisk = ratio > 5 || ratio < 0.2 ? 0.15 : 0;
-      newFactors.push({ label: "Пропорции изображения", score: ratioRisk, detail: ratioRisk > 0 ? `Необычные пропорции (${ratio.toFixed(2)}:1)` : "✓ Пропорции в норме", weight: 0.1 });
-
-      setFactors(newFactors);
-      const weighted = newFactors.reduce((acc, f) => acc + f.score * f.weight, 0) / newFactors.reduce((acc, f) => acc + f.weight, 0);
-      setTotalRisk(Math.min(Math.round(weighted * 100), 100));
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed" }));
+        throw new Error(err.error || "Failed");
+      }
+      const data: AIModResult = await res.json();
+      setResult(data);
     } catch (e) {
-      setFactors([{ label: t("common.error"), score: 0, detail: (e as Error).message, weight: 1 }]);
+      toast({ title: t("common.error"), description: (e as Error).message, variant: "destructive" });
     }
     setAnalyzing(false);
-  }, [t]);
+  }, [t, toast]);
 
-  const riskColor = totalRisk === null ? "" : totalRisk < 20 ? "text-green-500" : totalRisk < 50 ? "text-amber-500" : "text-red-500";
-  const riskLabel = totalRisk === null ? "" : totalRisk < 20 ? t("test.modSafe") : totalRisk < 50 ? t("test.modRisk") : t("test.modRisk");
-  const riskBg = totalRisk === null ? "" : totalRisk < 20 ? "from-green-500" : totalRisk < 50 ? "from-amber-500" : "from-red-500";
+  const riskScore = result?.riskScore ?? null;
+  const riskColor = riskScore === null ? "" : riskScore < 20 ? "text-green-500" : riskScore < 50 ? "text-amber-500" : "text-red-500";
+  const riskBg = riskScore === null ? "" : riskScore < 20 ? "from-green-500" : riskScore < 50 ? "from-amber-500" : "from-red-500";
+  const SEVERITY_ICON: Record<string, React.ReactNode> = {
+    warning: <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />,
+    danger: <XCircle className="w-4 h-4 text-red-500 shrink-0" />,
+  };
+  const SEVERITY_BG: Record<string, string> = {
+    warning: "bg-amber-500/5 border-amber-500/20",
+    danger: "bg-red-500/5 border-red-500/20",
+  };
 
   return (
     <div className="space-y-4">
@@ -382,52 +376,82 @@ function RiskScannerTab() {
           {file && <Button variant="outline" className="w-full rounded-xl gap-1.5" onClick={() => scan(file)} disabled={analyzing}>{analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} {t("test.recheck")}</Button>}
         </div>
 
-        {(totalRisk !== null || previewUrl) && (
+        {(riskScore !== null || previewUrl) && (
           <div className="space-y-3">
             {previewUrl && <div className="rounded-2xl border border-border/50 overflow-hidden bg-[repeating-conic-gradient(#f0f0f0_0%_25%,white_0%_50%)] bg-[length:24px_24px] flex items-center justify-center" style={{ minHeight: 120 }}><img src={previewUrl} alt="scan" className="max-w-full max-h-32 object-contain" /></div>}
-            {totalRisk !== null && (
+            {riskScore !== null && (
               <div className="rounded-2xl border border-border/50 p-5 text-center space-y-3">
-                <p className={`text-6xl font-black ${riskColor}`}>{totalRisk}%</p>
-                <p className={`text-sm font-bold ${riskColor}`}>{riskLabel}</p>
+                <p className={`text-6xl font-black ${riskColor}`}>{riskScore}%</p>
+                <p className={`text-sm font-bold ${riskColor}`}>{riskScore < 20 ? t("test.modSafe") : t("test.modRisk")}</p>
                 <div className="w-full h-3 rounded-full bg-secondary overflow-hidden">
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${totalRisk}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className={`h-full rounded-full bg-gradient-to-r ${riskBg} to-transparent`} />
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${riskScore}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className={`h-full rounded-full bg-gradient-to-r ${riskBg} to-transparent`} />
                 </div>
-                <p className="text-xs text-muted-foreground">{totalRisk < 20 ? t("test.modSafe") : totalRisk < 50 ? t("test.modRisk") : t("test.modRisk")}</p>
+                <p className="text-xs text-muted-foreground">{result?.riskLevel?.toUpperCase()}</p>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {analyzing && <div className="flex items-center gap-3 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Анализирую пиксели изображения...</div>}
+      {analyzing && (
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          {t("test.aiAnalyzing")}
+        </div>
+      )}
 
-      {factors.length > 0 && (
+      {result && result.detectedText && (
+        <div className="rounded-xl border border-blue-400/30 bg-blue-500/5 p-3 space-y-1">
+          <div className="flex items-center gap-2">
+            <Eye className="w-4 h-4 text-blue-500 shrink-0" />
+            <p className="text-xs font-bold">{t("test.detectedText")}</p>
+          </div>
+          <p className="text-xs text-muted-foreground font-mono">{result.detectedText}</p>
+        </div>
+      )}
+
+      {result && result.issues.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-semibold">Факторы риска</p>
-          {factors.map((f, i) => {
-            const level = f.score < 0.15 ? "low" : f.score < 0.4 ? "medium" : "high";
-            const bar = { low: "bg-green-500", medium: "bg-amber-500", high: "bg-red-500" }[level];
-            const text = { low: "text-green-600", medium: "text-amber-600", high: "text-red-600" }[level];
-            return (
-              <div key={i} className="rounded-xl border border-border/50 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold">{f.label}</p>
-                  <span className={`text-xs font-bold ${text}`}>{Math.round(f.score * 100)}%</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-secondary overflow-hidden">
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${Math.round(f.score * 100)}%` }} transition={{ duration: 0.6, delay: i * 0.05 }} className={`h-full rounded-full ${bar}`} />
-                </div>
-                <p className="text-[11px] text-muted-foreground">{f.detail}</p>
+          <p className="text-sm font-semibold">{t("test.riskFactors")}</p>
+          {result.issues.map((issue, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className={`flex items-start gap-3 rounded-xl border p-3 ${SEVERITY_BG[issue.severity] || "bg-secondary/30 border-border/30"}`}
+            >
+              {SEVERITY_ICON[issue.severity] || <AlertTriangle className="w-4 h-4 text-muted-foreground shrink-0" />}
+              <div>
+                <p className="text-xs font-bold">{issue.type}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{issue.description}</p>
               </div>
-            );
-          })}
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {result && result.issues.length === 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-green-500/20 bg-green-500/5 p-3">
+          <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-green-600">{t("test.modSafe")}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{result.suggestion}</p>
+          </div>
+        </div>
+      )}
+
+      {result && result.suggestion && result.issues.length > 0 && (
+        <div className="rounded-xl border border-border/30 bg-secondary/20 p-3 space-y-1">
+          <p className="text-xs font-bold">{t("test.recommendation")}</p>
+          <p className="text-xs text-muted-foreground">{result.suggestion}</p>
         </div>
       )}
 
       <Card className="rounded-2xl border-border/30 bg-secondary/20">
         <CardContent className="pt-4 text-xs text-muted-foreground space-y-1">
-          <p className="font-bold text-foreground">⚠️ Важно</p>
-          <p>Сканер использует эвристический анализ пикселей — это не гарантия решения модерации Roblox. Финальное решение всегда за системой модерации Roblox.</p>
+          <p className="font-bold text-foreground flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> {t("test.aiPowered")}</p>
+          <p>{t("test.aiDisclaimer")}</p>
         </CardContent>
       </Card>
     </div>
