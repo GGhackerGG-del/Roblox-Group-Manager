@@ -53,6 +53,41 @@ declare module "express-session" {
       webhookNotify: boolean;
       status: "scheduled" | "active" | "ended";
     }>;
+    autoPostConfig?: {
+      enabled: boolean;
+      webhookId: string;
+      groupId: string;
+      template: string;
+      color: number;
+      lastPostedItemId: number | null;
+      lastChecked: number | null;
+    };
+    autoPostHistory?: Array<{
+      id: string;
+      itemId: number;
+      itemName: string;
+      thumbnailUrl: string | null;
+      webhookName: string;
+      postedAt: number;
+      success: boolean;
+    }>;
+    socialLinks?: Array<{
+      id: string;
+      title: string;
+      url: string;
+      icon: string;
+      description: string;
+      color: string;
+      order: number;
+      addedAt: number;
+    }>;
+    socialAccounts?: Array<{
+      id: string;
+      platform: string;
+      handle: string;
+      url: string;
+      followers: number | null;
+    }>;
   }
 }
 

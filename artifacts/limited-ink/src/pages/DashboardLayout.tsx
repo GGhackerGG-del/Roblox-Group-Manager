@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair, Cog, ShieldCheck, Megaphone, Gamepad2 } from "lucide-react";
+import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair, Cog, ShieldCheck, Megaphone, Gamepad2, Share2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-react";
@@ -104,6 +104,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <NavItem href="/security" icon={<ShieldCheck className="w-4 h-4" />} label="Безопасность" isActive={location === "/security"} />
           <NavItem href="/marketing" icon={<Megaphone className="w-4 h-4" />} label="Маркетинг" isActive={location === "/marketing"} />
           <NavItem href="/game-manager" icon={<Gamepad2 className="w-4 h-4" />} label="Game Manager" isActive={location === "/game-manager"} badge="NEW" />
+          <NavItem href="/social-media" icon={<Share2 className="w-4 h-4" />} label="Social Media" isActive={location === "/social-media"} badge="NEW" />
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 custom-scrollbar">
