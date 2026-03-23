@@ -10,12 +10,15 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Heart, MessageCircle, UserPlus, Users, Send, Image as ImageIcon,
   ChevronRight, Loader2, UserCheck, X, Check, Clock, Trash2,
   Globe, MessageSquare, Search, RefreshCw, Star, ExternalLink, Pencil,
   Lightbulb, Coffee, HelpCircle, Trophy, Bell, BellOff, ThumbsUp, ThumbsDown,
-  MessageCircleQuestion, Plus, ArrowLeft, CheckCircle2, Crown, Award, Flame
+  MessageCircleQuestion, Plus, ArrowLeft, CheckCircle2, Crown, Award, Flame,
+  Briefcase, UserCog, ShieldCheck, Store, Download, ThumbsUp as Endorse,
+  Columns, ListTodo, Tag, Package, ChevronDown, Hash, Settings2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -1665,6 +1668,1041 @@ function MyProfileBanner({ myUser, onEdit }: { myUser: PlatformUser; onEdit: () 
 
 // ── Main Community Page ───────────────────────────────────────────────────────
 
+// ── TeamsTab ───────────────────────────────────────────────────────────────────
+function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
+  const { toast } = useToast();
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [invites, setInvites] = useState<any[]>([]);
+  const [activeWs, setActiveWs] = useState<any | null>(null);
+  const [wsMembers, setWsMembers] = useState<any[]>([]);
+  const [wsProjects, setWsProjects] = useState<any[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ robloxGroupId: "", groupName: "", description: "" });
+  const [creating, setCreating] = useState(false);
+  const [showInviteInput, setShowInviteInput] = useState(false);
+  const [inviteUsername, setInviteUsername] = useState("");
+  const [inviting, setInviting] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [{ workspaces: ws }, { invites: inv }] = await Promise.all([
+        apiFetch<{ workspaces: any[] }>("/api/community/workspaces"),
+        apiFetch<{ invites: any[] }>("/api/community/invites"),
+      ]);
+      setWorkspaces(ws); setInvites(inv);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { if (myUser) load(); else setLoading(false); }, [myUser]);
+
+  const openWs = async (ws: any) => {
+    setActiveWs(ws); setMembersLoading(true);
+    try {
+      const { members } = await apiFetch<{ members: any[] }>(`/api/community/workspaces/${ws.id}/members`);
+      setWsMembers(members);
+      const { projects } = await apiFetch<{ projects: any[] }>(`/api/community/workspaces/${ws.id}/projects`);
+      setWsProjects(projects);
+    } catch {}
+    finally { setMembersLoading(false); }
+  };
+
+  const createWorkspace = async () => {
+    if (!createForm.robloxGroupId || !createForm.groupName) return;
+    setCreating(true);
+    try {
+      const { workspace } = await apiFetch<{ workspace: any }>("/api/community/workspaces", {
+        method: "POST",
+        body: JSON.stringify({ robloxGroupId: parseInt(createForm.robloxGroupId), groupName: createForm.groupName, description: createForm.description }),
+      });
+      setWorkspaces(p => [workspace, ...p]);
+      setShowCreate(false); setCreateForm({ robloxGroupId: "", groupName: "", description: "" });
+      toast({ title: "✅ Воркспейс создан" });
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка" }); }
+    finally { setCreating(false); }
+  };
+
+  const acceptInvite = async (inviteId: number) => {
+    try {
+      await apiFetch(`/api/community/workspaces/invite/${inviteId}/accept`, { method: "POST" });
+      setInvites(p => p.filter(i => i.id !== inviteId));
+      load(); toast({ title: "✅ Вы присоединились к команде" });
+    } catch {}
+  };
+
+  const inviteMember = async () => {
+    if (!activeWs || !inviteUsername.trim()) return;
+    setInviting(true);
+    try {
+      const users = await apiFetch<any[]>(`/api/social/users/search?q=${encodeURIComponent(inviteUsername)}`).catch(() => []);
+      const target = (users as any[]).find((u: any) => u.robloxUsername.toLowerCase() === inviteUsername.toLowerCase() || u.displayName.toLowerCase() === inviteUsername.toLowerCase());
+      if (!target) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+      await apiFetch(`/api/community/workspaces/${activeWs.id}/invite`, { method: "POST", body: JSON.stringify({ targetUserId: target.id }) });
+      toast({ title: "✅ Приглашение отправлено" });
+      setInviteUsername(""); setShowInviteInput(false);
+      const { members } = await apiFetch<{ members: any[] }>(`/api/community/workspaces/${activeWs.id}/members`);
+      setWsMembers(members);
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    finally { setInviting(false); }
+  };
+
+  const kickMember = async (memberId: number) => {
+    if (!activeWs) return;
+    try {
+      await apiFetch(`/api/community/workspaces/${activeWs.id}/members/${memberId}`, { method: "DELETE" });
+      setWsMembers(p => p.filter(m => m.id !== memberId));
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+  };
+
+  const ROLE_LABELS: Record<string, string> = { owner: "👑 Владелец", admin: "⚡ Админ", member: "👤 Участник", pending: "⏳ Приглашён" };
+  const ROLE_COLORS: Record<string, string> = { owner: "border-amber-500/30 text-amber-600", admin: "border-blue-500/30 text-blue-600", member: "border-border text-muted-foreground", pending: "border-purple-500/30 text-purple-600" };
+
+  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><Users className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>Зарегистрируйтесь для доступа к командам</p></div>;
+
+  if (activeWs) return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" className="rounded-xl gap-2" onClick={() => setActiveWs(null)}><ArrowLeft className="w-4 h-4" /> Назад</Button>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {activeWs.groupThumbnailUrl && <img src={activeWs.groupThumbnailUrl} className="w-8 h-8 rounded-lg object-cover" />}
+          <div className="min-w-0">
+            <h2 className="font-bold text-lg truncate">{activeWs.groupName}</h2>
+            {activeWs.description && <p className="text-xs text-muted-foreground truncate">{activeWs.description}</p>}
+          </div>
+          <Badge variant="outline" className="shrink-0">{activeWs.myRole}</Badge>
+        </div>
+        {["owner", "admin"].includes(activeWs.myRole) && (
+          <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowInviteInput(p => !p)}><UserPlus className="w-3.5 h-3.5" /> Пригласить</Button>
+        )}
+      </div>
+
+      {showInviteInput && (
+        <Card className="rounded-2xl border-blue-500/20 bg-blue-500/5">
+          <CardContent className="pt-4 flex gap-2">
+            <Input placeholder="Username или DisplayName..." value={inviteUsername} onChange={e => setInviteUsername(e.target.value)} onKeyDown={e => e.key === "Enter" && inviteMember()} className="rounded-xl flex-1" />
+            <Button className="rounded-xl" onClick={inviteMember} disabled={inviting}>{inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="md:col-span-2 space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Участники ({wsMembers.length})</h3>
+          {membersLoading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl" />) : wsMembers.map(m => (
+            <Card key={m.id} className="rounded-2xl border-border/50">
+              <CardContent className="p-3 flex items-center gap-3">
+                <Avatar className="w-10 h-10 border border-border shrink-0">
+                  <AvatarImage src={m.user?.avatarUrl || undefined} />
+                  <AvatarFallback>{m.user?.displayName?.charAt(0) || "?"}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{m.user?.displayName || "Unknown"}</p>
+                  <p className="text-xs text-muted-foreground">@{m.user?.robloxUsername}</p>
+                </div>
+                <Badge variant="outline" className={`text-[10px] shrink-0 ${ROLE_COLORS[m.status === "pending" ? "pending" : m.role] || ""}`}>
+                  {ROLE_LABELS[m.status === "pending" ? "pending" : m.role] || m.role}
+                </Badge>
+                {activeWs.myRole === "owner" && m.user?.id !== myUser?.id && m.status !== "pending" && (
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 shrink-0" onClick={() => kickMember(m.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Проекты ({wsProjects.length})</h3>
+          {wsProjects.map(p => (
+            <Card key={p.id} className="rounded-2xl border-border/50">
+              <CardContent className="p-3">
+                <p className="font-semibold text-sm">{p.title}</p>
+                {p.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{p.description}</p>}
+                <Badge variant="outline" className={`text-[9px] mt-1.5 ${p.status === "active" ? "border-green-500/30 text-green-600" : "border-border"}`}>{p.status}</Badge>
+              </CardContent>
+            </Card>
+          ))}
+          {wsProjects.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">Нет проектов</p>}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {invites.length > 0 && (
+        <Card className="rounded-2xl border-blue-500/20 bg-blue-500/5">
+          <CardContent className="pt-4 space-y-2">
+            <p className="text-sm font-semibold text-blue-600">📬 Приглашения в команду ({invites.length})</p>
+            {invites.map(inv => (
+              <div key={inv.id} className="flex items-center gap-3 rounded-xl border border-blue-500/20 bg-card p-3">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{inv.workspace?.groupName}</p>
+                  <p className="text-xs text-muted-foreground">Приглашение в команду</p>
+                </div>
+                <Button size="sm" className="rounded-xl gap-1.5 h-8" onClick={() => acceptInvite(inv.id)}><Check className="w-3.5 h-3.5" /> Принять</Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold">Мои рабочие пространства</h2>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowCreate(p => !p)}><Plus className="w-3.5 h-3.5" /> Создать</Button>
+      </div>
+
+      <AnimatePresence>
+        {showCreate && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <Card className="rounded-2xl border-black/20 bg-secondary/30">
+              <CardContent className="pt-4 space-y-3">
+                <p className="text-sm font-semibold">Создать воркспейс для группы</p>
+                <Input placeholder="ID Roblox группы (число)" value={createForm.robloxGroupId} onChange={e => setCreateForm(p => ({ ...p, robloxGroupId: e.target.value }))} className="rounded-xl" />
+                <Input placeholder="Название группы" value={createForm.groupName} onChange={e => setCreateForm(p => ({ ...p, groupName: e.target.value }))} className="rounded-xl" />
+                <Textarea placeholder="Описание команды (необязательно)" value={createForm.description} onChange={e => setCreateForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={2} />
+                <div className="flex gap-2">
+                  <Button className="flex-1 rounded-xl" onClick={createWorkspace} disabled={creating || !createForm.robloxGroupId || !createForm.groupName}>
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Создать
+                  </Button>
+                  <Button variant="ghost" className="rounded-xl" onClick={() => setShowCreate(false)}><X className="w-4 h-4" /></Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {loading ? Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />) : workspaces.length === 0 ? (
+        <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+          <Briefcase className="w-12 h-12 opacity-20" />
+          <p className="text-sm">Нет рабочих пространств</p>
+          <p className="text-xs">Создайте воркспейс для своей Roblox группы или примите приглашение</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {workspaces.map(ws => (
+            <Card key={ws.id} className="rounded-2xl border-border/50 hover:border-black/30 transition-colors cursor-pointer" onClick={() => openWs(ws)}>
+              <CardContent className="p-4 flex items-center gap-3">
+                {ws.groupThumbnailUrl ? <img src={ws.groupThumbnailUrl} className="w-12 h-12 rounded-xl object-cover shrink-0" /> : <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0"><Briefcase className="w-5 h-5 text-muted-foreground" /></div>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-sm truncate">{ws.groupName}</p>
+                    <Badge variant="outline" className="text-[9px] shrink-0">{ws.myRole}</Badge>
+                  </div>
+                  {ws.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{ws.description}</p>}
+                  <p className="text-xs text-muted-foreground mt-1">{ws.memberCount} участников</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── GroupChatTab ───────────────────────────────────────────────────────────────
+function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
+  const { toast } = useToast();
+  const [chats, setChats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeChat, setActiveChat] = useState<any | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [msgsLoading, setMsgsLoading] = useState(false);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [chatName, setChatName] = useState("");
+  const [memberInput, setMemberInput] = useState("");
+  const [pendingMembers, setPendingMembers] = useState<any[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [chatMembers, setChatMembers] = useState<any[]>([]);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [addMemberInput, setAddMemberInput] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
+
+  const loadChats = async () => {
+    try {
+      const { chats: c } = await apiFetch<{ chats: any[] }>("/api/community/group-chats");
+      setChats(c);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { if (myUser) loadChats(); else setLoading(false); }, [myUser]);
+
+  useEffect(() => {
+    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const openChat = async (chat: any) => {
+    setActiveChat(chat); setMsgsLoading(true); setMessages([]);
+    try {
+      const { messages: msgs } = await apiFetch<{ messages: any[] }>(`/api/community/group-chats/${chat.id}/messages`);
+      setMessages(msgs);
+      const { members } = await apiFetch<{ members: any[] }>(`/api/community/group-chats/${chat.id}/members`);
+      setChatMembers(members);
+    } catch {}
+    finally { setMsgsLoading(false); }
+  };
+
+  const sendMessage = async () => {
+    if (!text.trim() || !activeChat || sending) return;
+    setSending(true);
+    try {
+      const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${activeChat.id}/messages`, {
+        method: "POST", body: JSON.stringify({ content: text.trim() }),
+      });
+      setMessages(p => [...p, message]);
+      setText("");
+    } catch {}
+    finally { setSending(false); }
+  };
+
+  const searchUser = async (username: string) => {
+    if (!username.trim()) return null;
+    try {
+      const users = await apiFetch<any[]>(`/api/social/users/search?q=${encodeURIComponent(username)}`);
+      return (users as any[]).find((u: any) => u.robloxUsername.toLowerCase() === username.toLowerCase() || u.displayName.toLowerCase() === username.toLowerCase());
+    } catch { return null; }
+  };
+
+  const addPendingMember = async () => {
+    const user = await searchUser(memberInput);
+    if (!user) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+    if (pendingMembers.find(m => m.id === user.id)) return;
+    setPendingMembers(p => [...p, user]);
+    setMemberInput("");
+  };
+
+  const createChat = async () => {
+    if (!chatName.trim() || pendingMembers.length < 2) return;
+    setCreating(true);
+    try {
+      const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      const { chat } = await apiFetch<{ chat: any }>("/api/community/group-chats", {
+        method: "POST",
+        body: JSON.stringify({ name: chatName.trim(), memberIds: pendingMembers.map(m => m.id), avatarColor: color }),
+      });
+      setChats(p => [chat, ...p]);
+      setShowCreate(false); setChatName(""); setPendingMembers([]);
+      openChat(chat); toast({ title: "✅ Групповой чат создан" });
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    finally { setCreating(false); }
+  };
+
+  const addMemberToChat = async () => {
+    if (!activeChat || !addMemberInput.trim()) return;
+    const user = await searchUser(addMemberInput);
+    if (!user) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+    try {
+      await apiFetch(`/api/community/group-chats/${activeChat.id}/members`, { method: "POST", body: JSON.stringify({ targetUserId: user.id }) });
+      const { members } = await apiFetch<{ members: any[] }>(`/api/community/group-chats/${activeChat.id}/members`);
+      setChatMembers(members);
+      setAddMemberInput(""); setShowAddMember(false);
+      toast({ title: "✅ Участник добавлен" });
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+  };
+
+  const timeAgoShort = (date: string) => {
+    const d = Date.now() - new Date(date).getTime();
+    const m = Math.floor(d / 60000);
+    if (m < 1) return "сейчас";
+    if (m < 60) return `${m}м`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}ч`;
+    return `${Math.floor(h / 24)}д`;
+  };
+
+  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>Нужна регистрация для чата</p></div>;
+
+  if (activeChat) return (
+    <div className="flex flex-col h-[600px]">
+      <div className="flex items-center gap-3 pb-3 border-b border-border">
+        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setActiveChat(null)}><ArrowLeft className="w-4 h-4" /> Назад</Button>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: activeChat.avatarColor || "#6366f1" }}>
+          {activeChat.name.charAt(0)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">{activeChat.name}</p>
+          <p className="text-[10px] text-muted-foreground">{activeChat.memberCount || chatMembers.length} участников</p>
+        </div>
+        <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
+      </div>
+      {showAddMember && (
+        <div className="flex gap-2 py-2 border-b border-border">
+          <Input placeholder="Добавить участника..." value={addMemberInput} onChange={e => setAddMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addMemberToChat()} className="rounded-xl flex-1 text-xs h-8" />
+          <Button size="sm" className="rounded-xl h-8" onClick={addMemberToChat}><Check className="w-3.5 h-3.5" /></Button>
+        </div>
+      )}
+      <div className="flex-1 overflow-y-auto py-3 space-y-3 min-h-0">
+        {msgsLoading ? <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : messages.length === 0 ? (
+          <p className="text-center text-muted-foreground text-sm py-8">Нет сообщений. Начните общение!</p>
+        ) : messages.map(msg => {
+          const isMe = msg.senderId === myUser.id;
+          return (
+            <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+              {!isMe && <Avatar className="w-7 h-7 border border-border shrink-0 mb-0.5"><AvatarImage src={msg.sender?.avatarUrl || undefined} /><AvatarFallback className="text-[10px]">{msg.sender?.displayName?.charAt(0) || "?"}</AvatarFallback></Avatar>}
+              <div className={`max-w-[70%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
+                {!isMe && <p className="text-[10px] text-muted-foreground px-1">{msg.sender?.displayName}</p>}
+                <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>{msg.content}</div>
+                <p className="text-[10px] text-muted-foreground px-1">{timeAgoShort(msg.createdAt)}</p>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={messagesEndRef} />
+      </div>
+      <div className="flex gap-2 pt-3 border-t border-border">
+        <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()} placeholder="Сообщение..." className="rounded-xl flex-1" />
+        <Button className="rounded-xl" onClick={sendMessage} disabled={sending || !text.trim()}>
+          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold">Групповые чаты</h2>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowCreate(p => !p)}><Plus className="w-3.5 h-3.5" /> Создать чат</Button>
+      </div>
+
+      <AnimatePresence>
+        {showCreate && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <Card className="rounded-2xl border-indigo-500/20 bg-indigo-500/5">
+              <CardContent className="pt-4 space-y-3">
+                <p className="text-sm font-semibold">Создать групповой чат (3+ человек)</p>
+                <Input placeholder="Название чата..." value={chatName} onChange={e => setChatName(e.target.value)} className="rounded-xl" />
+                <div className="flex gap-2">
+                  <Input placeholder="Добавить участника по username..." value={memberInput} onChange={e => setMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addPendingMember()} className="rounded-xl flex-1 text-sm" />
+                  <Button variant="outline" className="rounded-xl" onClick={addPendingMember}><Plus className="w-4 h-4" /></Button>
+                </div>
+                {pendingMembers.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {pendingMembers.map(m => (
+                      <Badge key={m.id} variant="secondary" className="gap-1.5 text-xs">
+                        {m.displayName}
+                        <button onClick={() => setPendingMembers(p => p.filter(x => x.id !== m.id))}><X className="w-3 h-3" /></button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Минимум 2 участника (+ вы)</p>
+                <div className="flex gap-2">
+                  <Button className="flex-1 rounded-xl" onClick={createChat} disabled={creating || !chatName.trim() || pendingMembers.length < 2}>
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Создать
+                  </Button>
+                  <Button variant="ghost" className="rounded-xl" onClick={() => setShowCreate(false)}><X className="w-4 h-4" /></Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-18 rounded-2xl" />) : chats.length === 0 ? (
+        <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+          <MessageSquare className="w-12 h-12 opacity-20" />
+          <p className="text-sm">Нет групповых чатов</p>
+          <p className="text-xs">Создайте чат с 3 и более участниками</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {chats.map(chat => (
+            <Card key={chat.id} className="rounded-2xl border-border/50 hover:border-black/20 transition-colors cursor-pointer" onClick={() => openChat(chat)}>
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: chat.avatarColor || "#6366f1" }}>{chat.name.charAt(0)}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-sm truncate">{chat.name}</p>
+                    <Badge variant="outline" className="text-[9px] shrink-0">{chat.memberCount} уч.</Badge>
+                  </div>
+                  {chat.lastMessage && <p className="text-xs text-muted-foreground truncate mt-0.5">{chat.lastMessage.content}</p>}
+                </div>
+                {chat.lastMessage && <p className="text-[10px] text-muted-foreground shrink-0">{timeAgoShort(chat.lastMessage.createdAt)}</p>}
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CollabTab ──────────────────────────────────────────────────────────────────
+function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
+  const { toast } = useToast();
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [selectedWs, setSelectedWs] = useState<string>("");
+  const [projects, setProjects] = useState<any[]>([]);
+  const [activeProject, setActiveProject] = useState<any | null>(null);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [projectTitle, setProjectTitle] = useState("");
+  const [projectDesc, setProjectDesc] = useState("");
+  const [showNewTask, setShowNewTask] = useState(false);
+  const [taskForm, setTaskForm] = useState({ title: "", description: "", priority: "medium" });
+  const [savingTask, setSavingTask] = useState(false);
+  const [wsMembers, setWsMembers] = useState<any[]>([]);
+
+  const STATUSES = ["todo", "in_progress", "review", "done"] as const;
+  const STATUS_LABELS: Record<string, string> = { todo: "📋 К выполнению", in_progress: "⚙️ В работе", review: "🔍 Ревью", done: "✅ Готово" };
+  const PRIORITY_COLORS: Record<string, string> = { low: "border-gray-500/30 text-gray-500", medium: "border-blue-500/30 text-blue-600", high: "border-red-500/30 text-red-600" };
+
+  useEffect(() => {
+    if (!myUser) { setLoading(false); return; }
+    apiFetch<{ workspaces: any[] }>("/api/community/workspaces")
+      .then(({ workspaces: ws }) => { setWorkspaces(ws); if (ws.length) setSelectedWs(String(ws[0].id)); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [myUser]);
+
+  useEffect(() => {
+    if (!selectedWs) return;
+    apiFetch<{ projects: any[] }>(`/api/community/workspaces/${selectedWs}/projects`)
+      .then(({ projects: p }) => { setProjects(p); setActiveProject(null); setTasks([]); })
+      .catch(() => {});
+    apiFetch<{ members: any[] }>(`/api/community/workspaces/${selectedWs}/members`)
+      .then(({ members: m }) => setWsMembers(m.filter(m => m.status === "active")))
+      .catch(() => {});
+  }, [selectedWs]);
+
+  const openProject = async (project: any) => {
+    setActiveProject(project); setTasksLoading(true); setTasks([]);
+    try {
+      const { tasks: t } = await apiFetch<{ tasks: any[] }>(`/api/community/projects/${project.id}/tasks`);
+      setTasks(t);
+    } catch {}
+    finally { setTasksLoading(false); }
+  };
+
+  const createProject = async () => {
+    if (!projectTitle.trim() || !selectedWs) return;
+    try {
+      const { project } = await apiFetch<{ project: any }>(`/api/community/workspaces/${selectedWs}/projects`, {
+        method: "POST", body: JSON.stringify({ title: projectTitle.trim(), description: projectDesc }),
+      });
+      setProjects(p => [project, ...p]);
+      setShowNewProject(false); setProjectTitle(""); setProjectDesc("");
+      toast({ title: "✅ Проект создан" });
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+  };
+
+  const createTask = async () => {
+    if (!taskForm.title.trim() || !activeProject) return;
+    setSavingTask(true);
+    try {
+      const { task } = await apiFetch<{ task: any }>(`/api/community/projects/${activeProject.id}/tasks`, {
+        method: "POST", body: JSON.stringify({ title: taskForm.title.trim(), description: taskForm.description, priority: taskForm.priority }),
+      });
+      setTasks(p => [task, ...p]);
+      setShowNewTask(false); setTaskForm({ title: "", description: "", priority: "medium" });
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    finally { setSavingTask(false); }
+  };
+
+  const updateTaskStatus = async (taskId: number, status: string) => {
+    try {
+      await apiFetch(`/api/community/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ status }) });
+      setTasks(p => p.map(t => t.id === taskId ? { ...t, status } : t));
+    } catch {}
+  };
+
+  const assignTask = async (taskId: number, assignedToId: number | null) => {
+    try {
+      await apiFetch(`/api/community/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ assignedToId }) });
+      const assignee = wsMembers.find(m => m.userId === assignedToId)?.user || null;
+      setTasks(p => p.map(t => t.id === taskId ? { ...t, assignedToId, assignee } : t));
+    } catch {}
+  };
+
+  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><Columns className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>Нужна регистрация</p></div>;
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  if (!workspaces.length) return <div className="text-center py-16 text-muted-foreground"><Columns className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="text-sm">Нет рабочих пространств</p><p className="text-xs">Создайте воркспейс в разделе "Команды"</p></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <Select value={selectedWs} onValueChange={setSelectedWs}>
+          <SelectTrigger className="w-52 rounded-xl h-9"><SelectValue placeholder="Выбрать воркспейс" /></SelectTrigger>
+          <SelectContent>{workspaces.map(ws => <SelectItem key={ws.id} value={String(ws.id)}>{ws.groupName}</SelectItem>)}</SelectContent>
+        </Select>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowNewProject(p => !p)}><Plus className="w-3.5 h-3.5" /> Проект</Button>
+      </div>
+
+      <AnimatePresence>
+        {showNewProject && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <Card className="rounded-2xl border-green-500/20 bg-green-500/5">
+              <CardContent className="pt-4 space-y-3">
+                <Input placeholder="Название проекта..." value={projectTitle} onChange={e => setProjectTitle(e.target.value)} className="rounded-xl" />
+                <Textarea placeholder="Описание..." value={projectDesc} onChange={e => setProjectDesc(e.target.value)} className="rounded-xl resize-none" rows={2} />
+                <div className="flex gap-2">
+                  <Button className="flex-1 rounded-xl" onClick={createProject}><Check className="w-4 h-4 mr-1.5" /> Создать</Button>
+                  <Button variant="ghost" className="rounded-xl" onClick={() => setShowNewProject(false)}><X className="w-4 h-4" /></Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {!activeProject ? (
+        projects.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground"><ListTodo className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-sm">Нет проектов в этом воркспейсе</p></div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {projects.map(p => (
+              <Card key={p.id} className="rounded-2xl border-border/50 hover:border-black/20 cursor-pointer transition-colors" onClick={() => openProject(p)}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="font-semibold">{p.title}</p>
+                    <Badge variant="outline" className={`text-[9px] ${p.status === "active" ? "border-green-500/30 text-green-600" : "border-border text-muted-foreground"}`}>{p.status}</Badge>
+                  </div>
+                  {p.description && <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>}
+                  <p className="text-[10px] text-muted-foreground mt-2"><ChevronRight className="w-3 h-3 inline" /> Открыть задачи</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setActiveProject(null)}><ArrowLeft className="w-4 h-4" /> Проекты</Button>
+            <p className="font-semibold flex-1">{activeProject.title}</p>
+            <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowNewTask(p => !p)}><Plus className="w-3.5 h-3.5" /> Задача</Button>
+          </div>
+
+          <AnimatePresence>
+            {showNewTask && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                <Card className="rounded-2xl border-blue-500/20 bg-blue-500/5">
+                  <CardContent className="pt-4 space-y-2">
+                    <Input placeholder="Название задачи..." value={taskForm.title} onChange={e => setTaskForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
+                    <Textarea placeholder="Описание..." value={taskForm.description} onChange={e => setTaskForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={2} />
+                    <Select value={taskForm.priority} onValueChange={v => setTaskForm(p => ({ ...p, priority: v }))}>
+                      <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="low">🟢 Низкий</SelectItem><SelectItem value="medium">🔵 Средний</SelectItem><SelectItem value="high">🔴 Высокий</SelectItem></SelectContent>
+                    </Select>
+                    <div className="flex gap-2">
+                      <Button className="flex-1 rounded-xl" onClick={createTask} disabled={savingTask || !taskForm.title}>{savingTask ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Создать</Button>
+                      <Button variant="ghost" className="rounded-xl" onClick={() => setShowNewTask(false)}><X className="w-4 h-4" /></Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {tasksLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              {STATUSES.map(status => (
+                <div key={status} className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground">{STATUS_LABELS[status]} ({tasks.filter(t => t.status === status).length})</p>
+                  {tasks.filter(t => t.status === status).map(task => (
+                    <Card key={task.id} className="rounded-xl border-border/50 shadow-sm">
+                      <CardContent className="p-3 space-y-2">
+                        <p className="text-xs font-semibold leading-tight">{task.title}</p>
+                        {task.description && <p className="text-[10px] text-muted-foreground line-clamp-2">{task.description}</p>}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="outline" className={`text-[9px] ${PRIORITY_COLORS[task.priority] || ""}`}>{task.priority}</Badge>
+                          {task.assignee && (
+                            <div className="flex items-center gap-1">
+                              <Avatar className="w-4 h-4"><AvatarImage src={task.assignee.avatarUrl || undefined} /><AvatarFallback className="text-[8px]">{task.assignee.displayName?.charAt(0)}</AvatarFallback></Avatar>
+                              <span className="text-[9px] text-muted-foreground">{task.assignee.displayName}</span>
+                            </div>
+                          )}
+                        </div>
+                        <Select value={task.status} onValueChange={v => updateTaskStatus(task.id, v)}>
+                          <SelectTrigger className="h-6 text-[10px] rounded-lg border-border/50"><SelectValue /></SelectTrigger>
+                          <SelectContent>{STATUSES.map(s => <SelectItem key={s} value={s} className="text-xs">{STATUS_LABELS[s]}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {tasks.filter(t => t.status === status).length === 0 && (
+                    <div className="border-2 border-dashed border-border/30 rounded-xl p-3 text-center"><p className="text-[10px] text-muted-foreground/50">Пусто</p></div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ReputationTab ──────────────────────────────────────────────────────────────
+const SKILLS_INFO = [
+  { id: "designer", label: "🎨 Дизайнер", color: "text-purple-600 bg-purple-500/10 border-purple-500/20" },
+  { id: "developer", label: "💻 Разработчик", color: "text-blue-600 bg-blue-500/10 border-blue-500/20" },
+  { id: "manager", label: "📋 Менеджер", color: "text-amber-600 bg-amber-500/10 border-amber-500/20" },
+  { id: "marketer", label: "📢 Маркетолог", color: "text-rose-600 bg-rose-500/10 border-rose-500/20" },
+  { id: "seller", label: "💰 Продавец", color: "text-green-600 bg-green-500/10 border-green-500/20" },
+  { id: "creative", label: "✨ Креатив", color: "text-indigo-600 bg-indigo-500/10 border-indigo-500/20" },
+  { id: "general", label: "⭐ Общая", color: "text-gray-600 bg-gray-500/10 border-gray-500/20" },
+];
+
+function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
+  const { toast } = useToast();
+  const [searchQ, setSearchQ] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [viewUser, setViewUser] = useState<any | null>(null);
+  const [repData, setRepData] = useState<any | null>(null);
+  const [repLoading, setRepLoading] = useState(false);
+  const [endorseSkill, setEndorseSkill] = useState("");
+  const [endorseMsg, setEndorseMsg] = useState("");
+  const [endorsing, setEndorsing] = useState(false);
+
+  const searchUsers = async () => {
+    if (!searchQ.trim()) return;
+    setSearching(true);
+    try {
+      const users = await apiFetch<any[]>(`/api/social/users/search?q=${encodeURIComponent(searchQ)}`).catch(() => []);
+      setSearchResults(users as any[]);
+    } catch {}
+    finally { setSearching(false); }
+  };
+
+  const viewRep = async (user: any) => {
+    setViewUser(user); setRepData(null); setRepLoading(true); setEndorseSkill(""); setEndorseMsg("");
+    try {
+      const data = await apiFetch<any>(`/api/community/reputation/${user.id}`);
+      setRepData(data);
+    } catch {}
+    finally { setRepLoading(false); }
+  };
+
+  const endorse = async () => {
+    if (!endorseSkill || !viewUser || endorsing) return;
+    setEndorsing(true);
+    try {
+      await apiFetch("/api/community/reputation/endorse", {
+        method: "POST", body: JSON.stringify({ toUserId: viewUser.id, skill: endorseSkill, message: endorseMsg }),
+      });
+      toast({ title: "✅ Репутация повышена!" });
+      viewRep(viewUser);
+      setEndorseSkill(""); setEndorseMsg("");
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    finally { setEndorsing(false); }
+  };
+
+  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><Trophy className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>Нужна регистрация</p></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={searchQ} onChange={e => setSearchQ(e.target.value)} onKeyDown={e => e.key === "Enter" && searchUsers()} placeholder="Найти участника для просмотра репутации..." className="pl-9 rounded-xl" />
+        </div>
+        <Button className="rounded-xl" onClick={searchUsers} disabled={searching}>{searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}</Button>
+      </div>
+
+      {searchResults.length > 0 && !viewUser && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {searchResults.map(u => (
+            <Card key={u.id} className="rounded-2xl border-border/50 hover:border-black/20 cursor-pointer transition-colors" onClick={() => viewRep(u)}>
+              <CardContent className="p-3 flex items-center gap-3">
+                <Avatar className="w-10 h-10 border border-border"><AvatarImage src={u.avatarUrl || undefined} /><AvatarFallback>{u.displayName?.charAt(0)}</AvatarFallback></Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{u.displayName}</p>
+                  <p className="text-xs text-muted-foreground">@{u.robloxUsername}</p>
+                </div>
+                <Trophy className="w-4 h-4 text-amber-500" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {viewUser && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => { setViewUser(null); setRepData(null); }}><ArrowLeft className="w-4 h-4" /> Назад</Button>
+          </div>
+          <Card className="rounded-2xl border-border/50">
+            <CardContent className="pt-4 flex items-center gap-4">
+              <Avatar className="w-16 h-16 border-2 border-amber-500/20"><AvatarImage src={viewUser.avatarUrl || undefined} /><AvatarFallback className="text-xl">{viewUser.displayName?.charAt(0)}</AvatarFallback></Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-lg">{viewUser.displayName}</p>
+                <p className="text-sm text-muted-foreground">@{viewUser.robloxUsername}</p>
+                {viewUser.bio && <p className="text-xs text-muted-foreground/70 mt-1 line-clamp-2">{viewUser.bio}</p>}
+              </div>
+              <div className="text-center shrink-0">
+                <p className="text-3xl font-bold text-amber-500">{repData?.total || 0}</p>
+                <p className="text-xs text-muted-foreground">эндорсментов</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {repLoading ? <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : repData && (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {SKILLS_INFO.filter(s => (repData.bySkill[s.id] || 0) > 0).map(skill => (
+                  <Card key={skill.id} className={`rounded-xl border ${skill.color}`}>
+                    <CardContent className="p-3 text-center">
+                      <p className="text-2xl font-bold">{repData.bySkill[skill.id]}</p>
+                      <p className="text-xs font-medium mt-0.5">{skill.label}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {repData.endorsements.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Последние эндорсменты</p>
+                  {repData.endorsements.slice(0, 5).map((e: any, i: number) => (
+                    <div key={i} className="flex items-start gap-3 rounded-xl border border-border/50 p-3">
+                      <Avatar className="w-8 h-8 border border-border shrink-0"><AvatarImage src={e.from?.avatarUrl || undefined} /><AvatarFallback className="text-xs">{e.from?.displayName?.charAt(0)}</AvatarFallback></Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold">{e.from?.displayName}</p>
+                          <Badge className={`text-[9px] border ${SKILLS_INFO.find(s => s.id === e.skill)?.color || ""}`}>{SKILLS_INFO.find(s => s.id === e.skill)?.label || e.skill}</Badge>
+                        </div>
+                        {e.message && <p className="text-xs text-muted-foreground mt-0.5">"{e.message}"</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {viewUser.id !== myUser?.id && (
+            <Card className="rounded-2xl border-green-500/20 bg-green-500/5">
+              <CardContent className="pt-4 space-y-3">
+                <p className="text-sm font-semibold">✨ Добавить эндорсмент</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SKILLS_INFO.map(s => (
+                    <button key={s.id} onClick={() => setEndorseSkill(s.id)}
+                      className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${endorseSkill === s.id ? "bg-black text-white border-black" : `border-border text-muted-foreground hover:border-border/80 ${s.color}`}`}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                <Input placeholder="Комментарий (необязательно)..." value={endorseMsg} onChange={e => setEndorseMsg(e.target.value)} className="rounded-xl" />
+                <Button className="w-full rounded-xl gap-2 bg-green-600 hover:bg-green-700" onClick={endorse} disabled={!endorseSkill || endorsing}>
+                  {endorsing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} Подтвердить навык
+                </Button>
+                <p className="text-[10px] text-center text-muted-foreground">Лимит: 5 эндорсментов в день. Каждый навык можно подтвердить только 1 раз.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {!viewUser && !searchResults.length && (
+        <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+          <Trophy className="w-12 h-12 opacity-20" />
+          <p className="text-sm">Система репутации</p>
+          <p className="text-xs text-center">Найдите участника и подтвердите его навыки. Репутация — показатель доверия в сообществе.</p>
+          {myUser && (
+            <Button size="sm" variant="outline" className="rounded-xl mt-2 gap-1.5" onClick={() => viewRep(myUser)}>
+              <Trophy className="w-3.5 h-3.5" /> Моя репутация
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MarketplaceTab ─────────────────────────────────────────────────────────────
+const CATEGORIES = ["template", "design", "shader", "avatar", "plugin", "asset", "script"];
+const CATEGORY_LABELS: Record<string, string> = {
+  template: "📄 Шаблон", design: "🎨 Дизайн", shader: "✨ Шейдер",
+  avatar: "👤 Аватар", plugin: "🔧 Плагин", asset: "📦 Ассет", script: "📜 Скрипт",
+};
+
+function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
+  const { toast } = useToast();
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [category, setCategory] = useState("all");
+  const [sort, setSort] = useState("newest");
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", category: "template", previewUrl: "", downloadUrl: "", price: "0", tags: "" });
+  const [creating, setCreating] = useState(false);
+
+  const loadListings = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (category !== "all") params.set("category", category);
+      if (sort !== "newest") params.set("sort", sort);
+      const { listings: l } = await apiFetch<{ listings: any[] }>(`/api/community/marketplace?${params}`);
+      setListings(l);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { loadListings(); }, [category, sort]);
+
+  const toggleLike = async (id: number) => {
+    if (!myUser) return;
+    try {
+      const { liked } = await apiFetch<{ liked: boolean }>(`/api/community/marketplace/${id}/like`, { method: "POST" });
+      setListings(p => p.map(l => l.id === id ? { ...l, isLiked: liked, likesCount: l.likesCount + (liked ? 1 : -1) } : l));
+    } catch {}
+  };
+
+  const download = async (listing: any) => {
+    try {
+      const { downloadUrl } = await apiFetch<{ downloadUrl: string | null }>(`/api/community/marketplace/${listing.id}/download`, { method: "POST" });
+      setListings(p => p.map(l => l.id === listing.id ? { ...l, downloadCount: l.downloadCount + 1 } : l));
+      if (downloadUrl) { window.open(downloadUrl, "_blank"); }
+      else { toast({ title: "✅ Загружено", description: "Файл отмечен как загруженный" }); }
+    } catch {}
+  };
+
+  const createListing = async () => {
+    if (!form.title || !form.description) return;
+    setCreating(true);
+    try {
+      const tags = form.tags.split(",").map(t => t.trim()).filter(Boolean);
+      const { listing } = await apiFetch<{ listing: any }>("/api/community/marketplace", {
+        method: "POST",
+        body: JSON.stringify({ ...form, price: parseInt(form.price) || 0, tags }),
+      });
+      setListings(p => [listing, ...p]);
+      setShowCreate(false); setForm({ title: "", description: "", category: "template", previewUrl: "", downloadUrl: "", price: "0", tags: "" });
+      toast({ title: "✅ Листинг опубликован" });
+    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    finally { setCreating(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap flex-1">
+          <button onClick={() => setCategory("all")} className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${category === "all" ? "bg-black text-white border-black" : "border-border text-muted-foreground hover:border-border/80"}`}>Все</button>
+          {CATEGORIES.map(c => (
+            <button key={c} onClick={() => setCategory(c)} className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${category === c ? "bg-black text-white border-black" : "border-border text-muted-foreground hover:border-border/80"}`}>{CATEGORY_LABELS[c]}</button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Select value={sort} onValueChange={setSort}>
+            <SelectTrigger className="w-32 h-9 rounded-xl text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="newest">Новые</SelectItem><SelectItem value="popular">Популярные</SelectItem><SelectItem value="likes">Лайки</SelectItem></SelectContent>
+          </Select>
+          {myUser && <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowCreate(p => !p)}><Plus className="w-3.5 h-3.5" /> Продать</Button>}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showCreate && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <Card className="rounded-2xl border-indigo-500/20 bg-indigo-500/5">
+              <CardContent className="pt-4 space-y-3">
+                <p className="text-sm font-semibold">Опубликовать в маркетплейс</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input placeholder="Название..." value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
+                  <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <Textarea placeholder="Описание..." value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={3} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input placeholder="Preview URL (картинка)" value={form.previewUrl} onChange={e => setForm(p => ({ ...p, previewUrl: e.target.value }))} className="rounded-xl text-xs" />
+                  <Input placeholder="Download URL (файл)" value={form.downloadUrl} onChange={e => setForm(p => ({ ...p, downloadUrl: e.target.value }))} className="rounded-xl text-xs" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input placeholder="Теги (через запятую)" value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} className="rounded-xl text-xs" />
+                  <Input type="number" placeholder="Цена (0 = бесплатно)" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} className="rounded-xl" />
+                </div>
+                <div className="flex gap-2">
+                  <Button className="flex-1 rounded-xl" onClick={createListing} disabled={creating || !form.title || !form.description}>
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />} Опубликовать
+                  </Button>
+                  <Button variant="ghost" className="rounded-xl" onClick={() => setShowCreate(false)}><X className="w-4 h-4" /></Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-48 rounded-2xl" />)}
+        </div>
+      ) : listings.length === 0 ? (
+        <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+          <Store className="w-12 h-12 opacity-20" />
+          <p className="text-sm">Маркетплейс пустой</p>
+          <p className="text-xs">Будьте первым — опубликуйте шаблон или дизайн!</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {listings.map(item => {
+            const tags = (() => { try { return JSON.parse(item.tagsJson || "[]") as string[]; } catch { return [] as string[]; } })();
+            return (
+              <Card key={item.id} className="rounded-2xl border-border/50 overflow-hidden flex flex-col">
+                {item.previewUrl ? (
+                  <div className="h-32 bg-secondary overflow-hidden">
+                    <img src={item.previewUrl} alt={item.title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  </div>
+                ) : (
+                  <div className="h-20 bg-gradient-to-br from-secondary to-background flex items-center justify-center">
+                    <Package className="w-8 h-8 text-muted-foreground/30" />
+                  </div>
+                )}
+                <CardContent className="p-3 flex-1 flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm leading-tight">{item.title}</p>
+                      <Badge variant="outline" className="text-[9px] mt-0.5">{CATEGORY_LABELS[item.category] || item.category}</Badge>
+                    </div>
+                    {item.price > 0 ? <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/30 shrink-0">{item.price} 💎</Badge> : <Badge className="text-[10px] bg-green-500/15 text-green-700 border-0 shrink-0">Бесплатно</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2 flex-1">{item.description}</p>
+                  {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {tags.slice(0, 3).map((t: string) => <span key={t} className="text-[9px] rounded bg-secondary px-1.5 py-0.5 text-muted-foreground">#{t}</span>)}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 pt-1 border-t border-border/50">
+                    {item.seller && (
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <Avatar className="w-5 h-5 border border-border shrink-0"><AvatarImage src={item.seller.avatarUrl || undefined} /><AvatarFallback className="text-[9px]">{item.seller.displayName?.charAt(0)}</AvatarFallback></Avatar>
+                        <p className="text-[10px] text-muted-foreground truncate">{item.seller.displayName}</p>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button className={`flex items-center gap-0.5 text-[10px] transition-colors ${item.isLiked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`} onClick={() => toggleLike(item.id)}>
+                        <Heart className={`w-3.5 h-3.5 ${item.isLiked ? "fill-red-500" : ""}`} /> {item.likesCount}
+                      </button>
+                      <button className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-blue-500 transition-colors" onClick={() => download(item)}>
+                        <Download className="w-3.5 h-3.5" /> {item.downloadCount}
+                      </button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Community() {
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -1749,6 +2787,21 @@ export default function Community() {
           <TabsTrigger value="chat" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
             <MessageSquare className="w-3.5 h-3.5" /> {t("community.chat")}
           </TabsTrigger>
+          <TabsTrigger value="teams" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
+            <Briefcase className="w-3.5 h-3.5" /> Команды
+          </TabsTrigger>
+          <TabsTrigger value="groupchat" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
+            <Hash className="w-3.5 h-3.5" /> Группочаты
+          </TabsTrigger>
+          <TabsTrigger value="collab" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
+            <Columns className="w-3.5 h-3.5" /> Коллаборация
+          </TabsTrigger>
+          <TabsTrigger value="reputation" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
+            <Trophy className="w-3.5 h-3.5" /> Репутация
+          </TabsTrigger>
+          <TabsTrigger value="marketplace" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
+            <Store className="w-3.5 h-3.5" /> Маркетплейс
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -1766,6 +2819,21 @@ export default function Community() {
           </TabsContent>
           <TabsContent value="chat" className="mt-0">
             <ChatTab myUser={myUser} initialChatUser={chatInitUser} onClearInitial={() => setChatInitUser(null)} />
+          </TabsContent>
+          <TabsContent value="teams" className="mt-0">
+            <TeamsTab myUser={myUser} />
+          </TabsContent>
+          <TabsContent value="groupchat" className="mt-0">
+            <GroupChatTab myUser={myUser} />
+          </TabsContent>
+          <TabsContent value="collab" className="mt-0">
+            <CollabTab myUser={myUser} />
+          </TabsContent>
+          <TabsContent value="reputation" className="mt-0">
+            <ReputationTab myUser={myUser} />
+          </TabsContent>
+          <TabsContent value="marketplace" className="mt-0">
+            <MarketplaceTab myUser={myUser} />
           </TabsContent>
         </div>
       </Tabs>

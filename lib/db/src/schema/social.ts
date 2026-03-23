@@ -162,3 +162,148 @@ export type ForumTopic = typeof forumTopics.$inferSelect;
 export type ForumReply = typeof forumReplies.$inferSelect;
 export type TopicVote = typeof topicVotes.$inferSelect;
 export type GroupSubscription = typeof groupSubscriptions.$inferSelect;
+
+// ── Team Management ────────────────────────────────────────────────────────────
+
+export const groupWorkspaces = pgTable("group_workspaces", {
+  id: serial("id").primaryKey(),
+  robloxGroupId: bigint("roblox_group_id", { mode: "number" }).notNull().unique(),
+  groupName: text("group_name").notNull(),
+  groupThumbnailUrl: text("group_thumbnail_url"),
+  ownerId: integer("owner_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  description: text("description").default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("group_workspaces_owner_idx").on(t.ownerId),
+]);
+
+export const workspaceMembers = pgTable("workspace_members", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").notNull().references(() => groupWorkspaces.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("member"),
+  status: text("status").notNull().default("active"),
+  invitedBy: integer("invited_by").references(() => platformUsers.id),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("workspace_members_unique").on(t.workspaceId, t.userId),
+]);
+
+// ── Group Chats ────────────────────────────────────────────────────────────────
+
+export const groupChats = pgTable("group_chats", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  createdById: integer("created_by_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  workspaceId: integer("workspace_id").references(() => groupWorkspaces.id, { onDelete: "set null" }),
+  avatarColor: text("avatar_color").default("#6366f1"),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("group_chats_created_idx").on(t.createdById),
+]);
+
+export const groupChatMembers = pgTable("group_chat_members", {
+  id: serial("id").primaryKey(),
+  chatId: integer("chat_id").notNull().references(() => groupChats.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("member"),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("group_chat_members_unique").on(t.chatId, t.userId),
+  index("group_chat_members_user_idx").on(t.userId),
+]);
+
+export const groupChatMessages = pgTable("group_chat_messages", {
+  id: serial("id").primaryKey(),
+  chatId: integer("chat_id").notNull().references(() => groupChats.id, { onDelete: "cascade" }),
+  senderId: integer("sender_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("group_chat_msgs_chat_idx").on(t.chatId),
+]);
+
+// ── Collaboration ──────────────────────────────────────────────────────────────
+
+export const collaborationProjects = pgTable("collaboration_projects", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").notNull().references(() => groupWorkspaces.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").default(""),
+  status: text("status").notNull().default("active"),
+  createdById: integer("created_by_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("collab_projects_workspace_idx").on(t.workspaceId),
+]);
+
+export const collaborationTasks = pgTable("collaboration_tasks", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => collaborationProjects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").default(""),
+  assignedToId: integer("assigned_to_id").references(() => platformUsers.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("todo"),
+  priority: text("priority").notNull().default("medium"),
+  createdById: integer("created_by_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("collab_tasks_project_idx").on(t.projectId),
+]);
+
+// ── Reputation ─────────────────────────────────────────────────────────────────
+
+export const reputationEndorsements = pgTable("reputation_endorsements", {
+  id: serial("id").primaryKey(),
+  fromUserId: integer("from_user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  toUserId: integer("to_user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  skill: text("skill").notNull().default("general"),
+  message: text("message").default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("endorsements_to_idx").on(t.toUserId),
+  uniqueIndex("endorsements_unique").on(t.fromUserId, t.toUserId, t.skill),
+]);
+
+// ── Marketplace ────────────────────────────────────────────────────────────────
+
+export const marketplaceListings = pgTable("marketplace_listings", {
+  id: serial("id").primaryKey(),
+  sellerId: integer("seller_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull().default("template"),
+  previewUrl: text("preview_url"),
+  downloadUrl: text("download_url"),
+  price: integer("price").notNull().default(0),
+  tagsJson: text("tags_json").default("[]"),
+  downloadCount: integer("download_count").notNull().default(0),
+  likesCount: integer("likes_count").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("marketplace_seller_idx").on(t.sellerId),
+  index("marketplace_category_idx").on(t.category),
+]);
+
+export const marketplaceLikes = pgTable("marketplace_likes", {
+  id: serial("id").primaryKey(),
+  listingId: integer("listing_id").notNull().references(() => marketplaceListings.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("marketplace_likes_unique").on(t.listingId, t.userId),
+]);
+
+export type GroupWorkspace = typeof groupWorkspaces.$inferSelect;
+export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
+export type GroupChat = typeof groupChats.$inferSelect;
+export type GroupChatMember = typeof groupChatMembers.$inferSelect;
+export type GroupChatMessage = typeof groupChatMessages.$inferSelect;
+export type CollaborationProject = typeof collaborationProjects.$inferSelect;
+export type CollaborationTask = typeof collaborationTasks.$inferSelect;
+export type ReputationEndorsement = typeof reputationEndorsements.$inferSelect;
+export type MarketplaceListing = typeof marketplaceListings.$inferSelect;
+export type MarketplaceLike = typeof marketplaceLikes.$inferSelect;
