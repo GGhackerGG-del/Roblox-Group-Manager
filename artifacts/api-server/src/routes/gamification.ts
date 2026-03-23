@@ -241,7 +241,7 @@ router.get("/gamification/dashboard", async (req, res): Promise<void> => {
     isMe: true,
   };
 
-  const boardWithoutMe = dbBoard.filter(e => e.robloxUserId !== robloxUserId);
+  const boardWithoutMe = dbBoard.filter(e => String(e.robloxUserId) !== String(robloxUserId));
   const board = [...boardWithoutMe, userEntry]
     .sort((a, b) => b.xp - a.xp)
     .map((e, i) => ({ ...e, rank: i + 1 }));
