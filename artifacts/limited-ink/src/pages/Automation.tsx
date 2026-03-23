@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { getAuthCredentials, useGetRobloxGroups } from "@workspace/api-client-react";
+import { robloxHeadshot } from "@/lib/roblox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -498,9 +499,7 @@ export default function Automation() {
                   <div className="space-y-2">
                     {joinRequests.map(req => (
                       <div key={req.requester.userId} className="flex items-center gap-3 rounded-xl border border-border/50 p-3">
-                        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 text-sm font-bold">
-                          {req.requester.displayName.charAt(0)}
-                        </div>
+                        <img src={robloxHeadshot(req.requester.userId)} alt={req.requester.displayName} className="w-10 h-10 rounded-full bg-secondary shrink-0 object-cover" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{req.requester.displayName}</p>
                           <p className="text-xs text-muted-foreground">@{req.requester.username} • {timeAgo(req.created)}</p>
@@ -549,9 +548,7 @@ export default function Automation() {
                   <div className="space-y-2">
                     {memberSearchResults.map(member => (
                       <div key={member.user.userId} className="flex items-center gap-3 rounded-xl border border-border/50 p-3">
-                        <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0 text-sm font-bold">
-                          {member.user.displayName.charAt(0)}
-                        </div>
+                        <img src={robloxHeadshot(member.user.userId)} alt={member.user.displayName} className="w-9 h-9 rounded-full bg-secondary shrink-0 object-cover" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{member.user.displayName}</p>
                           <p className="text-xs text-muted-foreground">@{member.user.username} • {member.role.name}</p>
@@ -637,9 +634,7 @@ export default function Automation() {
                   <div className="space-y-2">
                     {exileResults.map(member => (
                       <div key={member.user.userId} className="flex items-center gap-3 rounded-xl border border-red-500/20 p-3 bg-red-500/5">
-                        <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0 text-sm font-bold">
-                          {member.user.displayName.charAt(0)}
-                        </div>
+                        <img src={robloxHeadshot(member.user.userId)} alt={member.user.displayName} className="w-9 h-9 rounded-full bg-secondary shrink-0 object-cover" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{member.user.displayName}</p>
                           <p className="text-xs text-muted-foreground">@{member.user.username} • {member.role.name}</p>
@@ -767,9 +762,7 @@ export default function Automation() {
                   <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                     {wallPosts.map(post => (
                       <div key={post.id} className="flex items-start gap-3 rounded-xl border border-border/50 p-3">
-                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-xs font-bold">
-                          {post.poster?.user.displayName?.charAt(0) || "?"}
-                        </div>
+                        <img src={post.poster ? robloxHeadshot(post.poster.user.userId) : ""} alt={post.poster?.user.displayName || "?"} className="w-8 h-8 rounded-full bg-secondary shrink-0 object-cover" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-xs font-semibold">{post.poster?.user.displayName || "Удалённый"}</p>
@@ -909,9 +902,7 @@ export default function Automation() {
                           setPayoutUserSearch("");
                         }}
                       >
-                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-xs font-bold">
-                          {m.user.displayName.charAt(0)}
-                        </div>
+                        <img src={robloxHeadshot(m.user.userId)} alt={m.user.displayName} className="w-8 h-8 rounded-full bg-secondary shrink-0 object-cover" />
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{m.user.displayName}</p>
                           <p className="text-xs text-muted-foreground">@{m.user.username} • {m.role.name}</p>
@@ -927,9 +918,7 @@ export default function Automation() {
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Получатели</p>
                     {payoutEntries.map(entry => (
                       <div key={entry.userId} className="flex items-center gap-3 rounded-xl border border-amber-500/20 p-3 bg-amber-500/5">
-                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-xs font-bold">
-                          {entry.username.charAt(0)}
-                        </div>
+                        <img src={robloxHeadshot(entry.userId)} alt={entry.username} className="w-8 h-8 rounded-full bg-secondary shrink-0 object-cover" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold">@{entry.username}</p>
                         </div>
@@ -1009,9 +998,7 @@ export default function Automation() {
                       return (
                         <div key={member.user.userId} className="flex items-center gap-3 rounded-xl border border-border/50 p-2.5">
                           <div className={`w-2 h-2 rounded-full shrink-0 ${isActive ? "bg-green-500" : isInactive ? "bg-red-500" : "bg-amber-500"}`} />
-                          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-xs font-bold">
-                            {member.user.displayName.charAt(0)}
-                          </div>
+                          <img src={robloxHeadshot(member.user.userId)} alt={member.user.displayName} className="w-8 h-8 rounded-full bg-secondary shrink-0 object-cover" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold truncate">{member.user.displayName}</p>
                             <p className="text-xs text-muted-foreground">@{member.user.username}</p>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { robloxHeadshot } from "@/lib/roblox";
 import { getAuthCredentials } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,7 +81,7 @@ export default function Profile() {
           <CardContent className="px-8 pb-8">
             <div className="flex items-end gap-6 -mt-14 mb-6">
               <Avatar className="w-28 h-28 border-4 border-background shadow-2xl">
-                <AvatarImage src={profileData.avatarUrl || undefined} />
+                <AvatarImage src={profileData.avatarUrl || robloxHeadshot(profileData.id)} />
                 <AvatarFallback className="text-3xl font-bold bg-secondary">{profileData.displayName.charAt(0)}</AvatarFallback>
               </Avatar>
               <div className="pb-2 flex-1 min-w-0">

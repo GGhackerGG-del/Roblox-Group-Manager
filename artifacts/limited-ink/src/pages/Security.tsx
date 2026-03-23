@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { robloxHeadshot } from "@/lib/roblox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -434,11 +435,7 @@ export default function Security() {
               <CardContent className="space-y-2">
                 {accounts.map(acc => (
                   <div key={acc.id} className="flex items-center gap-3 rounded-xl border border-border/50 p-3">
-                    {acc.avatarUrl ? (
-                      <img src={acc.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 text-sm font-bold">{acc.displayName.charAt(0)}</div>
-                    )}
+                    <img src={acc.avatarUrl || robloxHeadshot(acc.userId)} alt={acc.displayName} className="w-10 h-10 rounded-full object-cover shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold truncate">{acc.label}</p>
@@ -488,11 +485,7 @@ export default function Security() {
                       className={`relative flex items-center gap-4 rounded-xl border p-4 cursor-pointer transition-all ${acc.isActive ? "border-black bg-black text-white" : "border-border/50 hover:border-border"}`}
                       onClick={() => !switchingId && switchAccount(acc)}
                     >
-                      {acc.avatarUrl ? (
-                        <img src={acc.avatarUrl} alt="" className={`w-12 h-12 rounded-full object-cover shrink-0 ring-2 ${acc.isActive ? "ring-white/30" : "ring-border"}`} />
-                      ) : (
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-base font-bold ${acc.isActive ? "bg-white/20" : "bg-secondary"}`}>{acc.displayName.charAt(0)}</div>
-                      )}
+                      <img src={acc.avatarUrl || robloxHeadshot(acc.userId)} alt={acc.displayName} className={`w-12 h-12 rounded-full object-cover shrink-0 ring-2 ${acc.isActive ? "ring-white/30" : "ring-border"}`} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-semibold">{acc.label}</p>

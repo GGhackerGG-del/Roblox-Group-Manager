@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair, Cog, ShieldCheck, Megaphone, Gamepad2, Share2, Receipt, CalendarDays, Trophy, Plug, FlaskConical } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -170,7 +171,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
           <div className="flex items-center gap-3 px-2">
             <Avatar className="w-10 h-10 border border-border shadow-sm">
-              <AvatarImage src={profile?.avatarUrl || undefined} />
+              <AvatarImage src={profile?.avatarUrl || robloxHeadshot(profile?.id || 0)} />
               <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                 {profile?.displayName?.charAt(0) || "U"}
               </AvatarFallback>

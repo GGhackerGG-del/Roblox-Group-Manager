@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -820,7 +821,7 @@ function AltAccountsTab() {
               <CardContent className="p-4 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Avatar className="w-12 h-12 border border-border">
-                    <AvatarImage src={alt.avatarUrl || undefined} />
+                    <AvatarImage src={alt.avatarUrl || robloxHeadshot(alt.userId)} />
                     <AvatarFallback className="font-bold">{alt.displayName.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div>

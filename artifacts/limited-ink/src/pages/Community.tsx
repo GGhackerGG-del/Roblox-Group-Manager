@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
+import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -203,7 +204,7 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
               <div className="h-28 bg-gradient-to-br from-zinc-800 via-zinc-700 to-zinc-900 rounded-t-3xl" />
               <div className="absolute -bottom-10 left-6">
                 <Avatar className="w-20 h-20 border-4 border-background shadow-xl">
-                  <AvatarImage src={profile.user.avatarUrl || undefined} />
+                  <AvatarImage src={profile.user.avatarUrl || robloxHeadshot(profile.user.robloxUserId)} />
                   <AvatarFallback className="text-2xl font-bold">{profile.user.displayName.charAt(0)}</AvatarFallback>
                 </Avatar>
               </div>
@@ -344,7 +345,7 @@ function PostCard({ post, myUserId, onLike, onDelete, onComment, onUserClick }: 
           <div className="flex items-start justify-between gap-3">
             <button className="flex items-center gap-3 text-left" onClick={() => onUserClick(post.authorId)}>
               <Avatar className="w-10 h-10 border border-border">
-                <AvatarImage src={post.author?.avatarUrl || undefined} />
+                <AvatarImage src={post.author?.avatarUrl || robloxHeadshot(post.author?.robloxUserId || 0)} />
                 <AvatarFallback className="font-bold text-sm">{post.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
               </Avatar>
               <div>
@@ -451,7 +452,7 @@ function CommentsPanel({ post, myUser, onClose }: { post: Post; myUser: Platform
             comments.map(c => (
               <div key={c.id} className="flex items-start gap-3">
                 <Avatar className="w-8 h-8 shrink-0 border border-border">
-                  <AvatarImage src={c.author?.avatarUrl || undefined} />
+                  <AvatarImage src={c.author?.avatarUrl || robloxHeadshot(c.author?.robloxUserId || 0)} />
                   <AvatarFallback className="text-xs font-bold">{c.author?.displayName?.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 bg-secondary/60 rounded-xl px-3 py-2.5">
@@ -465,7 +466,7 @@ function CommentsPanel({ post, myUser, onClose }: { post: Post; myUser: Platform
         {myUser && (
           <div className="p-4 border-t border-border flex gap-2 items-center">
             <Avatar className="w-8 h-8 shrink-0 border border-border">
-              <AvatarImage src={myUser.avatarUrl || undefined} />
+              <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
               <AvatarFallback className="text-xs font-bold">{myUser.displayName.charAt(0)}</AvatarFallback>
             </Avatar>
             <Input
@@ -548,7 +549,7 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
           <CardContent className="p-4 space-y-3">
             <div className="flex gap-3">
               <Avatar className="w-9 h-9 shrink-0 border border-border mt-0.5">
-                <AvatarImage src={myUser.avatarUrl || undefined} />
+                <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
                 <AvatarFallback className="font-bold text-xs">{myUser.displayName.charAt(0)}</AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-2">
@@ -717,7 +718,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
                 >
                   <CardContent className="p-4 flex items-center gap-3">
                     <Avatar className="w-12 h-12 border border-border shrink-0">
-                      <AvatarImage src={user.avatarUrl || undefined} />
+                      <AvatarImage src={user.avatarUrl || robloxHeadshot(user.robloxUserId)} />
                       <AvatarFallback className="font-bold">{user.displayName.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
@@ -825,7 +826,7 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
                 <CardContent className="p-4 flex items-center gap-3">
                   <button onClick={() => onUserClick(user.id)}>
                     <Avatar className="w-11 h-11 border border-border">
-                      <AvatarImage src={user?.avatarUrl || undefined} />
+                      <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
                       <AvatarFallback className="font-bold">{user?.displayName?.charAt(0)}</AvatarFallback>
                     </Avatar>
                   </button>
@@ -865,7 +866,7 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
                 <CardContent className="p-4 flex items-center gap-3">
                   <button onClick={() => onUserClick(user.id)}>
                     <Avatar className="w-11 h-11 border border-border">
-                      <AvatarImage src={user?.avatarUrl || undefined} />
+                      <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
                       <AvatarFallback className="font-bold">{user?.displayName?.charAt(0)}</AvatarFallback>
                     </Avatar>
                   </button>
@@ -981,7 +982,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
               >
                 <div className="relative">
                   <Avatar className="w-9 h-9 border border-border shrink-0">
-                    <AvatarImage src={otherUser?.avatarUrl || undefined} />
+                    <AvatarImage src={otherUser?.avatarUrl || robloxHeadshot(otherUser?.robloxUserId || 0)} />
                     <AvatarFallback className="text-xs font-bold">{otherUser?.displayName?.charAt(0)}</AvatarFallback>
                   </Avatar>
                   {unreadCount > 0 && (
@@ -1012,7 +1013,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
           <>
             <div className="p-4 border-b border-border bg-secondary/30 flex items-center gap-3">
               <Avatar className="w-8 h-8 border border-border">
-                <AvatarImage src={activeChat.avatarUrl || undefined} />
+                <AvatarImage src={activeChat.avatarUrl || robloxHeadshot(activeChat.robloxUserId)} />
                 <AvatarFallback className="text-xs font-bold">{activeChat.displayName.charAt(0)}</AvatarFallback>
               </Avatar>
               <div>
@@ -1256,7 +1257,7 @@ function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUser
 
             <button className="flex items-center gap-2 text-left" onClick={() => onUserClick(selectedTopic.authorId)}>
               <Avatar className="w-8 h-8 border border-border">
-                <AvatarImage src={selectedTopic.author?.avatarUrl || undefined} />
+                <AvatarImage src={selectedTopic.author?.avatarUrl || robloxHeadshot(selectedTopic.author?.robloxUserId || 0)} />
                 <AvatarFallback className="text-xs font-bold">{selectedTopic.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
               </Avatar>
               <div>
@@ -1291,7 +1292,7 @@ function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUser
                     <div className="flex items-center justify-between">
                       <button className="flex items-center gap-2 text-left" onClick={() => onUserClick(r.authorId)}>
                         <Avatar className="w-7 h-7 border border-border">
-                          <AvatarImage src={r.author?.avatarUrl || undefined} />
+                          <AvatarImage src={r.author?.avatarUrl || robloxHeadshot(r.author?.robloxUserId || 0)} />
                           <AvatarFallback className="text-[10px] font-bold">{r.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
                         </Avatar>
                         <span className="text-xs font-semibold hover:underline">{r.author?.displayName}</span>
@@ -1488,7 +1489,7 @@ function LeaderboardTab({ onUserClick }: { onUserClick: (id: number) => void }) 
                   {i === 0 ? <Crown className="w-3.5 h-3.5" /> : i === 1 ? <Award className="w-3.5 h-3.5" /> : i === 2 ? <Flame className="w-3.5 h-3.5" /> : i + 1}
                 </div>
                 <Avatar className="w-8 h-8 border border-border shrink-0">
-                  <AvatarImage src={entry.user?.avatarUrl || undefined} />
+                  <AvatarImage src={entry.user?.avatarUrl || robloxHeadshot(entry.user?.robloxUserId || 0)} />
                   <AvatarFallback className="text-xs font-bold">{entry.user?.displayName?.charAt(0) || "?"}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
@@ -1648,7 +1649,7 @@ function MyProfileBanner({ myUser, onEdit }: { myUser: PlatformUser; onEdit: () 
       <CardContent className="px-5 pb-5">
         <div className="flex items-end justify-between -mt-7">
           <Avatar className="w-14 h-14 border-4 border-background shadow-md">
-            <AvatarImage src={myUser.avatarUrl || undefined} />
+            <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
             <AvatarFallback className="text-xl font-bold">{myUser.displayName.charAt(0)}</AvatarFallback>
           </Avatar>
           <Button size="sm" variant="outline" onClick={onEdit} className="rounded-xl gap-1.5 text-xs h-8 mb-0.5">
@@ -1795,7 +1796,7 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
             <Card key={m.id} className="rounded-2xl border-border/50">
               <CardContent className="p-3 flex items-center gap-3">
                 <Avatar className="w-10 h-10 border border-border shrink-0">
-                  <AvatarImage src={m.user?.avatarUrl || undefined} />
+                  <AvatarImage src={m.user?.avatarUrl || robloxHeadshot(m.user?.robloxUserId || 0)} />
                   <AvatarFallback>{m.user?.displayName?.charAt(0) || "?"}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
@@ -2046,7 +2047,7 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
           const isMe = msg.senderId === myUser.id;
           return (
             <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-              {!isMe && <Avatar className="w-7 h-7 border border-border shrink-0 mb-0.5"><AvatarImage src={msg.sender?.avatarUrl || undefined} /><AvatarFallback className="text-[10px]">{msg.sender?.displayName?.charAt(0) || "?"}</AvatarFallback></Avatar>}
+              {!isMe && <Avatar className="w-7 h-7 border border-border shrink-0 mb-0.5"><AvatarImage src={msg.sender?.avatarUrl || robloxHeadshot(msg.sender?.robloxUserId || 0)} /><AvatarFallback className="text-[10px]">{msg.sender?.displayName?.charAt(0) || "?"}</AvatarFallback></Avatar>}
               <div className={`max-w-[70%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
                 {!isMe && <p className="text-[10px] text-muted-foreground px-1">{msg.sender?.displayName}</p>}
                 <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>{msg.content}</div>
@@ -2321,7 +2322,7 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
                           <Badge variant="outline" className={`text-[9px] ${PRIORITY_COLORS[task.priority] || ""}`}>{task.priority}</Badge>
                           {task.assignee && (
                             <div className="flex items-center gap-1">
-                              <Avatar className="w-4 h-4"><AvatarImage src={task.assignee.avatarUrl || undefined} /><AvatarFallback className="text-[8px]">{task.assignee.displayName?.charAt(0)}</AvatarFallback></Avatar>
+                              <Avatar className="w-4 h-4"><AvatarImage src={task.assignee.avatarUrl || robloxHeadshot(task.assignee.robloxUserId || 0)} /><AvatarFallback className="text-[8px]">{task.assignee.displayName?.charAt(0)}</AvatarFallback></Avatar>
                               <span className="text-[9px] text-muted-foreground">{task.assignee.displayName}</span>
                             </div>
                           )}
@@ -2419,7 +2420,7 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
           {searchResults.map(u => (
             <Card key={u.id} className="rounded-2xl border-border/50 hover:border-black/20 cursor-pointer transition-colors" onClick={() => viewRep(u)}>
               <CardContent className="p-3 flex items-center gap-3">
-                <Avatar className="w-10 h-10 border border-border"><AvatarImage src={u.avatarUrl || undefined} /><AvatarFallback>{u.displayName?.charAt(0)}</AvatarFallback></Avatar>
+                <Avatar className="w-10 h-10 border border-border"><AvatarImage src={u.avatarUrl || robloxHeadshot(u.robloxUserId)} /><AvatarFallback>{u.displayName?.charAt(0)}</AvatarFallback></Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{u.displayName}</p>
                   <p className="text-xs text-muted-foreground">@{u.robloxUsername}</p>
@@ -2438,7 +2439,7 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
           </div>
           <Card className="rounded-2xl border-border/50">
             <CardContent className="pt-4 flex items-center gap-4">
-              <Avatar className="w-16 h-16 border-2 border-amber-500/20"><AvatarImage src={viewUser.avatarUrl || undefined} /><AvatarFallback className="text-xl">{viewUser.displayName?.charAt(0)}</AvatarFallback></Avatar>
+              <Avatar className="w-16 h-16 border-2 border-amber-500/20"><AvatarImage src={viewUser.avatarUrl || robloxHeadshot(viewUser.robloxUserId)} /><AvatarFallback className="text-xl">{viewUser.displayName?.charAt(0)}</AvatarFallback></Avatar>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-lg">{viewUser.displayName}</p>
                 <p className="text-sm text-muted-foreground">@{viewUser.robloxUsername}</p>
@@ -2468,7 +2469,7 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Последние эндорсменты</p>
                   {repData.endorsements.slice(0, 5).map((e: any, i: number) => (
                     <div key={i} className="flex items-start gap-3 rounded-xl border border-border/50 p-3">
-                      <Avatar className="w-8 h-8 border border-border shrink-0"><AvatarImage src={e.from?.avatarUrl || undefined} /><AvatarFallback className="text-xs">{e.from?.displayName?.charAt(0)}</AvatarFallback></Avatar>
+                      <Avatar className="w-8 h-8 border border-border shrink-0"><AvatarImage src={e.from?.avatarUrl || robloxHeadshot(e.from?.robloxUserId || 0)} /><AvatarFallback className="text-xs">{e.from?.displayName?.charAt(0)}</AvatarFallback></Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-xs font-semibold">{e.from?.displayName}</p>
@@ -2680,7 +2681,7 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
                   <div className="flex items-center gap-2 pt-1 border-t border-border/50">
                     {item.seller && (
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <Avatar className="w-5 h-5 border border-border shrink-0"><AvatarImage src={item.seller.avatarUrl || undefined} /><AvatarFallback className="text-[9px]">{item.seller.displayName?.charAt(0)}</AvatarFallback></Avatar>
+                        <Avatar className="w-5 h-5 border border-border shrink-0"><AvatarImage src={item.seller.avatarUrl || robloxHeadshot(item.seller.robloxUserId || 0)} /><AvatarFallback className="text-[9px]">{item.seller.displayName?.charAt(0)}</AvatarFallback></Avatar>
                         <p className="text-[10px] text-muted-foreground truncate">{item.seller.displayName}</p>
                       </div>
                     )}
