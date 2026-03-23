@@ -169,8 +169,8 @@ export default function Activation() {
             className="flex items-center justify-between w-full px-4 py-3.5 mb-6 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/80 transition-all group text-left"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0">
-                <img src={`${import.meta.env.BASE_URL}funpay-logo.png`} alt="FunPay" className="w-full h-full object-cover rounded-xl" />
+              <div className="w-9 h-9 rounded-xl bg-[#5B8EC2]/15 flex items-center justify-center shrink-0">
+                <img src={`${import.meta.env.BASE_URL}funpay-logo.png`} alt="FunPay" className="w-5 h-5 object-contain rounded-sm" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">FunPay</p>
