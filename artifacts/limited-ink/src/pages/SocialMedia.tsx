@@ -138,7 +138,7 @@ function AutoPostTab({ groups }: { groups: any[] }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Discord Webhook</Label>
               {webhooks.length === 0 ? (
@@ -157,6 +157,16 @@ function AutoPostTab({ groups }: { groups: any[] }) {
               <Select value={config.groupId} onValueChange={v => setConfig((p: any) => ({ ...p, groupId: v }))}>
                 <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder={t("sm.selectGroup")} /></SelectTrigger>
                 <SelectContent>{(groups || []).map((g: any) => <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("sm.postFilter")}</Label>
+              <Select value={config.postFilter || "all"} onValueChange={v => setConfig((p: any) => ({ ...p, postFilter: v }))}>
+                <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("sm.filterAll")}</SelectItem>
+                  <SelectItem value="ugc">{t("sm.filterUGC")}</SelectItem>
+                </SelectContent>
               </Select>
             </div>
           </div>
@@ -630,7 +640,8 @@ function LinkHubTab() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SocialMedia() {
-  const { groups, loading: groupsLoading } = useGetRobloxGroups();
+  const { data: groupsData, isLoading: groupsLoading } = useGetRobloxGroups();
+  const groups = groupsData?.groups || [];
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState("autopost");
 

@@ -19,19 +19,20 @@ function getHeaders(cookie: string) {
 router.get("/social-media/auto-post/config", (req, res): void => {
   res.json({
     config: req.session.autoPostConfig || {
-      enabled: false, webhookId: "", groupId: "", template: "🆕 Новый товар: **{name}**\n💰 Цена: {price} Robux\n🔗 {link}", color: 0x5865F2, lastPostedItemId: null, lastChecked: null,
+      enabled: false, webhookId: "", groupId: "", template: "🆕 Новый товар: **{name}**\n💰 Цена: {price} Robux\n🔗 {link}", color: 0x5865F2, postFilter: "all", lastPostedItemId: null, lastChecked: null,
     },
   });
 });
 
 router.post("/social-media/auto-post/config", (req, res): void => {
-  const { enabled, webhookId, groupId, template, color } = req.body;
+  const { enabled, webhookId, groupId, template, color, postFilter } = req.body;
   req.session.autoPostConfig = {
     enabled: !!enabled,
     webhookId: webhookId || "",
     groupId: groupId || "",
     template: template || "",
     color: color || 0x5865F2,
+    postFilter: postFilter || "all",
     lastPostedItemId: req.session.autoPostConfig?.lastPostedItemId ?? null,
     lastChecked: req.session.autoPostConfig?.lastChecked ?? null,
   };
@@ -53,9 +54,10 @@ router.post("/social-media/auto-post/check", async (req, res): Promise<void> => 
   }
 
   try {
-    // Fetch latest group items from catalog
+    // Fetch latest group items from catalog based on filter
+    const filterParam = config.postFilter === "ugc" ? "&subcategory=Accessories" : "";
     const itemsRes = await fetch(
-      `${CATALOG_API}/v1/search/items?groupId=${config.groupId}&limit=10&sortOrder=Desc&subcategory=Clothing`,
+      `${CATALOG_API}/v1/search/items?groupId=${config.groupId}&limit=10&sortOrder=Desc${filterParam}`,
       { headers: getHeaders(cookie) }
     );
     const itemsData = await itemsRes.json() as any;
