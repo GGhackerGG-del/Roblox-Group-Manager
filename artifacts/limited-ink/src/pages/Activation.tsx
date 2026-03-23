@@ -120,20 +120,21 @@ export default function Activation() {
           </div>
 
           {/* steps */}
-          <div className="grid grid-cols-3 gap-3 mb-8">
+          <div className="grid grid-cols-2 gap-3 mb-8">
             {[
               { num: "1", label: t("activation.step1"), desc: t("activation.step1.desc") },
               { num: "2", label: t("activation.step2"), desc: t("activation.step2.desc") },
               { num: "3", label: t("activation.step3"), desc: t("activation.step3.desc") },
+              { num: "FP", label: t("activation.stepAlt"), desc: t("activation.stepAlt.desc"), alt: true },
             ].map((s, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.05 * i, duration: 0.4, ease: "easeOut" }}
-                className="p-3.5 rounded-2xl bg-secondary/60 border border-border/50 hover:border-border transition-colors"
+                className={`p-3.5 rounded-2xl border border-border/50 hover:border-border transition-colors ${(s as any).alt ? "bg-[#5B8EC2]/10" : "bg-secondary/60"}`}
               >
-                <div className="w-7 h-7 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold mb-2">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mb-2 ${(s as any).alt ? "bg-[#5B8EC2] text-white" : "bg-foreground text-background"}`}>
                   {s.num}
                 </div>
                 <p className="text-xs font-semibold text-foreground leading-tight mb-0.5">{s.label}</p>
@@ -168,11 +169,8 @@ export default function Activation() {
             className="flex items-center justify-between w-full px-4 py-3.5 mb-6 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/80 transition-all group text-left"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#00B67A]/15 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-                  <path d="M4 4h16v16H4V4z" rx="3" fill="#00B67A" opacity="0.15"/>
-                  <text x="12" y="16.5" textAnchor="middle" fill="#00B67A" fontSize="11" fontWeight="bold" fontFamily="Arial, sans-serif">FP</text>
-                </svg>
+              <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0">
+                <img src={`${import.meta.env.BASE_URL}funpay-logo.png`} alt="FunPay" className="w-full h-full object-cover" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">FunPay</p>
