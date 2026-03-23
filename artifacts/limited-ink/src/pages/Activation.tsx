@@ -163,6 +163,26 @@ export default function Activation() {
             <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
           </a>
 
+          <a
+            href="https://funpay.com/users/2941091/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between w-full px-4 py-3.5 mb-6 rounded-2xl border border-border bg-secondary/40 hover:bg-secondary/80 transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#6C5CE7]/15 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-[#6C5CE7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">FunPay</p>
+                <p className="text-xs text-muted-foreground">{t("activation.funpayLink")}</p>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+          </a>
+
           {/* form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="relative">
