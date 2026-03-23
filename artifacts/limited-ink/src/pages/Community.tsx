@@ -20,6 +20,7 @@ import {
   MessageCircleQuestion, Plus, ArrowLeft, CheckCircle2, Crown, Award, Flame,
   Briefcase, UserCog, ShieldCheck, Store, Download, ThumbsUp as Endorse,
   Columns, ListTodo, Tag, Package, ChevronDown, Hash, Settings2,
+  Phone, PhoneOff, Mic, MicOff, Volume2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -1076,7 +1077,36 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [showAddMember, setShowAddMember] = useState(false);
   const [addMemberInput, setAddMemberInput] = useState("");
   const [robloxGroupChatCreated, setRobloxGroupChatCreated] = useState(false);
+
+  const [callActive, setCallActive] = useState(false);
+  const [callMuted, setCallMuted] = useState(false);
+  const [callTimer, setCallTimer] = useState(0);
+  const [callConnecting, setCallConnecting] = useState(false);
+  const callStreamRef = useRef<MediaStream | null>(null);
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordStreamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return () => {
+      callStreamRef.current?.getTracks().forEach(t => t.stop());
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
+      recordStreamRef.current?.getTracks().forEach(t => t.stop());
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.ondataavailable = null;
+        mediaRecorderRef.current.onstop = null;
+        mediaRecorderRef.current.stop();
+      }
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    };
+  }, []);
   const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
 
   const fetchAll = useCallback(async () => {
@@ -1136,6 +1166,125 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const startCall = async () => {
+    try {
+      setCallConnecting(true);
+      const micId = localStorage.getItem("limitedink_mic_id");
+      const constraints: MediaStreamConstraints = { audio: micId ? { deviceId: { exact: micId } } : true };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      callStreamRef.current = stream;
+      setCallActive(true);
+      setCallConnecting(false);
+      setCallTimer(0);
+      callTimerRef.current = setInterval(() => setCallTimer(p => p + 1), 1000);
+    } catch {
+      setCallConnecting(false);
+      toast({ variant: "destructive", title: t("com.noMicAccess"), description: t("com.micPermissionDenied") });
+    }
+  };
+
+  const endCall = () => {
+    callStreamRef.current?.getTracks().forEach(t => t.stop());
+    callStreamRef.current = null;
+    if (callTimerRef.current) clearInterval(callTimerRef.current);
+    callTimerRef.current = null;
+    setCallActive(false);
+    setCallMuted(false);
+    setCallTimer(0);
+    setCallConnecting(false);
+    toast({ title: t("com.callEnded") });
+  };
+
+  const toggleMute = () => {
+    if (callStreamRef.current) {
+      callStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
+      setCallMuted(p => !p);
+    }
+  };
+
+  const formatCallTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const startRecording = async () => {
+    try {
+      const micId = localStorage.getItem("limitedink_mic_id");
+      const constraints: MediaStreamConstraints = { audio: micId ? { deviceId: { exact: micId } } : true };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      recordStreamRef.current = stream;
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4" });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
+        setVoiceBlob(blob);
+        recordStreamRef.current?.getTracks().forEach(t => t.stop());
+        recordStreamRef.current = null;
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordTimerRef.current = setInterval(() => setRecordingTime(p => p + 1), 1000);
+    } catch {
+      toast({ variant: "destructive", title: t("com.noMicAccess"), description: t("com.micPermissionDenied") });
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    recordTimerRef.current = null;
+    setIsRecording(false);
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.ondataavailable = null;
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    recordStreamRef.current?.getTracks().forEach(t => t.stop());
+    recordStreamRef.current = null;
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    recordTimerRef.current = null;
+    setIsRecording(false);
+    setRecordingTime(0);
+    setVoiceBlob(null);
+  };
+
+  const sendVoiceMessage = async () => {
+    if (!voiceBlob || !active) return;
+    setSending(true);
+    try {
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(voiceBlob);
+      });
+      const content = `[voice:${dataUrl}]`;
+      if (active.kind === "dm") {
+        const d = await apiFetch<{ message: DmMessage }>(`/api/social/messages/${active.user.id}`, {
+          method: "POST", body: JSON.stringify({ content }),
+        });
+        setMessages(prev => [...prev, d.message]);
+      } else {
+        const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${active.chat.id}/messages`, {
+          method: "POST", body: JSON.stringify({ content }),
+        });
+        setMessages(prev => [...prev, message]);
+      }
+      setVoiceBlob(null);
+      setRecordingTime(0);
+    } catch {
+      toast({ variant: "destructive", title: t("com.error"), description: t("com.sendFailed") });
+    } finally { setSending(false); }
+  };
 
   const handleSendDm = async () => {
     if (!text.trim() || !active || active.kind !== "dm") return;
@@ -1224,6 +1373,49 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     const h = Math.floor(m / 60);
     if (h < 24) return `${h}ч`;
     return `${Math.floor(h / 24)}д`;
+  };
+
+  const isVoiceMsg = (content: string) => content.startsWith("[voice:") && content.endsWith("]");
+  const getVoiceSrc = (content: string) => content.slice(7, -1);
+
+  const VoicePlayer = ({ src, isOwn }: { src: string; isOwn: boolean }) => {
+    const [playing, setPlaying] = useState(false);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    return (
+      <div className="flex items-center gap-2 min-w-[160px]">
+        <button
+          onClick={() => {
+            if (!audioRef.current) {
+              audioRef.current = new Audio(src);
+              const speakerId = localStorage.getItem("limitedink_speaker_id");
+              if (speakerId && (audioRef.current as any).setSinkId) {
+                (audioRef.current as any).setSinkId(speakerId).catch(() => {});
+              }
+              audioRef.current.onended = () => setPlaying(false);
+            }
+            if (playing) { audioRef.current.pause(); audioRef.current.currentTime = 0; setPlaying(false); }
+            else { audioRef.current.play(); setPlaying(true); }
+          }}
+          className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${isOwn ? "bg-white/20 hover:bg-white/30" : "bg-black/10 hover:bg-black/15"}`}
+        >
+          {playing ? (
+            <div className="flex items-center gap-0.5">
+              <span className={`w-0.5 h-3 rounded-full animate-pulse ${isOwn ? "bg-white" : "bg-black"}`} />
+              <span className={`w-0.5 h-4 rounded-full animate-pulse delay-75 ${isOwn ? "bg-white" : "bg-black"}`} />
+              <span className={`w-0.5 h-2 rounded-full animate-pulse delay-150 ${isOwn ? "bg-white" : "bg-black"}`} />
+            </div>
+          ) : (
+            <Volume2 className={`w-3.5 h-3.5 ${isOwn ? "text-white" : "text-black"}`} />
+          )}
+        </button>
+        <div className="flex-1 flex items-center gap-1">
+          {[...Array(12)].map((_, i) => (
+            <div key={i} className={`w-1 rounded-full ${isOwn ? "bg-white/40" : "bg-black/20"} ${playing ? "animate-pulse" : ""}`} style={{ height: `${6 + Math.random() * 12}px`, animationDelay: `${i * 50}ms` }} />
+          ))}
+        </div>
+        <Mic className={`w-3 h-3 shrink-0 ${isOwn ? "text-white/50" : "text-muted-foreground"}`} />
+      </div>
+    );
   };
 
   return (
@@ -1340,11 +1532,34 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   <AvatarImage src={active.user.avatarUrl || robloxHeadshot(active.user.robloxUserId)} />
                   <AvatarFallback className="text-xs font-bold">{active.user.displayName.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{active.user.displayName}</p>
                   <p className="text-xs text-muted-foreground">@{active.user.robloxUsername}</p>
                 </div>
+                <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" onClick={callActive ? endCall : startCall} disabled={callConnecting} title={t("com.voiceCall")}>
+                  {callConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : callActive ? <PhoneOff className="w-4 h-4 text-red-500" /> : <Phone className="w-4 h-4" />}
+                </Button>
               </div>
+              <AnimatePresence>
+                {(callActive || callConnecting) && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-b border-border overflow-hidden">
+                    <div className="px-4 py-3 bg-black text-white flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium">{callConnecting ? t("com.calling") : `${t("com.callWith")} ${active.user.displayName}`}</p>
+                        {callActive && <p className="text-[10px] text-white/60 font-mono">{formatCallTime(callTimer)}</p>}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={toggleMute} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${callMuted ? "bg-red-500/80" : "bg-white/20 hover:bg-white/30"}`}>
+                          {callMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                        </button>
+                        <button onClick={endCall} className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors">
+                          <PhoneOff className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {loadingMsgs ? (
                   <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
@@ -1356,7 +1571,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                     return (
                       <div key={msg.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${isOwn ? "bg-black text-white rounded-br-md" : "bg-secondary rounded-bl-md"}`}>
-                          {msg.content}
+                          {isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isOwn} /> : msg.content}
                           <p className={`text-[10px] mt-1 ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>{timeAgo(msg.createdAt, t)}</p>
                         </div>
                       </div>
@@ -1366,11 +1581,37 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 <div ref={messagesEndRef} />
               </div>
               {myUser && (
-                <div className="p-3 border-t border-border flex gap-2 items-center">
-                  <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={`${t("com.messagePlaceholder")} ${active.user.displayName}`} className="rounded-xl flex-1" />
-                  <Button onClick={handleSend} disabled={sending || !text.trim()} size="sm" className="rounded-xl px-3 h-9 shrink-0">
-                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </Button>
+                <div className="p-3 border-t border-border">
+                  <AnimatePresence>
+                    {isRecording && (
+                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="flex items-center gap-3 mb-2 px-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <p className="text-xs font-medium text-red-500">{t("com.recording")} {formatCallTime(recordingTime)}</p>
+                        <div className="flex-1" />
+                        <Button size="sm" variant="ghost" className="rounded-xl h-7 text-xs" onClick={cancelRecording}>{t("com.cancelRecording")}</Button>
+                        <Button size="sm" className="rounded-xl h-7 text-xs" onClick={stopRecording}><Check className="w-3 h-3 mr-1" /> {t("com.endCall")}</Button>
+                      </motion.div>
+                    )}
+                    {voiceBlob && !isRecording && (
+                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="flex items-center gap-2 mb-2 px-1 py-1.5 bg-secondary/50 rounded-xl">
+                        <Mic className="w-4 h-4 text-muted-foreground ml-2" />
+                        <p className="text-xs font-medium flex-1">{t("com.voiceMessage")} ({formatCallTime(recordingTime)})</p>
+                        <Button size="sm" variant="ghost" className="rounded-xl h-7 text-xs" onClick={() => { setVoiceBlob(null); setRecordingTime(0); }}><X className="w-3 h-3" /></Button>
+                        <Button size="sm" className="rounded-xl h-7 text-xs gap-1" onClick={sendVoiceMessage} disabled={sending}>
+                          {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} {t("com.sendVoice")}
+                        </Button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <div className="flex gap-2 items-center">
+                    <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={isRecording ? stopRecording : startRecording} title={t("com.recordVoice")} disabled={!!voiceBlob}>
+                      <Mic className={`w-4 h-4 ${isRecording ? "text-red-500" : ""}`} />
+                    </Button>
+                    <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={`${t("com.messagePlaceholder")} ${active.user.displayName}`} className="rounded-xl flex-1" disabled={isRecording || !!voiceBlob} />
+                    <Button onClick={handleSend} disabled={sending || !text.trim() || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
+                      {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </Button>
+                  </div>
                 </div>
               )}
             </>
@@ -1384,8 +1625,31 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   <p className="font-semibold text-sm">{active.chat.name}</p>
                   <p className="text-[10px] text-muted-foreground">{chatMembers.length} {t("com.members")}</p>
                 </div>
+                <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" onClick={callActive ? endCall : startCall} disabled={callConnecting} title={t("com.voiceCall")}>
+                  {callConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : callActive ? <PhoneOff className="w-4 h-4 text-red-500" /> : <Phone className="w-4 h-4" />}
+                </Button>
                 <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
               </div>
+              <AnimatePresence>
+                {(callActive || callConnecting) && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-b border-border overflow-hidden">
+                    <div className="px-4 py-3 bg-black text-white flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium">{callConnecting ? t("com.calling") : `${t("com.inCall")} — ${active.chat.name}`}</p>
+                        {callActive && <p className="text-[10px] text-white/60 font-mono">{formatCallTime(callTimer)}</p>}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={toggleMute} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${callMuted ? "bg-red-500/80" : "bg-white/20 hover:bg-white/30"}`}>
+                          {callMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                        </button>
+                        <button onClick={endCall} className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors">
+                          <PhoneOff className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               {showAddMember && (
                 <div className="flex gap-2 px-4 py-2 border-b border-border">
                   <Input placeholder={t("com.addMember")} value={addMemberInput} onChange={e => setAddMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addMemberToChat()} className="rounded-xl flex-1 text-xs h-8" />
@@ -1405,7 +1669,9 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                         {!isMe && <Avatar className="w-7 h-7 border border-border shrink-0 mb-0.5"><AvatarImage src={msg.sender?.avatarUrl || robloxHeadshot(msg.sender?.robloxUserId || 0)} /><AvatarFallback className="text-[10px]">{msg.sender?.displayName?.charAt(0) || "?"}</AvatarFallback></Avatar>}
                         <div className={`max-w-[70%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
                           {!isMe && <p className="text-[10px] text-muted-foreground px-1">{msg.sender?.displayName}</p>}
-                          <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>{msg.content}</div>
+                          <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>
+                            {isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isMe} /> : msg.content}
+                          </div>
                           <p className="text-[10px] text-muted-foreground px-1">{timeAgoShort(msg.createdAt)}</p>
                         </div>
                       </div>
@@ -1415,11 +1681,37 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 <div ref={messagesEndRef} />
               </div>
               {myUser && (
-                <div className="p-3 border-t border-border flex gap-2 items-center">
-                  <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={t("com.messagePlaceholder")} className="rounded-xl flex-1" />
-                  <Button onClick={handleSend} disabled={sending || !text.trim()} size="sm" className="rounded-xl px-3 h-9 shrink-0">
-                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </Button>
+                <div className="p-3 border-t border-border">
+                  <AnimatePresence>
+                    {isRecording && (
+                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="flex items-center gap-3 mb-2 px-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <p className="text-xs font-medium text-red-500">{t("com.recording")} {formatCallTime(recordingTime)}</p>
+                        <div className="flex-1" />
+                        <Button size="sm" variant="ghost" className="rounded-xl h-7 text-xs" onClick={cancelRecording}>{t("com.cancelRecording")}</Button>
+                        <Button size="sm" className="rounded-xl h-7 text-xs" onClick={stopRecording}><Check className="w-3 h-3 mr-1" /> {t("com.endCall")}</Button>
+                      </motion.div>
+                    )}
+                    {voiceBlob && !isRecording && (
+                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="flex items-center gap-2 mb-2 px-1 py-1.5 bg-secondary/50 rounded-xl">
+                        <Mic className="w-4 h-4 text-muted-foreground ml-2" />
+                        <p className="text-xs font-medium flex-1">{t("com.voiceMessage")} ({formatCallTime(recordingTime)})</p>
+                        <Button size="sm" variant="ghost" className="rounded-xl h-7 text-xs" onClick={() => { setVoiceBlob(null); setRecordingTime(0); }}><X className="w-3 h-3" /></Button>
+                        <Button size="sm" className="rounded-xl h-7 text-xs gap-1" onClick={sendVoiceMessage} disabled={sending}>
+                          {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} {t("com.sendVoice")}
+                        </Button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <div className="flex gap-2 items-center">
+                    <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={isRecording ? stopRecording : startRecording} title={t("com.recordVoice")} disabled={!!voiceBlob}>
+                      <Mic className={`w-4 h-4 ${isRecording ? "text-red-500" : ""}`} />
+                    </Button>
+                    <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={t("com.messagePlaceholder")} className="rounded-xl flex-1" disabled={isRecording || !!voiceBlob} />
+                    <Button onClick={handleSend} disabled={sending || !text.trim() || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
+                      {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </Button>
+                  </div>
                 </div>
               )}
             </>

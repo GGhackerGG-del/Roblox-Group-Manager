@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage, type Lang } from "@/contexts/LanguageContext";
@@ -15,7 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Settings as SettingsIcon, User, Key, Shield, Bell, Palette,
   LogOut, Trash2, Download, Moon, Sun, Monitor, ChevronRight,
-  Loader2, CheckCircle2, Globe, Info, Zap, RefreshCw, Languages
+  Loader2, CheckCircle2, Globe, Info, Zap, RefreshCw, Languages,
+  Mic, Volume2
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -86,6 +87,78 @@ export default function Settings() {
   const [notifSound, setNotifSound] = useState(() => localStorage.getItem("limitedink_notif_sound") !== "false");
   const [compactMode, setCompactMode] = useState(() => localStorage.getItem("limitedink_compact") === "true");
   const [autoRefreshSales, setAutoRefreshSales] = useState(() => localStorage.getItem("limitedink_auto_refresh") === "true");
+
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMic, setSelectedMic] = useState(() => localStorage.getItem("limitedink_mic_id") || "");
+  const [selectedSpeaker, setSelectedSpeaker] = useState(() => localStorage.getItem("limitedink_speaker_id") || "");
+  const [micTesting, setMicTesting] = useState(false);
+  const [micLevel, setMicLevel] = useState(0);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micTestTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const micRafRef = useRef<number | null>(null);
+  const micCtxRef = useRef<AudioContext | null>(null);
+
+  const loadAudioDevices = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true }).then(s => s.getTracks().forEach(t => t.stop()));
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setAudioDevices(devices.filter(d => d.kind === "audioinput" || d.kind === "audiooutput"));
+    } catch {
+      toast({ variant: "destructive", title: t("settings.audio.permissionNeeded") });
+    }
+  };
+
+  const stopMicTest = () => {
+    micStreamRef.current?.getTracks().forEach(tr => tr.stop());
+    micStreamRef.current = null;
+    if (micTestTimeoutRef.current) { clearTimeout(micTestTimeoutRef.current); micTestTimeoutRef.current = null; }
+    if (micRafRef.current) { cancelAnimationFrame(micRafRef.current); micRafRef.current = null; }
+    if (micCtxRef.current) { micCtxRef.current.close().catch(() => {}); micCtxRef.current = null; }
+    setMicTesting(false);
+    setMicLevel(0);
+  };
+
+  useEffect(() => { return () => { stopMicTest(); }; }, []);
+
+  const testMicrophone = async () => {
+    if (micTesting) { stopMicTest(); return; }
+    try {
+      const constraints: MediaStreamConstraints = { audio: selectedMic ? { deviceId: { exact: selectedMic } } : true };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      micStreamRef.current = stream;
+      setMicTesting(true);
+      const ctx = new AudioContext();
+      micCtxRef.current = ctx;
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const check = () => {
+        if (!micStreamRef.current) return;
+        analyser.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        setMicLevel(Math.min(100, Math.round(avg * 1.5)));
+        micRafRef.current = requestAnimationFrame(check);
+      };
+      check();
+      micTestTimeoutRef.current = setTimeout(() => { stopMicTest(); }, 5000);
+    } catch {
+      toast({ variant: "destructive", title: t("settings.audio.permissionNeeded") });
+    }
+  };
+
+  const saveMicSelection = (deviceId: string) => {
+    setSelectedMic(deviceId);
+    localStorage.setItem("limitedink_mic_id", deviceId);
+    toast({ title: t("settings.audio.saved") });
+  };
+
+  const saveSpeakerSelection = (deviceId: string) => {
+    setSelectedSpeaker(deviceId);
+    localStorage.setItem("limitedink_speaker_id", deviceId);
+    toast({ title: t("settings.audio.saved") });
+  };
 
   const handleSaveBio = async () => {
     setSavingBio(true);
@@ -189,6 +262,7 @@ export default function Settings() {
     { id: "privacy", label: t("settings.privacy"), icon: Shield },
     { id: "data", label: t("settings.data"), icon: Download },
     { id: "license", label: t("settings.license"), icon: Key },
+    { id: "audio", label: t("settings.audio"), icon: Mic },
     { id: "about", label: t("settings.about"), icon: Info },
   ];
 
@@ -638,6 +712,87 @@ export default function Settings() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {active === "audio" && (
+              <div className="space-y-5">
+                <Card className="rounded-2xl border border-border shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2"><Mic className="w-4 h-4" /> {t("settings.audio")}</CardTitle>
+                    <CardDescription>{t("settings.audio.desc")}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold flex items-center gap-2"><Mic className="w-3.5 h-3.5" /> {t("settings.audio.microphone")}</Label>
+                      <div className="space-y-2">
+                        {audioDevices.filter(d => d.kind === "audioinput").length > 0 ? (
+                          audioDevices.filter(d => d.kind === "audioinput").map(d => (
+                            <button
+                              key={d.deviceId}
+                              onClick={() => saveMicSelection(d.deviceId)}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all border ${selectedMic === d.deviceId ? "border-black bg-black text-white" : "border-border hover:bg-secondary"}`}
+                            >
+                              <Mic className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{d.label || t("settings.audio.default")}</span>
+                              {selectedMic === d.deviceId && <CheckCircle2 className="w-4 h-4 ml-auto shrink-0" />}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="text-sm text-muted-foreground p-3 bg-secondary/50 rounded-xl">
+                            {t("settings.audio.noDevices")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs" onClick={testMicrophone}>
+                          {micTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mic className="w-3.5 h-3.5" />}
+                          {micTesting ? t("settings.audio.testing") : t("settings.audio.testMic")}
+                        </Button>
+                        {micTesting && (
+                          <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
+                            <motion.div
+                              className="h-full bg-black rounded-full"
+                              animate={{ width: `${micLevel}%` }}
+                              transition={{ duration: 0.1 }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-border" />
+
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold flex items-center gap-2"><Volume2 className="w-3.5 h-3.5" /> {t("settings.audio.speaker")}</Label>
+                      <div className="space-y-2">
+                        {audioDevices.filter(d => d.kind === "audiooutput").length > 0 ? (
+                          audioDevices.filter(d => d.kind === "audiooutput").map(d => (
+                            <button
+                              key={d.deviceId}
+                              onClick={() => saveSpeakerSelection(d.deviceId)}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all border ${selectedSpeaker === d.deviceId ? "border-black bg-black text-white" : "border-border hover:bg-secondary"}`}
+                            >
+                              <Volume2 className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{d.label || t("settings.audio.default")}</span>
+                              {selectedSpeaker === d.deviceId && <CheckCircle2 className="w-4 h-4 ml-auto shrink-0" />}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="text-sm text-muted-foreground p-3 bg-secondary/50 rounded-xl">
+                            {t("settings.audio.noDevices")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {audioDevices.length === 0 && (
+                      <Button variant="outline" className="w-full rounded-xl gap-2" onClick={loadAudioDevices}>
+                        <Mic className="w-4 h-4" /> {t("settings.audio.selectMic")}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {active === "about" && (
