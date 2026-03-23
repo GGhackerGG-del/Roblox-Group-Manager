@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { getAuthCredentials } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,8 +20,12 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+function getAuthHeaders(): Record<string, string> {
+  const { credentials } = getAuthCredentials();
+  return credentials ? { Authorization: `Bearer ${credentials}` } : {};
+}
 async function api<T = any>(url: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${url}`, { headers: { "Content-Type": "application/json" }, credentials: "include", ...opts });
+  const res = await fetch(`${BASE}${url}`, { ...opts, credentials: "include", headers: { "Content-Type": "application/json", ...getAuthHeaders(), ...(opts?.headers || {}) } });
   if (!res.ok) { const e = await res.json().catch(() => ({ error: "Error" })); throw new Error(e.error || "Failed"); }
   return res.json();
 }

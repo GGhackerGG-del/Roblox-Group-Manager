@@ -906,6 +906,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 }) {
   const { toast } = useToast();
   const { t } = useLanguage();
+  const [chatMode, setChatMode] = useState<"dm" | "group">(initialChatUser ? "dm" : "dm");
   const [conversations, setConversations] = useState<DmConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<PlatformUser | null>(null);
@@ -914,6 +915,10 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialChatUser) setChatMode("dm");
+  }, [initialChatUser]);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -957,7 +962,28 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     } finally { setSending(false); }
   };
 
+  if (chatMode === "group") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-xl border border-border overflow-hidden">
+            <button onClick={() => setChatMode("dm")} className="px-4 py-1.5 text-xs font-semibold bg-secondary/40 hover:bg-secondary transition-colors">ЛС</button>
+            <button onClick={() => setChatMode("group")} className="px-4 py-1.5 text-xs font-semibold bg-black text-white">Группочаты</button>
+          </div>
+        </div>
+        <GroupChatTab myUser={myUser} />
+      </div>
+    );
+  }
+
   return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="flex rounded-xl border border-border overflow-hidden">
+          <button onClick={() => setChatMode("dm")} className="px-4 py-1.5 text-xs font-semibold bg-black text-white">ЛС</button>
+          <button onClick={() => setChatMode("group")} className="px-4 py-1.5 text-xs font-semibold bg-secondary/40 hover:bg-secondary transition-colors">Группочаты</button>
+        </div>
+      </div>
     <div className="flex gap-4 h-[620px]">
       {/* Sidebar */}
       <div className="w-72 shrink-0 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -1060,6 +1086,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
           </>
         )}
       </div>
+    </div>
     </div>
   );
 }
@@ -2791,9 +2818,6 @@ export default function Community() {
           <TabsTrigger value="teams" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
             <Briefcase className="w-3.5 h-3.5" /> Команды
           </TabsTrigger>
-          <TabsTrigger value="groupchat" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Hash className="w-3.5 h-3.5" /> Группочаты
-          </TabsTrigger>
           <TabsTrigger value="collab" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
             <Columns className="w-3.5 h-3.5" /> Коллаборация
           </TabsTrigger>
@@ -2823,9 +2847,6 @@ export default function Community() {
           </TabsContent>
           <TabsContent value="teams" className="mt-0">
             <TeamsTab myUser={myUser} />
-          </TabsContent>
-          <TabsContent value="groupchat" className="mt-0">
-            <GroupChatTab myUser={myUser} />
           </TabsContent>
           <TabsContent value="collab" className="mt-0">
             <CollabTab myUser={myUser} />
