@@ -33,7 +33,8 @@ interface PnLData {
   totalSales: number;
   todaySales: number;
   weekSales: number;
-  topItems: Array<{ name: string; revenue: number; count: number; thumbnailUrl?: string | null }>;
+  topItemsDay: Array<{ name: string; revenue: number; count: number; thumbnailUrl?: string | null }>;
+  topItemsWeek: Array<{ name: string; revenue: number; count: number; thumbnailUrl?: string | null }>;
   recentTransactions: Array<{ id: string; created: string; revenue: number; agentName: string; description: string; thumbnailUrl?: string | null; assetId?: number | null }>;
 }
 
@@ -43,6 +44,7 @@ export default function PnL({ groupId }: { groupId: string }) {
   const [data, setData] = useState<PnLData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [topItemsPeriod, setTopItemsPeriod] = useState<"day" | "week">("day");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -73,7 +75,7 @@ export default function PnL({ groupId }: { groupId: string }) {
 
   useEffect(() => {
     const cached = cache.get<PnLData>(`pnl_${groupId}`);
-    if (cached && cached.monthRevenue !== undefined) {
+    if (cached && cached.monthRevenue !== undefined && cached.topItemsDay !== undefined) {
       setData(cached);
       setLoading(false);
     } else {
@@ -187,45 +189,67 @@ export default function PnL({ groupId }: { groupId: string }) {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <BarChart3 className="w-4 h-4" /> {t("pnl.topItems") || "Top Items by Revenue"}
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" /> {t("pnl.topItems") || "Top Items by Revenue"}
+            </CardTitle>
+            <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
+              <button
+                onClick={() => setTopItemsPeriod("day")}
+                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${topItemsPeriod === "day" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                24h
+              </button>
+              <button
+                onClick={() => setTopItemsPeriod("week")}
+                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${topItemsPeriod === "week" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                7d
+              </button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {data.topItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <BarChart3 className="w-8 h-8 mb-2 opacity-20" />
-              <p className="text-sm">{t("pnl.noTopItems") || "No sales data available yet"}</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {data.topItems.map((item, i) => {
-                const maxRev = data.topItems[0].revenue || 1;
-                const pct = Math.round((item.revenue / maxRev) * 100);
-                return (
-                  <div key={i} className="space-y-1">
-                    <div className="flex items-center gap-3 text-sm">
-                      {item.thumbnailUrl ? (
-                        <img src={item.thumbnailUrl} alt="" className="w-8 h-8 rounded-md object-cover border border-border/50 shrink-0" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center shrink-0">
-                          <ImageIcon className="w-3.5 h-3.5 text-muted-foreground/30" />
+          {(() => {
+            const items = topItemsPeriod === "day" ? data.topItemsDay : data.topItemsWeek;
+            if (!items || items.length === 0) {
+              return (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <BarChart3 className="w-8 h-8 mb-2 opacity-20" />
+                  <p className="text-sm">{topItemsPeriod === "day" ? "No sales in the last 24 hours" : "No sales in the last 7 days"}</p>
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-2.5">
+                {items.map((item, i) => {
+                  const maxRev = items[0].revenue || 1;
+                  const pct = Math.round((item.revenue / maxRev) * 100);
+                  return (
+                    <div key={i} className="space-y-1">
+                      <div className="flex items-center gap-2.5 text-sm">
+                        {item.thumbnailUrl ? (
+                          <img src={item.thumbnailUrl} alt={item.name} className="w-9 h-9 rounded-lg object-cover border border-border/50 shrink-0" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                            <ImageIcon className="w-4 h-4 text-muted-foreground/30" />
+                          </div>
+                        )}
+                        <span className="font-medium truncate flex-1">{item.name}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Badge variant="outline" className="text-[10px]">{item.count} {t("pnl.sales")}</Badge>
+                          <span className="font-mono font-semibold text-green-600 text-xs">{item.revenue.toLocaleString()} R$</span>
                         </div>
-                      )}
-                      <span className="font-medium truncate flex-1">{item.name}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="outline" className="text-[10px]">{item.count} {t("pnl.sales")}</Badge>
-                        <span className="font-mono font-semibold text-green-600">{item.revenue.toLocaleString()} R$</span>
+                      </div>
+                      <div className="h-1.5 bg-secondary rounded-full overflow-hidden ml-11">
+                        <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
-                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden ml-11">
-                      <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 

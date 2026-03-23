@@ -222,29 +222,27 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
     const netMonthUSD = netMonth * ROBUX_TO_USD;
     const netMonthRUB = netMonthUSD * USD_TO_RUB;
 
-    const txSource = weekTx.length > 0 ? weekTx : transactions;
-    const itemStats: Record<string, { name: string; revenue: number; count: number; assetId: number | null }> = {};
-    for (const tx of txSource) {
-      const key = tx.description || "Sale";
-      if (!itemStats[key]) {
-        itemStats[key] = { name: key, revenue: 0, count: 0, assetId: tx.assetId };
+    function buildTopItems(txList: typeof transactions) {
+      const stats: Record<string, { name: string; revenue: number; count: number; assetId: number | null }> = {};
+      for (const tx of txList) {
+        const key = tx.description || "Sale";
+        if (!stats[key]) stats[key] = { name: key, revenue: 0, count: 0, assetId: tx.assetId };
+        stats[key].revenue += tx.revenue;
+        stats[key].count += 1;
+        if (!stats[key].assetId && tx.assetId) stats[key].assetId = tx.assetId;
       }
-      itemStats[key].revenue += tx.revenue;
-      itemStats[key].count += 1;
-      if (!itemStats[key].assetId && tx.assetId) {
-        itemStats[key].assetId = tx.assetId;
-      }
+      return Object.values(stats).sort((a, b) => b.revenue - a.revenue).slice(0, 20);
     }
 
-    const topItemsRaw = Object.values(itemStats)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 20);
+    const topItemsDayRaw = buildTopItems(todayTx);
+    const topItemsWeekRaw = buildTopItems(weekTx.length > 0 ? weekTx : transactions);
 
     const recentTx = transactions.slice(0, 50);
 
     const allAssetIds = [
       ...recentTx.map(v => v.assetId),
-      ...topItemsRaw.map(v => v.assetId),
+      ...topItemsDayRaw.map(v => v.assetId),
+      ...topItemsWeekRaw.map(v => v.assetId),
     ].filter((id): id is number => id !== null && id > 0);
     const uniqueAssetIds = [...new Set(allAssetIds)];
 
@@ -265,12 +263,15 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       if (i + 100 < uniqueAssetIds.length) await new Promise(r => setTimeout(r, 200));
     }
 
-    const topItems = topItemsRaw.map(item => ({
+    const mapTopItems = (raw: typeof topItemsDayRaw) => raw.map(item => ({
       name: item.name,
       revenue: item.revenue,
       count: item.count,
       thumbnailUrl: item.assetId ? (thumbMap[item.assetId] || null) : null,
     }));
+
+    const topItemsDay = mapTopItems(topItemsDayRaw);
+    const topItemsWeek = mapTopItems(topItemsWeekRaw);
 
     const recentWithThumbs = recentTx.map(tx => ({
       ...tx,
@@ -281,7 +282,7 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
     const weekSalesCount = weekTx.length;
     const finalTodayRevenue = todayRevenue > 0 ? todayRevenue : dailyRevenue;
 
-    console.log(`[P&L] Summary: balance=${funds} pending=${pendingRobux} dailyRev=${dailyRevenue} todayTxRev=${todayRevenue} weekRev=${grossRevenue} monthRev=${grossMonth} todaySales=${todaySalesCount} weekSales=${weekSalesCount} totalSales=${transactions.length} topItems=${topItems.length}`);
+    console.log(`[P&L] Summary: balance=${funds} pending=${pendingRobux} dailyRev=${dailyRevenue} todayTxRev=${todayRevenue} weekRev=${grossRevenue} monthRev=${grossMonth} todaySales=${todaySalesCount} weekSales=${weekSalesCount} totalSales=${transactions.length} topItemsDay=${topItemsDay.length} topItemsWeek=${topItemsWeek.length}`);
 
     res.json({
       balance: funds,
@@ -300,7 +301,8 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       totalSales: transactions.length,
       todaySales: todaySalesCount,
       weekSales: weekSalesCount,
-      topItems,
+      topItemsDay,
+      topItemsWeek,
       recentTransactions: recentWithThumbs,
     });
   } catch (err) {
