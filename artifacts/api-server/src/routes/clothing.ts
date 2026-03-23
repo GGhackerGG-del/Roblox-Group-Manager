@@ -178,25 +178,19 @@ async function fetchThumbnails(ids: number[]): Promise<Record<number, string | n
   const map: Record<number, string | null> = {};
   for (let i = 0; i < ids.length; i += 100) {
     const batch = ids.slice(i, i + 100);
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const r = await throttledFetch(`${THUMBNAILS_API}/v1/assets?assetIds=${batch.join(",")}&size=420x420&format=Png&isCircular=false`);
-        if (r.ok) {
-          const d = await r.json() as { data: Array<{ targetId: number; imageUrl: string; state: string }> };
-          d.data.forEach(t => {
-            if (t.state === "Completed" && t.imageUrl) map[t.targetId] = t.imageUrl;
-          });
-          break;
-        } else if (r.status === 429) {
-          console.log(`[Clothing] Thumbnails rate limited (attempt ${attempt + 1}), waiting...`);
-          await new Promise(r => setTimeout(r, 4000 * (attempt + 1)));
-          continue;
-        }
-        break;
-      } catch (e) {
-        console.error("[Clothing] Thumbnail fetch error:", e);
+    try {
+      const r = await throttledFetch(`${THUMBNAILS_API}/v1/assets?assetIds=${batch.join(",")}&size=420x420&format=Png&isCircular=false`);
+      if (r.ok) {
+        const d = await r.json() as { data: Array<{ targetId: number; imageUrl: string; state: string }> };
+        d.data.forEach(t => {
+          if (t.state === "Completed" && t.imageUrl) map[t.targetId] = t.imageUrl;
+        });
+      } else if (r.status === 429) {
+        console.log(`[Clothing] Thumbnails rate limited on batch ${i / 100 + 1}, skipping remaining...`);
         break;
       }
+    } catch (e) {
+      console.error("[Clothing] Thumbnail fetch error:", e);
     }
   }
   return map;
@@ -427,8 +421,9 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
         }
       }
 
-      const ids = rawItems.map(i => i.id);
-      const thumbMap = await fetchThumbnails(ids);
+      const THUMB_LIMIT = 200;
+      const thumbIds = rawItems.slice(0, THUMB_LIMIT).map(i => i.id);
+      const thumbMap = await fetchThumbnails(thumbIds);
 
       allItems = rawItems.map(d => ({
         id: d.id,
