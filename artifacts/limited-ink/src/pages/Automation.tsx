@@ -762,7 +762,11 @@ export default function Automation() {
                   <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                     {wallPosts.map(post => (
                       <div key={post.id} className="flex items-start gap-3 rounded-xl border border-border/50 p-3">
-                        <img src={post.poster ? robloxHeadshot(post.poster.user.userId) : ""} alt={post.poster?.user.displayName || "?"} className="w-8 h-8 rounded-full bg-secondary shrink-0 object-cover" />
+                        {post.poster ? (
+                          <img src={robloxHeadshot(post.poster.user.userId)} alt={post.poster.user.displayName} className="w-8 h-8 rounded-full bg-secondary shrink-0 object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-secondary shrink-0 flex items-center justify-center text-[10px] text-muted-foreground">?</div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-xs font-semibold">{post.poster?.user.displayName || "Удалённый"}</p>

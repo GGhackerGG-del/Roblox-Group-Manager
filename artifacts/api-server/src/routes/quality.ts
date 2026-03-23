@@ -30,6 +30,21 @@ router.get("/quality/roblox-avatar", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/quality/roblox-headshot/:userId", async (req, res): Promise<void> => {
+  const userId = req.params.userId;
+  if (!userId) { res.status(400).json({ error: "userId required" }); return; }
+  try {
+    const thumbRes = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`);
+    const thumbData = await thumbRes.json() as any;
+    const imageUrl = thumbData.data?.[0]?.imageUrl;
+    if (!imageUrl) { res.status(404).json({ error: "Not found" }); return; }
+    res.set("Cache-Control", "public, max-age=3600");
+    res.redirect(imageUrl);
+  } catch {
+    res.status(500).json({ error: "Roblox API error" });
+  }
+});
+
 // ── Quality Checklists ────────────────────────────────────────────────────────
 const DEFAULT_ITEMS: Record<string, Array<{ text: string; required: boolean }>> = {
   shirt: [
