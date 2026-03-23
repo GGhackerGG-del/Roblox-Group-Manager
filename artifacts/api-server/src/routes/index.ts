@@ -17,6 +17,7 @@ import aiToolsRouter from "./aiTools";
 import securityRouter from "./security";
 import marketingRouter from "./marketing";
 import communityRouter from "./community";
+import gameManagerRouter from "./gameManager";
 
 const router: IRouter = Router();
 
@@ -49,6 +50,7 @@ router.use("/ai-tools", requireLicense);
 router.use("/security", requireLicense);
 router.use("/marketing", requireLicense);
 router.use("/community", requireLicense);
+router.use("/game-manager", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
@@ -63,5 +65,6 @@ router.use(aiToolsRouter);
 router.use(securityRouter);
 router.use(marketingRouter);
 router.use(communityRouter);
+router.use(gameManagerRouter);
 
 export default router;

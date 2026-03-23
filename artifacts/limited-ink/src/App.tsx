@@ -23,6 +23,7 @@ import Automation from "@/pages/Automation";
 import AITools from "@/pages/AITools";
 import Security from "@/pages/Security";
 import Marketing from "@/pages/Marketing";
+import GameManager from "@/pages/GameManager";
 
 
 const queryClient = new QueryClient({
@@ -106,6 +107,7 @@ function PersistentPages() {
       <div className={location === "/ai-tools" ? "block" : "hidden"}><AITools /></div>
       <div className={location === "/security" ? "block" : "hidden"}><Security /></div>
       <div className={location === "/marketing" ? "block" : "hidden"}><Marketing /></div>
+      <div className={location === "/game-manager" ? "block" : "hidden"}><GameManager /></div>
       {isGroupPage && <GroupView id={groupId!} />}
     </DashboardLayout>
   );
