@@ -19,6 +19,7 @@ import Settings from "@/pages/Settings";
 import Assistant from "@/pages/Assistant";
 import Competitors from "@/pages/Competitors";
 import Sniper from "@/pages/Sniper";
+import Automation from "@/pages/Automation";
 
 
 const queryClient = new QueryClient({
@@ -69,6 +70,7 @@ const STATIC_PAGES = [
   { path: "/assistant", key: "assistant" },
   { path: "/competitors", key: "competitors" },
   { path: "/sniper", key: "sniper" },
+  { path: "/automation", key: "automation" },
 ];
 
 function PersistentPages() {
@@ -94,6 +96,7 @@ function PersistentPages() {
       <div className={`${location === "/assistant" ? "block" : "hidden"} h-full`}><Assistant /></div>
       <div className={location === "/competitors" ? "block" : "hidden"}><Competitors /></div>
       <div className={location === "/sniper" ? "block" : "hidden"}><Sniper /></div>
+      <div className={location === "/automation" ? "block" : "hidden"}><Automation /></div>
       {isGroupPage && <GroupView id={groupId!} />}
     </DashboardLayout>
   );

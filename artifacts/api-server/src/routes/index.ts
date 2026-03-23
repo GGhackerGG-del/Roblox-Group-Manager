@@ -12,6 +12,7 @@ import banshieldRouter from "./banshield";
 import sniperRouter from "./sniper";
 import pnlRouter from "./pnl";
 import forumRouter from "./forum";
+import automationRouter from "./automation";
 
 const router: IRouter = Router();
 
@@ -39,6 +40,7 @@ router.use("/banshield", requireLicense);
 router.use("/sniper", requireLicense);
 router.use("/pnl", requireLicense);
 router.use("/forum", requireLicense);
+router.use("/automation", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
@@ -48,5 +50,6 @@ router.use(banshieldRouter);
 router.use(sniperRouter);
 router.use(pnlRouter);
 router.use(forumRouter);
+router.use(automationRouter);
 
 export default router;

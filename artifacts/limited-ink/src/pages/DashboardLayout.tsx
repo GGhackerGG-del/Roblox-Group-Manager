@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair } from "lucide-react";
+import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair, Cog } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-react";
@@ -99,6 +99,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <NavItem href="/assistant" icon={<Bot className="w-4 h-4" />} label={t("nav.assistant")} isActive={location === "/assistant"} badge="AI" />
           <NavItem href="/competitors" icon={<Search className="w-4 h-4" />} label={t("nav.competitors")} isActive={location === "/competitors"} />
           <NavItem href="/sniper" icon={<Crosshair className="w-4 h-4" />} label={t("nav.sniper")} isActive={location === "/sniper"} />
+          <NavItem href="/automation" icon={<Cog className="w-4 h-4" />} label="Автоматизация" isActive={location === "/automation"} badge="BOT" />
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 custom-scrollbar">
