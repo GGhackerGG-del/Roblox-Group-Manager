@@ -167,7 +167,7 @@ async function getLeaderboard() {
 }
 
 const VALID_SECTIONS = new Set([
-  "profile", "community", "assistant", "competitors", "sniper", "automation",
+  "profile", "community", "assistant", "sniper", "automation",
   "ai-tools", "security", "marketing", "game-manager", "social-media",
   "finance", "content-planner", "gamification", "integrations", "testing",
   "settings", "groups",

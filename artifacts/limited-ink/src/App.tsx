@@ -17,7 +17,7 @@ import Profile from "@/pages/Profile";
 import Community from "@/pages/Community";
 import Settings from "@/pages/Settings";
 import Assistant from "@/pages/Assistant";
-import Competitors from "@/pages/Competitors";
+
 import Sniper from "@/pages/Sniper";
 import Automation from "@/pages/Automation";
 import AITools from "@/pages/AITools";
@@ -78,7 +78,7 @@ const STATIC_PAGES = [
   { path: "/community", key: "community" },
   { path: "/settings", key: "settings" },
   { path: "/assistant", key: "assistant" },
-  { path: "/competitors", key: "competitors" },
+
   { path: "/sniper", key: "sniper" },
   { path: "/automation", key: "automation" },
   { path: "/ai-tools", key: "ai-tools" },
@@ -114,7 +114,7 @@ function PersistentPages() {
       <div className={location === "/community" ? "block" : "hidden"}><Community /></div>
       <div className={location === "/settings" ? "block" : "hidden"}><Settings /></div>
       <div className={`${location === "/assistant" ? "block" : "hidden"} h-full`}><Assistant /></div>
-      <div className={location === "/competitors" ? "block" : "hidden"}><Competitors /></div>
+
       <div className={location === "/sniper" ? "block" : "hidden"}><Sniper /></div>
       <div className={location === "/automation" ? "block" : "hidden"}><Automation /></div>
       <div className={location === "/ai-tools" ? "block" : "hidden"}><AITools /></div>

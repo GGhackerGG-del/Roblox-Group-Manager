@@ -17,7 +17,7 @@ const SECTION_MAP: Record<string, string> = {
   "/profile": "profile",
   "/community": "community",
   "/assistant": "assistant",
-  "/competitors": "competitors",
+
   "/sniper": "sniper",
   "/automation": "automation",
   "/ai-tools": "ai-tools",
@@ -138,7 +138,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <Sparkles className="w-3 h-3" /> {t("nav.tools")}
           </h3>
           <NavItem href="/assistant" icon={<Bot className="w-4 h-4" />} label={t("nav.assistant")} isActive={location === "/assistant"} badge="AI" />
-          <NavItem href="/competitors" icon={<Search className="w-4 h-4" />} label={t("nav.competitors")} isActive={location === "/competitors"} />
+
           <NavItem href="/sniper" icon={<Crosshair className="w-4 h-4" />} label={t("nav.sniper")} isActive={location === "/sniper"} />
           <NavItem href="/automation" icon={<Cog className="w-4 h-4" />} label={t("nav.automation")} isActive={location === "/automation"} badge="BOT" />
           <NavItem href="/ai-tools" icon={<Sparkles className="w-4 h-4" />} label={t("nav.aiTools")} isActive={location === "/ai-tools"} badge="NEW" />

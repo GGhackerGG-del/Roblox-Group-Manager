@@ -6,7 +6,7 @@ import robloxRouter from "./roblox";
 import clothingRouter from "./clothing";
 import socialRouter from "./social";
 import featuredGroupsRouter from "./featuredGroups";
-import competitorRouter from "./competitor";
+
 import assistantRouter from "./assistant";
 import banshieldRouter from "./banshield";
 import sniperRouter from "./sniper";
@@ -46,7 +46,7 @@ router.use("/roblox", requireLicense);
 
 router.use("/clothing", requireLicense);
 router.use("/social", requireLicense);
-router.use("/competitor", requireLicense);
+
 router.use("/assistant", requireLicense);
 router.use("/banshield", requireLicense);
 router.use("/sniper", requireLicense);
@@ -68,7 +68,7 @@ router.use("/quality", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
-router.use(competitorRouter);
+
 router.use(assistantRouter);
 router.use(banshieldRouter);
 router.use(sniperRouter);
