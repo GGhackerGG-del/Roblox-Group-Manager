@@ -152,6 +152,11 @@ declare module "express-session" {
       notes: string;
       createdAt: number;
     }>;
+    teamStaff?: Array<{ id: string; username: string; robloxId: string; displayName: string; avatarUrl: string; role: string; department: string; status: "active" | "inactive" | "suspended"; joinedAt: number; notes: string; salary: number }>;
+    teamRoles?: Array<{ id: string; name: string; color: string; level: number; permissions: string[] }>;
+    teamPerformance?: Array<{ id: string; staffId: string; date: number; tasksCompleted: number; rating: number; note: string; category: string }>;
+    teamMessages?: Array<{ id: string; authorId: string; authorName: string; text: string; sentAt: number; edited: boolean; reactions: Record<string, number> }>;
+    teamShifts?: Array<{ id: string; title: string; date: string; startTime: string; endTime: string; department: string; requiredStaff: number; assignedStaff: string[]; status: "scheduled" | "in-progress" | "completed" | "cancelled"; notes: string; clockIns: Array<{ staffId: string; clockedIn: number; clockedOut: number | null }> }>;
     integrationDiscord?: { notifyEvents: string[]; testChannelWebhookId: string };
     integrationTelegram?: { notifyEvents: string[]; chatIds: string[]; messageLog: Array<{ chatId: string; text: string; sentAt: number; ok: boolean }> };
     integrationEmail?: { smtpHost: string; smtpPort: number; smtpUser: string; smtpPass: string; fromEmail: string; toEmail: string; notifyEvents: string[]; enabled: boolean };
