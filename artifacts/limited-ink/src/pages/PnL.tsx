@@ -33,7 +33,7 @@ interface PnLData {
   totalSales: number;
   todaySales: number;
   weekSales: number;
-  topItems: Array<{ name: string; revenue: number; count: number }>;
+  topItems: Array<{ name: string; revenue: number; count: number; thumbnailUrl?: string | null }>;
   recentTransactions: Array<{ id: string; created: string; revenue: number; agentName: string; description: string; thumbnailUrl?: string | null; assetId?: number | null }>;
 }
 
@@ -185,37 +185,49 @@ export default function PnL({ groupId }: { groupId: string }) {
         </Card>
       </div>
 
-      {data.topItems.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" /> {t("pnl.topItems") || "Top Items by Revenue"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" /> {t("pnl.topItems") || "Top Items by Revenue"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data.topItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <BarChart3 className="w-8 h-8 mb-2 opacity-20" />
+              <p className="text-sm">{t("pnl.noTopItems") || "No sales data available yet"}</p>
+            </div>
+          ) : (
             <div className="space-y-2">
               {data.topItems.map((item, i) => {
                 const maxRev = data.topItems[0].revenue || 1;
                 const pct = Math.round((item.revenue / maxRev) * 100);
                 return (
                   <div key={i} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-3 text-sm">
+                      {item.thumbnailUrl ? (
+                        <img src={item.thumbnailUrl} alt="" className="w-8 h-8 rounded-md object-cover border border-border/50 shrink-0" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center shrink-0">
+                          <ImageIcon className="w-3.5 h-3.5 text-muted-foreground/30" />
+                        </div>
+                      )}
                       <span className="font-medium truncate flex-1">{item.name}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant="outline" className="text-[10px]">{item.count} {t("pnl.sales")}</Badge>
                         <span className="font-mono font-semibold text-green-600">{item.revenue.toLocaleString()} R$</span>
                       </div>
                     </div>
-                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden ml-11">
                       <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {data.recentTransactions.length > 0 && (
         <Card>

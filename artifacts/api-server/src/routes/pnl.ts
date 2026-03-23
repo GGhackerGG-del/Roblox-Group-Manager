@@ -223,26 +223,30 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
     const netMonthRUB = netMonthUSD * USD_TO_RUB;
 
     const txSource = weekTx.length > 0 ? weekTx : transactions;
-    const itemStats: Record<string, { name: string; revenue: number; count: number }> = {};
+    const itemStats: Record<string, { name: string; revenue: number; count: number; assetId: number | null }> = {};
     for (const tx of txSource) {
-      const key = tx.description;
+      const key = tx.description || "Sale";
       if (!itemStats[key]) {
-        itemStats[key] = { name: key, revenue: 0, count: 0 };
+        itemStats[key] = { name: key, revenue: 0, count: 0, assetId: tx.assetId };
       }
       itemStats[key].revenue += tx.revenue;
       itemStats[key].count += 1;
+      if (!itemStats[key].assetId && tx.assetId) {
+        itemStats[key].assetId = tx.assetId;
+      }
     }
 
-    const topItems = Object.values(itemStats)
+    const topItemsRaw = Object.values(itemStats)
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 20);
 
     const recentTx = transactions.slice(0, 50);
 
-    const txAssetIds = recentTx
-      .map(v => v.assetId)
-      .filter((id): id is number => id !== null && id > 0);
-    const uniqueAssetIds = [...new Set(txAssetIds)];
+    const allAssetIds = [
+      ...recentTx.map(v => v.assetId),
+      ...topItemsRaw.map(v => v.assetId),
+    ].filter((id): id is number => id !== null && id > 0);
+    const uniqueAssetIds = [...new Set(allAssetIds)];
 
     const thumbMap: Record<number, string | null> = {};
     for (let i = 0; i < uniqueAssetIds.length; i += 100) {
@@ -260,6 +264,13 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       } catch {}
       if (i + 100 < uniqueAssetIds.length) await new Promise(r => setTimeout(r, 200));
     }
+
+    const topItems = topItemsRaw.map(item => ({
+      name: item.name,
+      revenue: item.revenue,
+      count: item.count,
+      thumbnailUrl: item.assetId ? (thumbMap[item.assetId] || null) : null,
+    }));
 
     const recentWithThumbs = recentTx.map(tx => ({
       ...tx,
