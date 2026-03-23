@@ -25,13 +25,25 @@ router.get("/game-manager/groups/:groupId/games", async (req, res): Promise<void
   const { groupId } = req.params;
 
   try {
-    // 1. Fetch group games
-    const gamesRes = await fetch(
-      `${GAMES_API}/v2/groups/${groupId}/games?sortOrder=Asc&limit=50&accessFilter=Public`,
-      { headers: getHeaders(cookie) }
-    );
-    const gamesData = await gamesRes.json() as any;
-    const games: any[] = gamesData.data || [];
+    // 1. Fetch group games — try all access levels, then fallback to public only
+    let games: any[] = [];
+    for (const filter of ["All", "Public", "Private"]) {
+      const gamesRes = await fetch(
+        `${GAMES_API}/v2/groups/${groupId}/games?sortOrder=Asc&limit=100&accessFilter=${filter}`,
+        { headers: getHeaders(cookie) }
+      );
+      if (gamesRes.ok) {
+        const gamesData = await gamesRes.json() as any;
+        const fetched: any[] = gamesData.data || [];
+        if (fetched.length > 0) {
+          const existingIds = new Set(games.map((g: any) => g.id));
+          for (const g of fetched) {
+            if (!existingIds.has(g.id)) { games.push(g); existingIds.add(g.id); }
+          }
+        }
+        if (filter === "All" && fetched.length > 0) break;
+      }
+    }
 
     if (!games.length) { res.json({ games: [] }); return; }
 
