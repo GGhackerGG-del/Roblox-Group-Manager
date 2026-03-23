@@ -20,7 +20,7 @@ import {
   MessageCircleQuestion, Plus, ArrowLeft, CheckCircle2, Crown, Award, Flame,
   Briefcase, UserCog, ShieldCheck, Store, Download, ThumbsUp as Endorse,
   Columns, ListTodo, Tag, Package, ChevronDown, Hash, Settings2,
-  Phone, PhoneOff, Mic, MicOff, Volume2,
+  Phone, PhoneOff, Mic, MicOff, Volume2, Paperclip, FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -64,6 +64,38 @@ interface PlatformUser {
   friendship?: { status: string; isRequester: boolean; id: number } | null;
   isMe?: boolean;
 }
+
+interface Attachment {
+  name: string;
+  type: string;
+  dataUrl: string;
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function parseAttachments(imageUrl: string | null): Attachment[] {
+  if (!imageUrl) return [];
+  if (imageUrl.startsWith("[attachments:")) {
+    try {
+      const json = imageUrl.slice(13, -1);
+      return JSON.parse(json) as Attachment[];
+    } catch { return []; }
+  }
+  return [{ name: "image", type: "image", dataUrl: imageUrl }];
+}
+
+function isImageType(type: string): boolean {
+  return type.startsWith("image/") || type === "image";
+}
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 interface Post {
   id: number;
@@ -364,11 +396,36 @@ function PostCard({ post, myUserId, onLike, onDelete, onComment, onUserClick }: 
 
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
 
-          {post.imageUrl && (
-            <div className="rounded-xl overflow-hidden border border-border">
-              <img src={post.imageUrl} alt="post" className="w-full max-h-80 object-cover" />
-            </div>
-          )}
+          {post.imageUrl && (() => {
+            const atts = parseAttachments(post.imageUrl);
+            if (atts.length === 0) return null;
+            const images = atts.filter(a => isImageType(a.type));
+            const files = atts.filter(a => !isImageType(a.type));
+            return (
+              <div className="space-y-2">
+                {images.length > 0 && (
+                  <div className={`grid gap-2 ${images.length === 1 ? "grid-cols-1" : images.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                    {images.map((img, i) => (
+                      <div key={i} className="rounded-xl overflow-hidden border border-border">
+                        <img src={img.dataUrl} alt={img.name} className={`w-full object-cover ${images.length === 1 ? "max-h-80" : "h-40"}`} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {files.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {files.map((file, i) => (
+                      <a key={i} href={file.dataUrl} download={file.name} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-secondary/40 hover:bg-secondary/80 transition-colors text-sm">
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="truncate max-w-[150px]">{file.name}</span>
+                        <Download className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="flex items-center gap-5 pt-1 border-t border-border/50">
             <button
@@ -498,8 +555,8 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
   const [newContent, setNewContent] = useState("");
   const [posting, setPosting] = useState(false);
   const [commentPost, setCommentPost] = useState<Post | null>(null);
-  const [imageUrl, setImageUrl] = useState("");
-  const [showImageInput, setShowImageInput] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFeed = useCallback(async () => {
     setLoading(true);
@@ -511,16 +568,40 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
 
   useEffect(() => { fetchFeed(); }, [fetchFeed]);
 
+  const handleFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const newAtts: Attachment[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast({ variant: "destructive", title: t("com.fileTooLarge"), description: `${file.name} > 5MB` });
+        continue;
+      }
+      const dataUrl = await fileToDataUrl(file);
+      newAtts.push({ name: file.name, type: file.type, dataUrl });
+    }
+    setAttachments(prev => [...prev, ...newAtts]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const handlePost = async () => {
-    if (!newContent.trim()) return;
+    if (!newContent.trim() && attachments.length === 0) return;
     setPosting(true);
     try {
+      let imageUrl: string | undefined;
+      if (attachments.length > 0) {
+        imageUrl = `[attachments:${JSON.stringify(attachments)}]`;
+      }
       const d = await apiFetch<{ post: Post }>("/api/social/posts", {
         method: "POST",
-        body: JSON.stringify({ content: newContent.trim(), imageUrl: imageUrl.trim() || undefined }),
+        body: JSON.stringify({ content: newContent.trim() || " ", imageUrl }),
       });
       setPosts(prev => [d.post, ...prev]);
-      setNewContent(""); setImageUrl(""); setShowImageInput(false);
+      setNewContent(""); setAttachments([]);
     } catch (err) {
       toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to post" });
     } finally { setPosting(false); }
@@ -562,22 +643,45 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
                   className="resize-none min-h-[80px] rounded-xl text-sm border-0 bg-secondary/50 focus-visible:ring-1"
                 />
                 <AnimatePresence>
-                  {showImageInput && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-                      <Input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="Image URL (https://...)" className="rounded-xl text-sm" />
+                  {attachments.length > 0 && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap gap-2">
+                      {attachments.map((att, idx) => (
+                        <div key={idx} className="relative group">
+                          {isImageType(att.type) ? (
+                            <img src={att.dataUrl} alt={att.name} className="w-20 h-20 object-cover rounded-xl border border-border" />
+                          ) : (
+                            <div className="w-20 h-20 rounded-xl border border-border bg-secondary/60 flex flex-col items-center justify-center gap-1 px-1">
+                              <FileText className="w-5 h-5 text-muted-foreground" />
+                              <span className="text-[10px] text-muted-foreground truncate w-full text-center">{att.name}</span>
+                            </div>
+                          )}
+                          <button onClick={() => removeAttachment(idx)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
                     </motion.div>
                   )}
                 </AnimatePresence>
+                <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleFilePick} />
                 <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setShowImageInput(p => !p)}
-                    className={`text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-colors ${showImageInput ? "border-black text-foreground bg-secondary" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
-                  >
-                    <ImageIcon className="w-3.5 h-3.5" /> Attach image
-                  </button>
-                  <Button onClick={handlePost} disabled={posting || !newContent.trim()} size="sm" className="rounded-xl gap-2 h-8">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = "image/*"; fileInputRef.current.click(); } }}
+                      className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" /> {t("com.attachImage")}
+                    </button>
+                    <button
+                      onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = ".pdf,.doc,.docx,.txt,.zip,.rar,.7z,.xls,.xlsx"; fileInputRef.current.click(); } }}
+                      className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Paperclip className="w-3.5 h-3.5" /> {t("com.attachFile")}
+                    </button>
+                  </div>
+                  <Button onClick={handlePost} disabled={posting || (!newContent.trim() && attachments.length === 0)} size="sm" className="rounded-xl gap-2 h-8">
                     {posting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    Publish
+                    {t("com.publish")}
                   </Button>
                 </div>
               </div>
