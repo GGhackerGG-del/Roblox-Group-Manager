@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { getAuthCredentials } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +21,16 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+function getAuthHeaders(): Record<string, string> {
+  const { credentials } = getAuthCredentials();
+  return credentials ? { Authorization: `Bearer ${credentials}` } : {};
+}
+
 async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
-    headers: { "Content-Type": "application/json", ...opts?.headers },
-    credentials: "include", ...opts,
+    ...opts,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders(), ...(opts?.headers || {}) },
   });
   if (!res.ok) { const e = await res.json().catch(() => ({ error: "Error" })); throw new Error(e.error || "Failed"); }
   return res.json();
