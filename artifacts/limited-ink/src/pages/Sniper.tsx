@@ -226,7 +226,7 @@ export default function Sniper() {
       const data = await apiFetch<{ items: LimitedItem[] }>("/api/sniper/underprice");
       setUnderprice(data.items || []);
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Не удалось загрузить", variant: "destructive" });
+      toast({ title: t("sniper.error"), description: e instanceof Error ? e.message : t("sniper.loadFail"), variant: "destructive" });
     } finally { setUnderpriceLoading(false); }
   }, [toast]);
 
@@ -312,8 +312,8 @@ export default function Sniper() {
     const autoBuyItems = updated.filter(e => e.autoBuy && e.available && e.livePrice && e.livePrice <= e.maxPrice);
     for (const entry of autoBuyItems) {
       toast({
-        title: `🎯 Снайп: ${entry.name}`,
-        description: `Цена ${formatRobux(entry.livePrice!)} R$ ≤ цели ${formatRobux(entry.maxPrice)} R$ — покупаю...`,
+        title: `${t("sniper.snipeTitle")}: ${entry.name}`,
+        description: `${formatRobux(entry.livePrice!)} R$ ≤ ${formatRobux(entry.maxPrice)} R$ — ${t("sniper.snipeDesc")}`,
       });
       await handleBuy(entry, true);
     }
@@ -329,7 +329,7 @@ export default function Sniper() {
       setDealLog(prev => [logEntry, ...prev].slice(0, 100));
       toast({
         title: `🔔 ${entry.name}`,
-        description: `Цена упала до ${formatRobux(entry.livePrice!)} R$ (цель: ${formatRobux(entry.maxPrice)} R$)`,
+        description: `${t("sniper.priceFell")} ${formatRobux(entry.livePrice!)} R$ (${t("sniper.goalLabel")}: ${formatRobux(entry.maxPrice)} R$)`,
       });
     }
   }, [checkLivePrices, handleBuy, toast]);
@@ -360,7 +360,7 @@ export default function Sniper() {
         setRapSearchResults((data.items || []).slice(0, 8));
       }
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Не удалось найти", variant: "destructive" });
+      toast({ title: t("sniper.error"), description: e instanceof Error ? e.message : t("sniper.searchFail"), variant: "destructive" });
     } finally { setRapSearchLoading(false); }
   }, [toast]);
 
@@ -371,7 +371,7 @@ export default function Sniper() {
       const data = await apiFetch<typeof rapData>(`/api/sniper/rap-history/${assetId}`);
       setRapData(data);
     } catch (e: unknown) {
-      toast({ title: "Ошибка", description: e instanceof Error ? e.message : "Не удалось загрузить историю", variant: "destructive" });
+      toast({ title: t("sniper.error"), description: e instanceof Error ? e.message : t("sniper.historyFail"), variant: "destructive" });
     } finally { setRapLoading(false); }
   }, [toast]);
 
@@ -424,7 +424,7 @@ export default function Sniper() {
         </div>
         {botActive && (
           <Badge className="ml-auto bg-green-500/20 text-green-700 dark:text-green-300 border-0 gap-1 animate-pulse">
-            <Activity className="w-3 h-3" /> Bot активен
+            <Activity className="w-3 h-3" /> {t("sniper.botActive")}
           </Badge>
         )}
       </div>
@@ -477,10 +477,10 @@ export default function Sniper() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
                 <CardTitle className="text-sm flex items-center gap-2"><TrendingDown className="w-4 h-4 text-orange-500" /> Underprice Detector</CardTitle>
-                <CardDescription className="text-xs">Предметы с ценой продажи ниже RAP — потенциальный снайп</CardDescription>
+                <CardDescription className="text-xs">{t("sniper.underpriceDesc")}</CardDescription>
               </div>
               <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={fetchUnderprice} disabled={underpriceLoading}>
-                <RefreshCw className={`w-3.5 h-3.5 ${underpriceLoading ? "animate-spin" : ""}`} /> Обновить
+                <RefreshCw className={`w-3.5 h-3.5 ${underpriceLoading ? "animate-spin" : ""}`} /> {t("sniper.refresh")}
               </Button>
             </CardHeader>
             <CardContent>
@@ -489,8 +489,8 @@ export default function Sniper() {
               ) : underprice.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
                   <TrendingDown className="w-10 h-10 opacity-20" />
-                  <p className="text-sm">Нет недооценённых предметов</p>
-                  <p className="text-xs opacity-60">Нажмите "Обновить" для поиска</p>
+                  <p className="text-sm">{t("sniper.noUnderprice")}</p>
+                  <p className="text-xs opacity-60">{t("sniper.refreshHint")}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
@@ -620,20 +620,20 @@ export default function Sniper() {
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2"><ArrowLeftRight className="w-4 h-4" /> Trade Calculator</CardTitle>
-              <CardDescription>Оценка выгоды обмена по RAP и Value</CardDescription>
+              <CardDescription>{t("sniper.tradeCalcDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
                 <div className="flex gap-1 bg-secondary rounded-lg p-0.5">
                   <button onClick={() => setTradeTarget("give")} className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${tradeTarget === "give" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
-                    Отдаю
+                    {t("sniper.give")}
                   </button>
                   <button onClick={() => setTradeTarget("receive")} className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${tradeTarget === "receive" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
-                    Получаю
+                    {t("sniper.receive")}
                   </button>
                 </div>
                 <Input
-                  placeholder="Название или Asset ID..."
+                  placeholder={t("sniper.searchPlaceholder")}
                   value={tradeSearch}
                   onChange={e => { setTradeSearch(e.target.value); if (e.target.value.length >= 2) searchTradeItems(e.target.value); else setTradeSearchResults([]); }}
                   onKeyDown={e => e.key === "Enter" && searchTradeItems(tradeSearch)}
@@ -670,13 +670,13 @@ export default function Sniper() {
                   return (
                     <div key={side} className="rounded-xl border border-border/50 p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold">{side === "give" ? "🔴 Отдаю" : "🟢 Получаю"}</p>
+                        <p className="text-sm font-semibold">{side === "give" ? t("sniper.giveLabel") : t("sniper.receiveLabel")}</p>
                         {sideItems.length > 0 && (
-                          <button onClick={() => setItems([])} className="text-[10px] text-muted-foreground hover:text-red-500 transition-colors">Очистить</button>
+                          <button onClick={() => setItems([])} className="text-[10px] text-muted-foreground hover:text-red-500 transition-colors">{t("sniper.clear")}</button>
                         )}
                       </div>
                       {sideItems.length === 0 ? (
-                        <div className="text-center py-6 text-xs text-muted-foreground">Добавь предметы</div>
+                        <div className="text-center py-6 text-xs text-muted-foreground">{t("sniper.addItems")}</div>
                       ) : (
                         <div className="space-y-1.5">
                           {sideItems.map(item => (
@@ -710,31 +710,31 @@ export default function Sniper() {
 
               {(tradeGive.length > 0 || tradeReceive.length > 0) && (
                 <div className="rounded-xl bg-secondary/50 border border-border/50 p-4 space-y-3">
-                  <p className="text-sm font-semibold">Итог обмена</p>
+                  <p className="text-sm font-semibold">{t("sniper.tradeSummary")}</p>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="space-y-1.5">
-                      <p className="text-xs text-muted-foreground font-medium">По RAP</p>
+                      <p className="text-xs text-muted-foreground font-medium">{t("sniper.byRap")}</p>
                       <div className="flex items-center gap-2">
                         <span className={`text-lg font-bold ${rapDiff > 0 ? "text-green-600" : rapDiff < 0 ? "text-red-600" : "text-foreground"}`}>
                           {rapDiff > 0 ? "+" : ""}{formatRobux(rapDiff)} R$
                         </span>
                         {rapDiff > 0 ? <TrendingUp className="w-4 h-4 text-green-500" /> : rapDiff < 0 ? <TrendingDown className="w-4 h-4 text-red-500" /> : <Minus className="w-4 h-4" />}
                       </div>
-                      {tradeGiveRap > 0 && <p className="text-xs text-muted-foreground">{Math.round((tradeReceiveRap / tradeGiveRap - 1) * 100)}% от стоимости</p>}
+                      {tradeGiveRap > 0 && <p className="text-xs text-muted-foreground">{Math.round((tradeReceiveRap / tradeGiveRap - 1) * 100)}% {t("sniper.ofValue")}</p>}
                     </div>
                     <div className="space-y-1.5">
-                      <p className="text-xs text-muted-foreground font-medium">По Value</p>
+                      <p className="text-xs text-muted-foreground font-medium">{t("sniper.byValue")}</p>
                       <div className="flex items-center gap-2">
                         <span className={`text-lg font-bold ${valueDiff > 0 ? "text-green-600" : valueDiff < 0 ? "text-red-600" : "text-foreground"}`}>
                           {valueDiff > 0 ? "+" : ""}{formatRobux(valueDiff)} R$
                         </span>
                         {valueDiff > 0 ? <TrendingUp className="w-4 h-4 text-green-500" /> : valueDiff < 0 ? <TrendingDown className="w-4 h-4 text-red-500" /> : <Minus className="w-4 h-4" />}
                       </div>
-                      {tradeGiveValue > 0 && <p className="text-xs text-muted-foreground">{Math.round((tradeReceiveValue / tradeGiveValue - 1) * 100)}% от стоимости</p>}
+                      {tradeGiveValue > 0 && <p className="text-xs text-muted-foreground">{Math.round((tradeReceiveValue / tradeGiveValue - 1) * 100)}% {t("sniper.ofValue")}</p>}
                     </div>
                   </div>
                   <div className={`rounded-lg p-2.5 text-xs font-medium text-center ${rapDiff > 0 && valueDiff > 0 ? "bg-green-500/10 text-green-700 dark:text-green-300" : rapDiff < 0 || valueDiff < 0 ? "bg-red-500/10 text-red-700 dark:text-red-300" : "bg-secondary text-muted-foreground"}`}>
-                    {rapDiff > 0 && valueDiff > 0 ? "✅ Выгодный обмен" : rapDiff < 0 && valueDiff < 0 ? "❌ Невыгодный обмен" : "⚖️ Нейтральный обмен"}
+                    {rapDiff > 0 && valueDiff > 0 ? t("sniper.goodTrade") : rapDiff < 0 && valueDiff < 0 ? t("sniper.badTrade") : t("sniper.neutralTrade")}
                   </div>
                 </div>
               )}
@@ -747,11 +747,11 @@ export default function Sniper() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
                 <CardTitle className="text-base flex items-center gap-2"><ClipboardList className="w-4 h-4" /> Deal Log</CardTitle>
-                <CardDescription>История отслеженных и купленных предметов</CardDescription>
+                <CardDescription>{t("sniper.dealLog")}</CardDescription>
               </div>
               {dealLog.length > 0 && (
                 <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-red-500 border-red-500/30 hover:bg-red-500/10" onClick={() => { setDealLog([]); playClick(); }}>
-                  <Trash2 className="w-3.5 h-3.5" /> Очистить
+                  <Trash2 className="w-3.5 h-3.5" /> {t("sniper.clearLog")}
                 </Button>
               )}
             </CardHeader>
@@ -759,8 +759,8 @@ export default function Sniper() {
               {dealLog.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
                   <ClipboardList className="w-10 h-10 opacity-20" />
-                  <p className="text-sm">Лог пуст</p>
-                  <p className="text-xs opacity-60">Здесь будут появляться купленные и отслеженные предметы</p>
+                  <p className="text-sm">{t("sniper.logEmpty")}</p>
+                  <p className="text-xs opacity-60">{t("sniper.logEmptyHint")}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -772,8 +772,8 @@ export default function Sniper() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate">{entry.itemName}</p>
                         <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
-                          <span>Цель: <strong>{formatRobux(entry.targetPrice)}</strong></span>
-                          <span>Цена: <strong className={entry.status === "bought" ? "text-green-600" : "text-foreground"}>{formatRobux(entry.actualPrice)}</strong></span>
+                          <span>{t("sniper.target")}: <strong>{formatRobux(entry.targetPrice)}</strong></span>
+                          <span>{t("sniper.price")}: <strong className={entry.status === "bought" ? "text-green-600" : "text-foreground"}>{formatRobux(entry.actualPrice)}</strong></span>
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {new Date(entry.timestamp).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
@@ -781,7 +781,7 @@ export default function Sniper() {
                         </div>
                       </div>
                       <Badge className={`text-[10px] gap-1 shrink-0 ${entry.status === "bought" ? "bg-green-600/20 text-green-700 dark:text-green-300 border-0" : entry.status === "alert" ? "bg-blue-500/20 text-blue-700 dark:text-blue-300 border-0" : "bg-red-500/20 text-red-700 dark:text-red-300 border-0"}`}>
-                        {entry.status === "bought" ? <><CheckCircle2 className="w-2.5 h-2.5" /> Куплено</> : entry.status === "alert" ? <><Bell className="w-2.5 h-2.5" /> Алерт</> : <><XCircle className="w-2.5 h-2.5" /> Ошибка</>}
+                        {entry.status === "bought" ? <><CheckCircle2 className="w-2.5 h-2.5" /> {t("sniper.bought")}</> : entry.status === "alert" ? <><Bell className="w-2.5 h-2.5" /> {t("sniper.alert")}</> : <><XCircle className="w-2.5 h-2.5" /> {t("sniper.failed")}</>}
                       </Badge>
                     </div>
                   ))}

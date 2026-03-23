@@ -60,7 +60,7 @@ function timeAgo(ts: number, t: (key: string) => string) {
 function AutoPostTab({ groups }: { groups: any[] }) {
   const { toast } = useToast();
   const { t } = useLanguage();
-  const [config, setConfig] = useState<any>({ enabled: false, webhookId: "", groupId: "", template: "🆕 Новый товар: **{name}**\n💰 Цена: {price} Robux\n🔗 {link}", color: 5793266 });
+  const [config, setConfig] = useState<any>({ enabled: false, webhookId: "", groupId: "", template: t("sm.newTemplate"), color: 5793266 });
   const [webhooks, setWebhooks] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +88,7 @@ function AutoPostTab({ groups }: { groups: any[] }) {
     setSaving(true);
     try {
       await apiFetch("/api/social-media/auto-post/config", { method: "POST", body: JSON.stringify(config) });
-      toast({ title: "✅ Конфигурация сохранена" });
+      toast({ title: t("sm.configSaved") });
     } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
@@ -98,10 +98,10 @@ function AutoPostTab({ groups }: { groups: any[] }) {
     try {
       const { posted, newItemsFound, message } = await apiFetch<any>("/api/social-media/auto-post/check", { method: "POST" });
       if (posted > 0) {
-        toast({ title: `✅ Опубликовано ${posted} товаров в Discord!` });
+        toast({ title: `${t("sm.published")} ${posted} ${t("sm.publishedItems")}` });
         load();
       } else {
-        toast({ title: "ℹ️ Нет новых товаров", description: message });
+        toast({ title: t("sm.noNewItems"), description: message });
       }
     } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setChecking(false); }
@@ -110,14 +110,14 @@ function AutoPostTab({ groups }: { groups: any[] }) {
   const clearHistory = async () => {
     await apiFetch("/api/social-media/auto-post/history", { method: "DELETE" });
     setHistory([]);
-    toast({ title: "✅ История очищена" });
+    toast({ title: t("sm.historyCleared") });
   };
 
   const TEMPLATE_VARS = ["{name}", "{price}", "{link}"];
   const DISCORD_COLORS = [
-    { label: "Синий", value: 5793266 }, { label: "Зелёный", value: 5763719 },
-    { label: "Красный", value: 15548997 }, { label: "Золотой", value: 16776960 },
-    { label: "Фиолетовый", value: 10181046 }, { label: "Чёрный", value: 2303786 },
+    { label: t("sm.colorBlue"), value: 5793266 }, { label: t("sm.colorGreen"), value: 5763719 },
+    { label: t("sm.colorRed"), value: 15548997 }, { label: t("sm.colorGold"), value: 16776960 },
+    { label: t("sm.colorPurple"), value: 10181046 }, { label: t("sm.colorBlack"), value: 2303786 },
   ];
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
@@ -129,11 +129,11 @@ function AutoPostTab({ groups }: { groups: any[] }) {
         <CardContent className="pt-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-semibold">Авто-публикация в Discord</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Автоматически постить новые товары группы в Discord</p>
+              <p className="font-semibold">{t("sm.autoPostTitle")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("sm.autoPostDesc")}</p>
             </div>
             <div className="flex items-center gap-2">
-              {config.enabled && <span className="flex items-center gap-1.5 text-xs text-green-600"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Активно</span>}
+              {config.enabled && <span className="flex items-center gap-1.5 text-xs text-green-600"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> {t("sm.active")}</span>}
               <Switch checked={config.enabled} onCheckedChange={v => setConfig((p: any) => ({ ...p, enabled: v }))} />
             </div>
           </div>
@@ -143,19 +143,19 @@ function AutoPostTab({ groups }: { groups: any[] }) {
               <Label className="text-xs text-muted-foreground">Discord Webhook</Label>
               {webhooks.length === 0 ? (
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
-                  Нет Discord webhooks. Создайте их в разделе Маркетинг → Webhooks.
+                  {t("sm.noWebhooks")}
                 </div>
               ) : (
                 <Select value={config.webhookId} onValueChange={v => setConfig((p: any) => ({ ...p, webhookId: v }))}>
-                  <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder="Выбрать webhook..." /></SelectTrigger>
+                  <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder={t("sm.selectWebhook")} /></SelectTrigger>
                   <SelectContent>{webhooks.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
                 </Select>
               )}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Roblox Группа</Label>
+              <Label className="text-xs text-muted-foreground">{t("sm.robloxGroup")}</Label>
               <Select value={config.groupId} onValueChange={v => setConfig((p: any) => ({ ...p, groupId: v }))}>
-                <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder="Выбрать группу..." /></SelectTrigger>
+                <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder={t("sm.selectGroup")} /></SelectTrigger>
                 <SelectContent>{(groups || []).map((g: any) => <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
@@ -163,16 +163,16 @@ function AutoPostTab({ groups }: { groups: any[] }) {
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground">Шаблон сообщения</Label>
+              <Label className="text-xs text-muted-foreground">{t("sm.messageTemplate")}</Label>
               <div className="flex gap-1">
                 {TEMPLATE_VARS.map(v => <button key={v} onClick={() => setConfig((p: any) => ({ ...p, template: (p.template || "") + v }))} className="text-[10px] font-mono bg-secondary px-1.5 py-0.5 rounded hover:bg-secondary/80 transition-colors">{v}</button>)}
               </div>
             </div>
-            <Textarea value={config.template} onChange={e => setConfig((p: any) => ({ ...p, template: e.target.value }))} className="rounded-xl resize-none text-sm" rows={3} placeholder="Шаблон Discord-сообщения..." />
+            <Textarea value={config.template} onChange={e => setConfig((p: any) => ({ ...p, template: e.target.value }))} className="rounded-xl resize-none text-sm" rows={3} placeholder={t("sm.templatePlaceholder")} />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Цвет embed</Label>
+            <Label className="text-xs text-muted-foreground">{t("sm.embedColor")}</Label>
             <div className="flex gap-2 flex-wrap">
               {DISCORD_COLORS.map(c => (
                 <button key={c.value} onClick={() => setConfig((p: any) => ({ ...p, color: c.value }))}
@@ -186,10 +186,10 @@ function AutoPostTab({ groups }: { groups: any[] }) {
 
           <div className="flex gap-2">
             <Button className="rounded-xl gap-1.5" onClick={save} disabled={saving}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Сохранить
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {t("sm.save")}
             </Button>
             <Button variant="outline" className="rounded-xl gap-1.5" onClick={check} disabled={checking || !config.enabled || !config.webhookId || !config.groupId}>
-              {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} Проверить сейчас
+              {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} {t("sm.checkNow")}
             </Button>
           </div>
         </CardContent>
@@ -198,10 +198,10 @@ function AutoPostTab({ groups }: { groups: any[] }) {
       {/* Discord embed preview */}
       <Card className="rounded-2xl border-border/50 bg-[#313338]">
         <CardContent className="pt-4">
-          <p className="text-xs text-[#949ba4] mb-2">Предпросмотр Discord embed</p>
+          <p className="text-xs text-[#949ba4] mb-2">{t("sm.previewTitle")}</p>
           <div className="rounded-sm overflow-hidden border-l-4" style={{ borderColor: `#${(config.color || 5793266).toString(16).padStart(6, "0")}` }}>
             <div className="bg-[#2b2d31] px-3 py-2.5">
-              <p className="text-[#00b0f4] font-semibold text-sm">🆕 Название товара</p>
+              <p className="text-[#00b0f4] font-semibold text-sm">{t("sm.itemName")}</p>
               <p className="text-[#dbdee1] text-xs mt-1 whitespace-pre-line">
                 {(config.template || "")
                   .replace("{name}", "Summer T-Shirt")
@@ -209,9 +209,9 @@ function AutoPostTab({ groups }: { groups: any[] }) {
                   .replace("{link}", "https://roblox.com/catalog/...")}
               </p>
               <div className="flex flex-wrap gap-3 mt-2">
-                <div><p className="text-[#949ba4] text-[10px] font-bold uppercase">Цена</p><p className="text-[#dbdee1] text-xs">25 R$</p></div>
+                <div><p className="text-[#949ba4] text-[10px] font-bold uppercase">{t("sm.priceLabel")}</p><p className="text-[#dbdee1] text-xs">25 R$</p></div>
               </div>
-              <p className="text-[#4e5058] text-[10px] mt-2">Limited.Ink Auto Post • сегодня в 12:00</p>
+              <p className="text-[#4e5058] text-[10px] mt-2">{t("sm.autoPostFooter")}</p>
             </div>
           </div>
         </CardContent>
@@ -221,8 +221,8 @@ function AutoPostTab({ groups }: { groups: any[] }) {
       {history.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">История постов ({history.length})</p>
-            <Button variant="ghost" size="sm" className="rounded-xl text-xs h-7 gap-1" onClick={clearHistory}><Trash2 className="w-3 h-3" /> Очистить</Button>
+            <p className="text-sm font-semibold">{t("sm.postHistory")} ({history.length})</p>
+            <Button variant="ghost" size="sm" className="rounded-xl text-xs h-7 gap-1" onClick={clearHistory}><Trash2 className="w-3 h-3" /> {t("sm.clearHistory")}</Button>
           </div>
           {history.slice(0, 10).map(h => (
             <div key={h.id} className="flex items-center gap-3 rounded-xl border border-border/50 p-3">
@@ -243,16 +243,16 @@ function AutoPostTab({ groups }: { groups: any[] }) {
 }
 
 // ── SocialDashboard ───────────────────────────────────────────────────────────
-const PLATFORM_META: Record<string, { icon: string; label: string; color: string }> = {
+const PLATFORM_META: Record<string, { icon: string; label?: string; labelKey?: string; color: string }> = {
   discord: { icon: "💬", label: "Discord", color: "#5865F2" },
   twitter: { icon: "🐦", label: "Twitter / X", color: "#1DA1F2" },
   tiktok: { icon: "🎵", label: "TikTok", color: "#000000" },
   youtube: { icon: "▶️", label: "YouTube", color: "#FF0000" },
   instagram: { icon: "📸", label: "Instagram", color: "#E1306C" },
   telegram: { icon: "✈️", label: "Telegram", color: "#0088cc" },
-  vk: { icon: "💙", label: "ВКонтакте", color: "#2787F5" },
+  vk: { icon: "💙", labelKey: "sm.vk", color: "#2787F5" },
   twitch: { icon: "🎮", label: "Twitch", color: "#9146FF" },
-  other: { icon: "🌐", label: "Другое", color: "#666666" },
+  other: { icon: "🌐", labelKey: "sm.other", color: "#666666" },
 };
 const PLATFORMS = Object.keys(PLATFORM_META);
 
@@ -289,7 +289,7 @@ function SocialDashboard() {
       });
       setAccounts(p => [...p.filter(a => a.platform !== account.platform), account]);
       setShowAdd(false); setForm({ platform: "discord", handle: "", url: "", followers: "" });
-      toast({ title: "✅ Аккаунт добавлен" });
+      toast({ title: t("sm.accountAdded") });
     } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
@@ -307,9 +307,9 @@ function SocialDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "Webhooks", value: `${dash?.webhooksEnabled || 0}/${dash?.webhooksTotal || 0}`, icon: <Radio className="w-4 h-4" />, color: "text-blue-600" },
-          { label: "Авто-пост", value: dash?.autoPostEnabled ? "Включён" : "Выключен", icon: <Zap className="w-4 h-4" />, color: dash?.autoPostEnabled ? "text-green-600" : "text-muted-foreground" },
-          { label: "Постов сегодня", value: dash?.postsToday || 0, icon: <Megaphone className="w-4 h-4" />, color: "text-indigo-600" },
-          { label: "Всего постов", value: dash?.postsTotal || 0, icon: <Activity className="w-4 h-4" />, color: "text-foreground" },
+          { label: t("sm.autoPostStatus"), value: dash?.autoPostEnabled ? t("sm.enabled") : t("sm.disabled"), icon: <Zap className="w-4 h-4" />, color: dash?.autoPostEnabled ? "text-green-600" : "text-muted-foreground" },
+          { label: t("sm.postsToday"), value: dash?.postsToday || 0, icon: <Megaphone className="w-4 h-4" />, color: "text-indigo-600" },
+          { label: t("sm.totalPosts"), value: dash?.postsTotal || 0, icon: <Activity className="w-4 h-4" />, color: "text-foreground" },
         ].map(s => (
           <Card key={s.label} className="rounded-2xl border-border/50">
             <CardContent className="pt-4 pb-3">
@@ -324,14 +324,14 @@ function SocialDashboard() {
       {/* Webhook health */}
       {dash?.webhooks?.length > 0 && (
         <Card className="rounded-2xl border-border/50">
-          <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm font-semibold text-muted-foreground">Webhook статус</CardTitle></CardHeader>
+          <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm font-semibold text-muted-foreground">{t("sm.webhookStatus")}</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4 space-y-2">
             {dash.webhooks.map((w: any) => (
               <div key={w.id} className="flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full shrink-0 ${w.enabled ? "bg-green-500" : "bg-gray-300"}`} />
                 <span className="text-sm flex-1">{w.name}</span>
                 <Badge variant="outline" className="text-[10px]">{w.type}</Badge>
-                {w.lastTriggered ? <span className="text-[10px] text-muted-foreground">{timeAgo(w.lastTriggered, t)}</span> : <span className="text-[10px] text-muted-foreground/40">Не использовался</span>}
+                {w.lastTriggered ? <span className="text-[10px] text-muted-foreground">{timeAgo(w.lastTriggered, t)}</span> : <span className="text-[10px] text-muted-foreground/40">{t("sm.notUsed")}</span>}
               </div>
             ))}
           </CardContent>
@@ -341,8 +341,8 @@ function SocialDashboard() {
       {/* Social accounts */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold">Социальные сети группы</p>
-          <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> Добавить</Button>
+          <p className="text-sm font-semibold">{t("sm.groupSocials")}</p>
+          <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("sm.add")}</Button>
         </div>
 
         <AnimatePresence>
@@ -352,11 +352,11 @@ function SocialDashboard() {
                 <CardContent className="pt-4 space-y-3">
                   <Select value={form.platform} onValueChange={v => setForm(p => ({ ...p, platform: v }))}>
                     <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>{PLATFORMS.map(p => <SelectItem key={p} value={p}>{PLATFORM_META[p].icon} {PLATFORM_META[p].label}</SelectItem>)}</SelectContent>
+                    <SelectContent>{PLATFORMS.map(p => <SelectItem key={p} value={p}>{PLATFORM_META[p].icon} {PLATFORM_META[p].labelKey ? t(PLATFORM_META[p].labelKey!) : PLATFORM_META[p].label}</SelectItem>)}</SelectContent>
                   </Select>
                   <div className="grid grid-cols-2 gap-2">
-                    <Input placeholder="@handle или название" value={form.handle} onChange={e => setForm(p => ({ ...p, handle: e.target.value }))} className="rounded-xl" />
-                    <Input type="number" placeholder="Подписчики (необяз.)" value={form.followers} onChange={e => setForm(p => ({ ...p, followers: e.target.value }))} className="rounded-xl" />
+                    <Input placeholder={t("sm.handlePlaceholder")} value={form.handle} onChange={e => setForm(p => ({ ...p, handle: e.target.value }))} className="rounded-xl" />
+                    <Input type="number" placeholder={t("sm.followersPlaceholder")} value={form.followers} onChange={e => setForm(p => ({ ...p, followers: e.target.value }))} className="rounded-xl" />
                   </div>
                   <Input placeholder={t("sm.url")} value={form.url} onChange={e => setForm(p => ({ ...p, url: e.target.value }))} className="rounded-xl" />
                   <div className="flex gap-2">
@@ -384,7 +384,7 @@ function SocialDashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-sm">{meta.label}</p>
-                        {acc.followers && <Badge variant="outline" className="text-[9px]">{acc.followers >= 1000 ? `${(acc.followers / 1000).toFixed(1)}K` : acc.followers} подп.</Badge>}
+                        {acc.followers && <Badge variant="outline" className="text-[9px]">{acc.followers >= 1000 ? `${(acc.followers / 1000).toFixed(1)}K` : acc.followers} {t("sm.followersShort")}</Badge>}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{acc.handle}</p>
                     </div>
@@ -401,7 +401,7 @@ function SocialDashboard() {
       {/* Recent auto-posts */}
       {dash?.recentPosts?.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-semibold text-muted-foreground">Последние автопосты</p>
+          <p className="text-sm font-semibold text-muted-foreground">{t("sm.recentAutoposts")}</p>
           {dash.recentPosts.map((h: any) => (
             <div key={h.id} className="flex items-center gap-3 rounded-xl border border-border/50 p-3">
               {h.thumbnailUrl ? <img src={h.thumbnailUrl} className="w-8 h-8 rounded-lg object-cover shrink-0" alt="" /> : <div className="w-8 h-8 rounded-lg bg-secondary shrink-0" />}
@@ -457,7 +457,7 @@ function LinkHubTab() {
         setShowAdd(false);
       }
       setForm({ title: "", url: "", icon: "🔗", description: "", color: "#000000" });
-      toast({ title: "✅ Ссылка сохранена" });
+      toast({ title: t("sm.linkSaved") });
     } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
@@ -510,14 +510,14 @@ function LinkHubTab() {
   const FormSection = () => (
     <Card className="rounded-2xl border-black/20 bg-secondary/20">
       <CardContent className="pt-4 space-y-3">
-        <p className="text-sm font-semibold">{editId ? "Редактировать ссылку" : t("sm.addLink")}</p>
+        <p className="text-sm font-semibold">{editId ? t("sm.editLink") : t("sm.addLink")}</p>
         <div className="grid grid-cols-2 gap-2">
-          <Input placeholder="Название ссылки..." value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
+          <Input placeholder={t("sm.linkNamePlaceholder")} value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
           <Input placeholder="https://..." value={form.url} onChange={e => setForm(p => ({ ...p, url: e.target.value }))} className="rounded-xl" />
         </div>
-        <Input placeholder="Описание (необязательно)" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl" />
+        <Input placeholder={t("sm.linkDescPlaceholder")} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl" />
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Иконка</Label>
+          <Label className="text-xs text-muted-foreground">{t("sm.iconLabel")}</Label>
           <div className="flex flex-wrap gap-1.5 items-center">
             {COMMON_ICONS.map(ic => (
               <button key={ic} onClick={() => setForm(p => ({ ...p, icon: ic }))}
@@ -527,7 +527,7 @@ function LinkHubTab() {
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Цвет</Label>
+          <Label className="text-xs text-muted-foreground">{t("sm.colorLabel")}</Label>
           <div className="flex gap-2 flex-wrap">
             {LINK_COLORS.map(c => (
               <button key={c} onClick={() => setForm(p => ({ ...p, color: c }))}
@@ -539,7 +539,7 @@ function LinkHubTab() {
         </div>
         <div className="flex gap-2">
           <Button className="flex-1 rounded-xl" onClick={saveLink} disabled={saving || !form.title || !form.url}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {editId ? "Сохранить" : t("sm.addLink")}
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {editId ? t("sm.save") : t("sm.addLink")}
           </Button>
           <Button variant="ghost" className="rounded-xl" onClick={() => { setShowAdd(false); setEditId(null); setForm({ title: "", url: "", icon: "🔗", description: "", color: "#000000" }); }}>
             <X className="w-4 h-4" />
@@ -553,12 +553,12 @@ function LinkHubTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold">Link Hub — страница ссылок группы</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Как Linktree — все ваши ссылки в одном месте</p>
+          <p className="text-sm font-semibold">{t("sm.linkHubTitle")}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{t("sm.linkHubDesc")}</p>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" className="rounded-xl gap-1.5" onClick={() => setPreview(p => !p)}>
-            <Eye className="w-3.5 h-3.5" /> {preview ? "Список" : "Превью"}
+            <Eye className="w-3.5 h-3.5" /> {preview ? t("sm.list") : t("sm.preview")}
           </Button>
           {!preview && <Button size="sm" className="rounded-xl gap-1.5" onClick={() => { setShowAdd(p => !p); setEditId(null); setForm({ title: "", url: "", icon: "🔗", description: "", color: "#000000" }); }}>
             <Plus className="w-3.5 h-3.5" /> {t("sm.addLink")}
@@ -581,7 +581,7 @@ function LinkHubTab() {
             <div className="bg-gradient-to-br from-gray-900 to-gray-700 px-6 py-8 text-center">
               <div className="w-16 h-16 rounded-full bg-white/10 mx-auto flex items-center justify-center text-2xl mb-3">🔗</div>
               <p className="text-white font-bold text-lg">{t("sm.links")}</p>
-              <p className="text-white/60 text-xs mt-1">Все наши соцсети и ресурсы</p>
+              <p className="text-white/60 text-xs mt-1">{t("sm.allResources")}</p>
             </div>
             <div className="bg-gray-50 p-4 space-y-2">
               {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-xl" />) :
@@ -601,7 +601,7 @@ function LinkHubTab() {
           <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
             <Link2 className="w-12 h-12 opacity-20" />
             <p className="text-sm">{t("sm.noLinks")}</p>
-            <p className="text-xs">Добавьте ссылки на соцсети, Discord, YouTube и другие ресурсы</p>
+            <p className="text-xs">{t("sm.addLinksHint")}</p>
             <Button size="sm" className="rounded-xl gap-1.5 mt-2" onClick={() => setShowAdd(true)}><Plus className="w-3.5 h-3.5" /> {t("sm.addLink")}</Button>
           </div>
         ) : (

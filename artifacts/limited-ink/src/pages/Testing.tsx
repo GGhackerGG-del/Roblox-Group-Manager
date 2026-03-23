@@ -88,7 +88,7 @@ async function loadImageData(file: File): Promise<{ canvas: HTMLCanvasElement; c
       URL.revokeObjectURL(url);
       resolve({ canvas, ctx, data, img });
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Не удалось загрузить изображение")); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to load image")); };
     img.src = url;
   });
 }
@@ -169,12 +169,12 @@ function ValidatorTab() {
 
     // File type
     const isPng = file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
-    res.push({ id: "type", label: `${t("test.format")} (PNG)`, status: isPng ? "pass" : "fail", detail: isPng ? "✓ Файл в формате PNG" : `✗ Обнаружен формат ${file.type || "неизвестный"} — Roblox принимает только PNG` });
+    res.push({ id: "type", label: `${t("test.format")} (PNG)`, status: isPng ? "pass" : "fail", detail: isPng ? t("test.pngOk") : `✗ ${file.type || t("test.unknown")} — Roblox requires PNG` });
 
     // File size
     const maxSize = 2 * 1024 * 1024;
     const sizeOk = file.size <= maxSize;
-    res.push({ id: "size", label: `${t("test.fileSize")} (≤ 2 МБ)`, status: sizeOk ? "pass" : "fail", detail: sizeOk ? `✓ ${(file.size / 1024).toFixed(1)} KB — в пределах лимита` : `✗ ${(file.size / 1024 / 1024).toFixed(2)} МБ — превышает лимит 2 МБ` });
+    res.push({ id: "size", label: `${t("test.fileSize")} (${t("test.sizeLimit")})`, status: sizeOk ? "pass" : "fail", detail: sizeOk ? `✓ ${(file.size / 1024).toFixed(1)} KB` : `✗ ${(file.size / 1024 / 1024).toFixed(2)} MB` });
 
     try {
       const { img, data } = await loadImageData(file);
@@ -189,24 +189,24 @@ function ValidatorTab() {
       if (clothingType !== "custom" && spec.w > 0) {
         const exactMatch = w === spec.w && h === spec.h;
         const close = Math.abs(w - spec.w) < 20 && Math.abs(h - spec.h) < 20;
-        res.push({ id: "dims", label: `${t("test.dimensions")} (${spec.w}×${spec.h}px)`, status: exactMatch ? "pass" : close ? "warn" : "fail", detail: exactMatch ? `✓ ${w}×${h}px — точное соответствие шаблону` : close ? `⚠ ${w}×${h}px — близко, но не точно. Рекомендуется ${spec.w}×${spec.h}px` : `✗ ${w}×${h}px — не соответствует шаблону ${t(spec.labelKey)} (${spec.w}×${spec.h}px)` });
+        res.push({ id: "dims", label: `${t("test.dimensions")} (${spec.w}×${spec.h}px)`, status: exactMatch ? "pass" : close ? "warn" : "fail", detail: exactMatch ? `✓ ${w}×${h}px` : close ? `⚠ ${w}×${h}px — ${spec.w}×${spec.h}px` : `✗ ${w}×${h}px — ${t(spec.labelKey)} (${spec.w}×${spec.h}px)` });
       } else {
         res.push({ id: "dims", label: t("test.dimensions"), status: "info", detail: `ℹ ${w}×${h}px` });
       }
 
       // Transparency
       const hasAlpha = hasTransparency(data);
-      res.push({ id: "alpha", label: `${t("test.transparency")} (alpha-канал)`, status: hasAlpha ? "pass" : "warn", detail: hasAlpha ? "✓ Изображение содержит прозрачные пиксели" : "⚠ Прозрачность не обнаружена — убедитесь что фон прозрачный" });
+      res.push({ id: "alpha", label: `${t("test.transparency")} (${t("test.alphaChannel")})`, status: hasAlpha ? "pass" : "warn", detail: hasAlpha ? t("test.hasAlpha") : t("test.noAlpha") });
 
       // Not fully transparent
       const transRatio = transparentRatio(data);
-      res.push({ id: "content", label: "Наличие контента", status: transRatio > 0.98 ? "fail" : transRatio > 0.85 ? "warn" : "pass", detail: transRatio > 0.98 ? "✗ Изображение почти полностью прозрачное — нет контента" : transRatio > 0.85 ? `⚠ ${Math.round(transRatio * 100)}% пикселей прозрачны — убедитесь что дизайн нанесён` : `✓ ${Math.round((1 - transRatio) * 100)}% пикселей содержат контент` });
+      res.push({ id: "content", label: t("test.contentCheck"), status: transRatio > 0.98 ? "fail" : transRatio > 0.85 ? "warn" : "pass", detail: transRatio > 0.98 ? t("test.noContent") : transRatio > 0.85 ? `⚠ ${Math.round(transRatio * 100)}%` : `✓ ${Math.round((1 - transRatio) * 100)}%` });
 
       // Power of 2 dimensions (optional)
       const isPow2 = (n: number) => n > 0 && (n & (n - 1)) === 0;
       if (clothingType === "custom") {
         const pow2 = isPow2(w) && isPow2(h);
-        res.push({ id: "pow2", label: "Степень двойки (рекомендация)", status: pow2 ? "pass" : "warn", detail: pow2 ? "✓ Размеры являются степенями двойки — хорошо для производительности" : `⚠ ${w}×${h}px — рекомендуется использовать 128, 256, 512, 1024` });
+        res.push({ id: "pow2", label: t("test.pow2"), status: pow2 ? "pass" : "warn", detail: pow2 ? t("test.pow2Ok") : `⚠ ${w}×${h}px — 128, 256, 512, 1024` });
       }
 
       // Aspect ratio
@@ -214,15 +214,15 @@ function ValidatorTab() {
         const expectedRatio = spec.w / spec.h;
         const actualRatio = w / h;
         const ratioOk = Math.abs(actualRatio - expectedRatio) < 0.05;
-        res.push({ id: "ratio", label: "Соотношение сторон", status: ratioOk ? "pass" : "warn", detail: ratioOk ? `✓ Соотношение сторон корректное (${expectedRatio.toFixed(2)})` : `⚠ Ожидается ${expectedRatio.toFixed(2)}, получено ${actualRatio.toFixed(2)}` });
+        res.push({ id: "ratio", label: t("test.aspectRatio"), status: ratioOk ? "pass" : "warn", detail: ratioOk ? `${t("test.ratioOk")} (${expectedRatio.toFixed(2)})` : `⚠ ${expectedRatio.toFixed(2)} / ${actualRatio.toFixed(2)}` });
       }
 
       // Color check
       const skinRatio = analyzeSkinTone(data);
-      res.push({ id: "skin", label: "Проверка телесных тонов", status: skinRatio > 0.6 ? "warn" : "pass", detail: skinRatio > 0.6 ? `⚠ ${Math.round(skinRatio * 100)}% пикселей — телесный тон. Возможен риск модерации` : `✓ ${Math.round(skinRatio * 100)}% телесного тона — в норме` });
+      res.push({ id: "skin", label: t("test.skinCheck"), status: skinRatio > 0.6 ? "warn" : "pass", detail: skinRatio > 0.6 ? `⚠ ${Math.round(skinRatio * 100)}%` : `✓ ${Math.round(skinRatio * 100)}%` });
 
     } catch (e) {
-      res.push({ id: "load", label: "Загрузка изображения", status: "fail", detail: `✗ ${t("common.error")}: ${(e as Error).message}` });
+      res.push({ id: "load", label: t("test.imageLoad"), status: "fail", detail: `✗ ${t("common.error")}: ${(e as Error).message}` });
     }
 
     setResults(res);
@@ -243,7 +243,7 @@ function ValidatorTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Тип одежды</Label>
+            <Label className="text-xs text-muted-foreground">{t("test.clothingType")}</Label>
             <Select value={clothingType} onValueChange={setClothingType}>
               <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
               <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {t(v.labelKey)} {v.w > 0 ? `(${v.w}×${v.h})` : ""}</SelectItem>)}</SelectContent>
@@ -274,7 +274,7 @@ function ValidatorTab() {
         </div>
       </div>
 
-      {analyzing && <div className="flex items-center gap-3 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Анализирую изображение...</div>}
+      {analyzing && <div className="flex items-center gap-3 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> {t("test.analyzing")}</div>}
 
       <AnimatePresence>
         {results.length > 0 && (
@@ -292,10 +292,10 @@ function ValidatorTab() {
       {!file && (
         <Card className="rounded-2xl border-border/30 bg-secondary/20">
           <CardContent className="pt-4">
-            <p className="text-xs font-bold text-muted-foreground mb-2">📐 Требования Roblox к одежде</p>
+            <p className="text-xs font-bold text-muted-foreground mb-2">{t("test.robloxReqs")}</p>
             <div className="grid grid-cols-3 gap-3">
               {Object.entries(CLOTHING_SPECS).filter(([k]) => k !== "custom").map(([k, v]) => (
-                <div key={k} className="text-center text-xs"><div className="text-2xl mb-1">{v.icon}</div><p className="font-bold">{t(v.labelKey)}</p><p className="text-muted-foreground">{v.w}×{v.h}px</p><p className="text-muted-foreground">≤ 2 МБ • PNG</p></div>
+                <div key={k} className="text-center text-xs"><div className="text-2xl mb-1">{v.icon}</div><p className="font-bold">{t(v.labelKey)}</p><p className="text-muted-foreground">{v.w}×{v.h}px</p><p className="text-muted-foreground">{t("test.sizeFormat")}</p></div>
               ))}
             </div>
           </CardContent>
@@ -481,7 +481,7 @@ function ChecklistTab() {
       setChecklists(p => [...p, checklist]);
       setActiveId(checklist.id);
       setShowAdd(false); setNewName("");
-      toast({ title: "✅ Чеклист создан" });
+      toast({ title: t("test.checklistCreated") });
     } catch { toast({ variant: "destructive", title: t("common.error") }); }
     finally { setSaving(false); }
   };
@@ -524,7 +524,7 @@ function ChecklistTab() {
     const items = cl.items.map((it: any) => ({ ...it, done: false }));
     await api(`/api/quality/checklists/${clId}`, { method: "PATCH", body: JSON.stringify({ items }) });
     setChecklists(p => p.map(c => c.id === clId ? { ...c, items } : c));
-    toast({ title: "Чеклист сброшен" });
+    toast({ title: t("test.checklistReset") });
   };
 
   const activeCl = checklists.find(c => c.id === activeId);
@@ -536,8 +536,8 @@ function ChecklistTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div><p className="font-semibold">{t("test.checklist")}</p><p className="text-xs text-muted-foreground">{checklists.length} чеклистов</p></div>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> Новый чеклист</Button>
+        <div><p className="font-semibold">{t("test.checklist")}</p><p className="text-xs text-muted-foreground">{checklists.length} {t("test.checklistCount")}</p></div>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("test.newChecklist")}</Button>
       </div>
 
       <AnimatePresence>
@@ -546,14 +546,14 @@ function ChecklistTab() {
             <Card className="rounded-2xl border-black/20 bg-secondary/20">
               <CardContent className="pt-4 space-y-3">
                 <div className="grid grid-cols-2 gap-2">
-                  <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Название чеклиста *" className="rounded-xl" onKeyDown={e => e.key === "Enter" && create()} />
+                  <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder={t("test.checklistNameLabel")} className="rounded-xl" onKeyDown={e => e.key === "Enter" && create()} />
                   <Select value={newType} onValueChange={setNewType}>
                     <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {t(v.labelKey)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="flex gap-2">
-                  <Button className="flex-1 rounded-xl gap-1.5" onClick={create} disabled={saving || !newName}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Создать с шаблоном</Button>
+                  <Button className="flex-1 rounded-xl gap-1.5" onClick={create} disabled={saving || !newName}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {t("test.createWithTemplate")}</Button>
                   <Button variant="ghost" className="rounded-xl" onClick={() => setShowAdd(false)}><X className="w-4 h-4" /></Button>
                 </div>
               </CardContent>
@@ -566,7 +566,7 @@ function ChecklistTab() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* List */}
           <div className="space-y-2">
-            {checklists.length === 0 ? <div className="text-center py-8 text-muted-foreground text-sm"><ClipboardCheck className="w-8 h-8 opacity-20 mx-auto mb-2" />Нет чеклистов</div>
+            {checklists.length === 0 ? <div className="text-center py-8 text-muted-foreground text-sm"><ClipboardCheck className="w-8 h-8 opacity-20 mx-auto mb-2" />{t("test.noChecklists")}</div>
               : checklists.map(c => {
                 const done = c.items.filter((it: any) => it.done).length;
                 const total = c.items.length;
@@ -577,7 +577,7 @@ function ChecklistTab() {
                     className={`rounded-xl border p-3 cursor-pointer transition-colors ${c.id === activeId ? "border-black bg-black/5" : "border-border/50 hover:border-black/20"}`}>
                     <div className="flex items-center gap-2">
                       <span>{spec?.icon}</span>
-                      <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{c.name}</p><p className="text-[10px] text-muted-foreground">{done}/{total} выполнено</p></div>
+                      <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{c.name}</p><p className="text-[10px] text-muted-foreground">{done}/{total} {t("test.completed")}</p></div>
                       <button onClick={e => { e.stopPropagation(); remove(c.id); }} className="text-red-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                     <div className="w-full h-1.5 rounded-full bg-secondary mt-2 overflow-hidden">
@@ -591,16 +591,16 @@ function ChecklistTab() {
           {/* Active checklist */}
           <div className="md:col-span-2">
             {!activeCl ? (
-              <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2"><ClipboardCheck className="w-8 h-8 opacity-20" /><p className="text-sm">Выберите чеклист слева</p></div>
+              <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2"><ClipboardCheck className="w-8 h-8 opacity-20" /><p className="text-sm">{t("test.selectChecklist")}</p></div>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-bold">{activeCl.name}</p>
-                    <p className="text-xs text-muted-foreground">{doneCount}/{totalCount} пунктов • {requiredDone}/{requiredTotal} обязательных</p>
+                    <p className="text-xs text-muted-foreground">{doneCount}/{totalCount} {t("cp.items")} • {requiredDone}/{requiredTotal} {t("cp.required")}</p>
                   </div>
                   <div className="flex gap-2 items-center">
-                    {requiredDone === requiredTotal && requiredTotal > 0 && <Badge className="bg-green-500/15 text-green-700 border-green-400/30 text-[10px]">✅ Готово к загрузке</Badge>}
+                    {requiredDone === requiredTotal && requiredTotal > 0 && <Badge className="bg-green-500/15 text-green-700 border-green-400/30 text-[10px]">{t("test.readyToUpload") || "✅ Ready"}</Badge>}
                     <Button size="sm" variant="outline" className="rounded-lg h-7 text-xs" onClick={() => resetChecklist(activeCl.id)}><RefreshCw className="w-3 h-3" /></Button>
                   </div>
                 </div>
@@ -616,14 +616,14 @@ function ChecklistTab() {
                         {it.done && <Check className="w-3 h-3 text-white" />}
                       </div>
                       <p className={`text-sm flex-1 ${it.done ? "line-through text-muted-foreground" : ""}`}>{it.text}</p>
-                      {it.required && !it.done && <span className="text-[10px] text-red-500 font-bold shrink-0">Обязательно</span>}
+                      {it.required && !it.done && <span className="text-[10px] text-red-500 font-bold shrink-0">{t("cp.requiredItem")}</span>}
                       <button onClick={e => { e.stopPropagation(); removeItem(activeCl.id, it.id); }} className="text-muted-foreground hover:text-red-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
                 </div>
 
                 <div className="flex gap-2">
-                  <Input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="Добавить пункт..." className="rounded-xl flex-1" onKeyDown={e => e.key === "Enter" && addItem(activeCl.id)} />
+                  <Input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder={t("cp.addItemPlaceholder")} className="rounded-xl flex-1" onKeyDown={e => e.key === "Enter" && addItem(activeCl.id)} />
                   <Button className="rounded-xl" onClick={() => addItem(activeCl.id)} disabled={!newItem.trim()}><Plus className="w-4 h-4" /></Button>
                 </div>
               </div>
@@ -654,7 +654,7 @@ function AvatarPreviewTab() {
     try {
       const d = await api<any>(`/api/quality/roblox-avatar?username=${encodeURIComponent(username.trim())}`);
       setAvatarData(d);
-      toast({ title: `✅ Аватар ${d.displayName} загружен` });
+      toast({ title: t("test.avatarLoaded").replace("{name}", d.displayName) });
     } catch (e) {
       toast({ variant: "destructive", title: t("common.error"), description: (e as Error).message });
     } finally { setLoading(false); }
@@ -727,9 +727,9 @@ function AvatarPreviewTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Roblox Никнейм</Label>
+            <Label className="text-xs text-muted-foreground">{t("test.robloxNickname")}</Label>
             <div className="flex gap-2">
-              <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="Введите Roblox username..." className="rounded-xl" onKeyDown={e => e.key === "Enter" && fetchAvatar()} />
+              <Input value={username} onChange={e => setUsername(e.target.value)} placeholder={t("test.enterUsername")} className="rounded-xl" onKeyDown={e => e.key === "Enter" && fetchAvatar()} />
               <Button className="rounded-xl gap-1.5 shrink-0" onClick={fetchAvatar} disabled={loading || !username.trim()}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <User className="w-4 h-4" />}
               </Button>
@@ -737,7 +737,7 @@ function AvatarPreviewTab() {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Тип одежды</Label>
+            <Label className="text-xs text-muted-foreground">{t("test.clothingType")}</Label>
             <Select value={clothingType} onValueChange={v => { setClothingType(v); setComposited(false); }}>
               <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
               <SelectContent>{Object.entries(CLOTHING_SPECS).map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {t(v.labelKey)}</SelectItem>)}</SelectContent>
@@ -751,7 +751,7 @@ function AvatarPreviewTab() {
               <CardContent className="p-3 flex items-center gap-3">
                 <img src={avatarData.imageUrl} alt="avatar" className="w-12 h-12 rounded-xl object-cover" crossOrigin="anonymous" />
                 <div><p className="text-sm font-bold">{avatarData.displayName}</p><p className="text-xs text-muted-foreground">ID: {avatarData.userId}</p></div>
-                <Badge className="ml-auto text-[10px] bg-green-500/15 text-green-700 border-green-400/30">✅ Загружен</Badge>
+                <Badge className="ml-auto text-[10px] bg-green-500/15 text-green-700 border-green-400/30">{t("test.loaded")}</Badge>
               </CardContent>
             </Card>
           )}
@@ -762,7 +762,7 @@ function AvatarPreviewTab() {
             {!avatarData && !clothingUrl ? (
               <div className="text-center text-muted-foreground p-8">
                 <Eye className="w-12 h-12 opacity-10 mx-auto mb-3" />
-                <p className="text-sm">Загрузите аватар и одежду для предпросмотра</p>
+                <p className="text-sm">{t("test.loadAvatarHint")}</p>
               </div>
             ) : (
               <>
@@ -770,22 +770,22 @@ function AvatarPreviewTab() {
                 {!composited && avatarData && (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <img src={avatarData.imageUrl} alt="base" className="max-h-full object-contain opacity-50" crossOrigin="anonymous" />
-                    {!clothingUrl && <div className="absolute bottom-4 text-xs text-muted-foreground">Загрузите одежду для наложения</div>}
+                    {!clothingUrl && <div className="absolute bottom-4 text-xs text-muted-foreground">{t("test.loadClothingHint")}</div>}
                   </div>
                 )}
               </>
             )}
           </div>
           {composited && (
-            <Button variant="outline" className="w-full rounded-xl gap-1.5" onClick={downloadPreview}><Upload className="w-4 h-4" /> Скачать предпросмотр</Button>
+            <Button variant="outline" className="w-full rounded-xl gap-1.5" onClick={downloadPreview}><Upload className="w-4 h-4" /> {t("test.downloadPreview")}</Button>
           )}
         </div>
       </div>
 
       <Card className="rounded-2xl border-border/30 bg-secondary/20">
         <CardContent className="pt-4 text-xs text-muted-foreground">
-          <p className="font-bold text-foreground mb-1">💡 О предпросмотре</p>
-          <p>Наложение одежды приблизительное — точное расположение зависит от шаблона Roblox. Для рубашек отображается область торса, для брюк — нижняя часть тела, для футболок — нагрудный рисунок. Используйте предпросмотр как ориентир, а не точное отображение.</p>
+          <p className="font-bold text-foreground mb-1">{t("test.aboutPreview")}</p>
+          <p>{t("test.aboutPreviewText")}</p>
         </CardContent>
       </Card>
     </div>

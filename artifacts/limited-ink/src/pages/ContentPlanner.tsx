@@ -51,37 +51,39 @@ function fmtDateTime(ts: number, locale: string) {
 }
 function toDateStr(ts: number) { return new Date(ts).toISOString().slice(0, 10); }
 
-const EVENT_TYPES = [
-  { value: "clothing", label: "👕 Одежда", color: "#6366f1" },
-  { value: "post", label: "📢 Пост", color: "#f59e0b" },
-  { value: "announcement", label: "📣 Анонс", color: "#10b981" },
-  { value: "sale", label: "🏷️ Акция", color: "#ef4444" },
-  { value: "collab", label: "🤝 Коллаб", color: "#8b5cf6" },
-  { value: "stream", label: "🎮 Стрим", color: "#06b6d4" },
-  { value: "other", label: "📌 Другое", color: "#6b7280" },
-];
-const DRAFT_TYPES = [
-  { value: "clothing", label: "👕 Одежда" }, { value: "post", label: "📢 Пост" },
-  { value: "announcement", label: "📣 Анонс" }, { value: "sale", label: "🏷️ Акция" },
-  { value: "video", label: "🎬 Видео" }, { value: "other", label: "📌 Другое" },
-];
-const DRAFT_STATUSES = [
-  { value: "draft", label: "✏️ Черновик", color: "text-gray-500 border-gray-400/30" },
-  { value: "ready", label: "✅ Готов", color: "text-green-600 border-green-500/30" },
-  { value: "scheduled", label: "🗓️ Запланирован", color: "text-blue-600 border-blue-500/30" },
-  { value: "published", label: "🚀 Опубликован", color: "text-indigo-600 border-indigo-500/30" },
-];
-const TODO_CATEGORIES = [
-  { value: "general", label: "📋 Общее" }, { value: "design", label: "🎨 Дизайн" },
-  { value: "upload", label: "📤 Загрузка" }, { value: "moderation", label: "🛡️ Модерация" },
-  { value: "marketing", label: "📣 Маркетинг" }, { value: "collab", label: "🤝 Коллаб" },
-];
-const REMINDER_TYPES = [
-  { value: "upload", label: "📤 Загрузка" }, { value: "deadline", label: "⏰ Дедлайн" },
-  { value: "sale", label: "🏷️ Акция" }, { value: "meeting", label: "🤝 Встреча" },
-  { value: "payment", label: "💳 Оплата" }, { value: "other", label: "📌 Другое" },
-];
-const EVENT_COLOR_MAP: Record<string, string> = Object.fromEntries(EVENT_TYPES.map(e => [e.value, e.color]));
+const EVENT_TYPE_VALUES = ["clothing", "post", "announcement", "sale", "collab", "stream", "other"] as const;
+const EVENT_TYPE_KEYS: Record<string, string> = {
+  clothing: "cp.clothing", post: "cp.post", announcement: "cp.announcement",
+  sale: "cp.sale", collab: "cp.collab", stream: "cp.stream", other: "cp.otherType",
+};
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  clothing: "#6366f1", post: "#f59e0b", announcement: "#10b981",
+  sale: "#ef4444", collab: "#8b5cf6", stream: "#06b6d4", other: "#6b7280",
+};
+const DRAFT_TYPE_VALUES = ["clothing", "post", "announcement", "sale", "video", "other"] as const;
+const DRAFT_TYPE_KEYS: Record<string, string> = {
+  clothing: "cp.clothing", post: "cp.post", announcement: "cp.announcement",
+  sale: "cp.sale", video: "cp.video", other: "cp.otherType",
+};
+const DRAFT_STATUS_VALUES = ["draft", "ready", "scheduled", "published"] as const;
+const DRAFT_STATUS_KEYS: Record<string, string> = {
+  draft: "cp.statusDraft", ready: "cp.statusReady", scheduled: "cp.statusScheduled", published: "cp.statusPublished",
+};
+const DRAFT_STATUS_COLORS: Record<string, string> = {
+  draft: "text-gray-500 border-gray-400/30", ready: "text-green-600 border-green-500/30",
+  scheduled: "text-blue-600 border-blue-500/30", published: "text-indigo-600 border-indigo-500/30",
+};
+const TODO_CAT_VALUES = ["general", "design", "upload", "moderation", "marketing", "collab"] as const;
+const TODO_CAT_KEYS: Record<string, string> = {
+  general: "cp.catGeneral", design: "cp.catDesign", upload: "cp.catUpload",
+  moderation: "cp.catModeration", marketing: "cp.catMarketing", collab: "cp.catCollab",
+};
+const REMINDER_TYPE_VALUES = ["upload", "deadline", "sale", "meeting", "payment", "other"] as const;
+const REMINDER_TYPE_KEYS: Record<string, string> = {
+  upload: "cp.remUpload", deadline: "cp.remDeadline", sale: "cp.remSale",
+  meeting: "cp.remMeeting", payment: "cp.remPayment", other: "cp.remOther",
+};
+const EVENT_COLOR_MAP: Record<string, string> = EVENT_TYPE_COLORS;
 
 // ── Content Calendar ──────────────────────────────────────────────────────────
 interface CalEvent { id: string; title: string; type: string; date: string; color: string; draftId: string | null; notes: string; createdAt: number }
@@ -120,16 +122,16 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
   const addEvent = async () => {
     if (!form.title || !selectedDay) return;
     setSaving(true);
-    const evtType = EVENT_TYPES.find(t => t.value === form.type);
+    const evtTypeColor = EVENT_TYPE_COLORS[form.type] || "#6b7280";
     try {
       const { event } = await apiFetch<{ event: CalEvent }>("/api/content/calendar", {
         method: "POST",
-        body: JSON.stringify({ ...form, date: selectedDay, color: evtType?.color || "#000000", draftId: form.draftId || null }),
+        body: JSON.stringify({ ...form, date: selectedDay, color: evtTypeColor, draftId: form.draftId || null }),
       });
       setEvents(p => [...p, event]);
       setShowAdd(false);
       setForm({ title: "", type: "clothing", notes: "", draftId: "" });
-      toast({ title: "✅ Событие добавлено" });
+      toast({ title: t("cp.eventAdded") });
     } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSaving(false); }
   };
@@ -153,7 +155,7 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
 
       {/* Day of week headers */}
       <div className="grid grid-cols-7 gap-1">
-        {["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(d => (
+        {t("cp.weekDays").split(",").map(d => (
           <div key={d} className="text-center text-[10px] font-bold text-muted-foreground py-1">{d}</div>
         ))}
       </div>
@@ -184,7 +186,7 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
 
       {/* Legend */}
       <div className="flex gap-3 flex-wrap">
-        {EVENT_TYPES.map(t => <span key={t.value} className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="w-2 h-2 rounded-full inline-block" style={{ background: t.color }} />{t.label.split(" ")[1]}</span>)}
+        {EVENT_TYPE_VALUES.map(v => <span key={v} className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="w-2 h-2 rounded-full inline-block" style={{ background: EVENT_TYPE_COLORS[v] }} />{t(EVENT_TYPE_KEYS[v])}</span>)}
       </div>
 
       {/* Selected day panel */}
@@ -203,16 +205,16 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
                     <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={t("cp.eventTitle")} className="rounded-xl" />
                     <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v }))}>
                       <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent>{EVENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                      <SelectContent>{EVENT_TYPE_VALUES.map(v => <SelectItem key={v} value={v}>{t(EVENT_TYPE_KEYS[v])}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   {drafts.length > 0 && (
                     <Select value={form.draftId} onValueChange={v => setForm(p => ({ ...p, draftId: v, title: p.title || drafts.find(d => d.id === v)?.title || "" }))}>
-                      <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder="Привязать черновик (необяз.)" /></SelectTrigger>
+                      <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder={t("cp.linkDraft")} /></SelectTrigger>
                       <SelectContent>{drafts.map(d => <SelectItem key={d.id} value={d.id}>{d.title}</SelectItem>)}</SelectContent>
                     </Select>
                   )}
-                  <Input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Заметки..." className="rounded-xl" />
+                  <Input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder={t("cp.notes")} className="rounded-xl" />
                   <div className="flex gap-2">
                     <Button size="sm" className="flex-1 rounded-xl" onClick={addEvent} disabled={saving || !form.title}>
                       {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} {t("cp.addEvent")}
@@ -228,13 +230,13 @@ function CalendarTab({ drafts }: { drafts: Draft[] }) {
             ) : (
               <div className="space-y-2">
                 {selectedEvents.map(ev => {
-                  const evType = EVENT_TYPES.find(t => t.value === ev.type);
+                  const evTypeColor = EVENT_TYPE_COLORS[ev.type] || "#6b7280";
                   return (
                     <div key={ev.id} className="flex items-center gap-3 rounded-xl border border-border/50 p-3" style={{ borderLeftColor: ev.color, borderLeftWidth: "3px" }}>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm">{ev.title}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-muted-foreground">{evType?.label}</span>
+                          <span className="text-xs text-muted-foreground">{t(EVENT_TYPE_KEYS[ev.type] || "cp.otherType")}</span>
                           {ev.notes && <span className="text-xs text-muted-foreground/60 truncate">• {ev.notes}</span>}
                         </div>
                       </div>
@@ -288,11 +290,11 @@ function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dis
       if (editing) {
         await apiFetch(`/api/content/drafts/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
         setDrafts(p => p.map(d => d.id === editing.id ? { ...d, ...body, updatedAt: Date.now() } : d));
-        toast({ title: "✅ Черновик обновлён" });
+        toast({ title: t("cp.draftUpdated") });
       } else {
         const { draft } = await apiFetch<{ draft: Draft }>("/api/content/drafts", { method: "POST", body: JSON.stringify(body) });
         setDrafts(p => [draft, ...p]);
-        toast({ title: "✅ Черновик создан" });
+        toast({ title: t("cp.draftCreated") });
       }
       setView("list");
     } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
@@ -302,7 +304,7 @@ function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dis
   const deleteDraft = async (id: string) => {
     await apiFetch(`/api/content/drafts/${id}`, { method: "DELETE" });
     setDrafts(p => p.filter(d => d.id !== id));
-    toast({ title: "✅ Черновик удалён" });
+    toast({ title: t("cp.draftDeleted") });
   };
 
   const updateStatus = async (id: string, status: string) => {
@@ -315,30 +317,30 @@ function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dis
   if (view === "edit") return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setView("list")}><X className="w-4 h-4" /> Отмена</Button>
-        <p className="font-semibold">{editing ? "Редактировать" : "Новый"} черновик</p>
+        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setView("list")}><X className="w-4 h-4" /> {t("cp.cancel")}</Button>
+        <p className="font-semibold">{editing ? t("cp.edit") : t("cp.newDraft")} черновик</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Название..." className="rounded-xl" />
+        <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={t("cp.titlePlaceholder")} className="rounded-xl" />
         <div className="grid grid-cols-2 gap-2">
           <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v }))}>
             <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>{DRAFT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+            <SelectContent>{DRAFT_TYPE_VALUES.map(v => <SelectItem key={v} value={v}>{t(DRAFT_TYPE_KEYS[v])}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
             <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>{DRAFT_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+            <SelectContent>{DRAFT_STATUS_VALUES.map(v => <SelectItem key={v} value={v}>{t(DRAFT_STATUS_KEYS[v])}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </div>
-      <Textarea value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} placeholder="Описание, текст публикации, заметки по дизайну..." className="rounded-xl resize-none" rows={5} />
+      <Textarea value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} placeholder={t("cp.descPlaceholder")} className="rounded-xl resize-none" rows={5} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">URL превью (необяз.)</Label><Input value={form.thumbnailUrl} onChange={e => setForm(p => ({ ...p, thumbnailUrl: e.target.value }))} placeholder="https://..." className="rounded-xl" /></div>
+        <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{t("cp.previewUrl")}</Label><Input value={form.thumbnailUrl} onChange={e => setForm(p => ({ ...p, thumbnailUrl: e.target.value }))} placeholder="https://..." className="rounded-xl" /></div>
         <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{t("cp.eventDate")}</Label><Input type="date" value={form.scheduledAt} onChange={e => setForm(p => ({ ...p, scheduledAt: e.target.value }))} className="rounded-xl" /></div>
       </div>
-      <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Теги (через запятую)</Label><Input value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} placeholder="лето, хайп, коллаб..." className="rounded-xl" /></div>
+      <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{t("cp.tagsLabel")}</Label><Input value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} placeholder={t("cp.tagsPlaceholder")} className="rounded-xl" /></div>
       <Button className="w-full rounded-xl gap-2" onClick={saveDraft} disabled={saving || !form.title}>
-        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {editing ? "Сохранить" : "Создать черновик"}
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {editing ? t("cp.saveDraft") : t("cp.createDraft")}
       </Button>
     </div>
   );
@@ -347,22 +349,22 @@ function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dis
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-1 bg-secondary/50 rounded-xl border border-border p-1">
-          {["all", ...DRAFT_STATUSES.map(s => s.value)].map(s => (
+          {["all", ...[...DRAFT_STATUS_VALUES]].map(s => (
             <button key={s} onClick={() => setFilterStatus(s)} className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors ${filterStatus === s ? "bg-black text-white" : "text-muted-foreground"}`}>
-              {s === "all" ? "Все" : DRAFT_STATUSES.find(st => st.value === s)?.label.split(" ")[1]}
+              {s === "all" ? t("cp.all") : t(DRAFT_STATUS_KEYS[s])}
             </button>
           ))}
         </div>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => openEdit()}><Plus className="w-3.5 h-3.5" /> Новый черновик</Button>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => openEdit()}><Plus className="w-3.5 h-3.5" /> {t("cp.newDraftBtn")}</Button>
       </div>
 
       {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2"><FilePen className="w-12 h-12 opacity-20" /><p className="text-sm">Нет черновиков</p><Button size="sm" className="rounded-xl gap-1.5 mt-2" onClick={() => openEdit()}><Plus className="w-3.5 h-3.5" /> Создать первый</Button></div>
+        <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2"><FilePen className="w-12 h-12 opacity-20" /><p className="text-sm">{t("cp.noDrafts")}</p><Button size="sm" className="rounded-xl gap-1.5 mt-2" onClick={() => openEdit()}><Plus className="w-3.5 h-3.5" /> {t("cp.createFirst")}</Button></div>
       ) : (
         <div className="space-y-2">
           {filtered.map(draft => {
-            const draftType = DRAFT_TYPES.find(t => t.value === draft.type);
-            const draftStatus = DRAFT_STATUSES.find(s => s.value === draft.status);
+            
+            
             return (
               <Card key={draft.id} className="rounded-2xl border-border/50 hover:border-black/20 transition-colors">
                 <CardContent className="p-4 flex items-start gap-3">
@@ -370,20 +372,20 @@ function DraftTab({ drafts, setDrafts }: { drafts: Draft[]; setDrafts: React.Dis
                     <img src={draft.thumbnailUrl} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
                   ) : (
                     <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0 text-xl">
-                      {draftType?.label.split(" ")[0]}
+                      {t(DRAFT_TYPE_KEYS[draft.type] || "cp.otherType").charAt(0)}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start gap-2 flex-wrap">
                       <p className="font-bold text-sm flex-1 min-w-0 truncate">{draft.title}</p>
                       <Select value={draft.status} onValueChange={v => updateStatus(draft.id, v)}>
-                        <SelectTrigger className={`h-6 w-auto rounded-lg border text-[10px] font-semibold px-2 ${draftStatus?.color}`}><SelectValue /></SelectTrigger>
-                        <SelectContent>{DRAFT_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                        <SelectTrigger className={`h-6 w-auto rounded-lg border text-[10px] font-semibold px-2 ${DRAFT_STATUS_COLORS[draft.status] || ""}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>{DRAFT_STATUS_VALUES.map(v => <SelectItem key={v} value={v}>{t(DRAFT_STATUS_KEYS[v])}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     {draft.content && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{draft.content}</p>}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <span className="text-[10px] text-muted-foreground">{draftType?.label}</span>
+                      <span className="text-[10px] text-muted-foreground">{t(DRAFT_TYPE_KEYS[draft.type] || "cp.otherType")}</span>
                       {draft.scheduledAt && <span className="text-[10px] text-blue-600">📅 {fmtDate(draft.scheduledAt, lang)}</span>}
                       {draft.tags.slice(0, 3).map(t => <span key={t} className="text-[9px] bg-secondary rounded-md px-1.5 py-0.5">{t}</span>)}
                     </div>
@@ -459,11 +461,11 @@ function TodoTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-1 bg-secondary/50 rounded-xl border border-border p-1">
-          {([["active", `Активные (${counts.active})`], ["done", `Выполнены (${counts.done})`], ["all", "Все"]] as [string, string][]).map(([k, v]) => (
+          {([["active", `${t("cp.activeCount")} (${counts.active})`], ["done", `${t("cp.doneCount")} (${counts.done})`], ["all", t("cp.all")]] as [string, string][]).map(([k, v]) => (
             <button key={k} onClick={() => setFilter(k as any)} className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors ${filter === k ? "bg-black text-white" : "text-muted-foreground"}`}>{v}</button>
           ))}
         </div>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> Добавить задачу</Button>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("cp.addTask")}</Button>
       </div>
 
       <AnimatePresence>
@@ -480,7 +482,7 @@ function TodoTab() {
                   </Select>
                   <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
                     <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>{TODO_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                    <SelectContent>{TODO_CAT_VALUES.map(v => <SelectItem key={v} value={v}>{t(TODO_CAT_KEYS[v])}</SelectItem>)}</SelectContent>
                   </Select>
                   <Input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} className="rounded-xl h-9" />
                 </div>
@@ -497,13 +499,13 @@ function TodoTab() {
       </AnimatePresence>
 
       {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-2xl" />) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground"><ListTodo className="w-10 h-10 mx-auto mb-2 opacity-20" /><p className="text-sm">{filter === "done" ? "Нет выполненных задач" : "Нет активных задач"}</p></div>
+        <div className="text-center py-10 text-muted-foreground"><ListTodo className="w-10 h-10 mx-auto mb-2 opacity-20" /><p className="text-sm">{filter === "done" ? t("cp.noDoneTasks") : t("cp.noActiveTasks")}</p></div>
       ) : (
         <div className="space-y-1.5">
           <AnimatePresence>
             {filtered.map(todo => {
               const pm = PRIORITY_META[todo.priority] || PRIORITY_META.medium;
-              const cat = TODO_CATEGORIES.find(c => c.value === todo.category);
+              
               const due = todo.dueDate ? daysLeft(todo.dueDate) : null;
               return (
                 <motion.div key={todo.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8, height: 0 }}>
@@ -515,8 +517,8 @@ function TodoTab() {
                       <p className={`text-sm font-semibold ${todo.done ? "line-through text-muted-foreground" : ""}`}>{todo.title}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${pm.color}`}>{pm.icon}{pm.label}</span>
-                        <span className="text-[10px] text-muted-foreground">{cat?.label}</span>
-                        {due !== null && !todo.done && <span className={`text-[10px] font-medium ${due < 0 ? "text-red-500" : due === 0 ? "text-amber-600" : "text-muted-foreground"}`}>{due < 0 ? `Просрочено ${Math.abs(due)}д` : due === 0 ? `${t("cp.today")}!` : `${due}д`}</span>}
+                        <span className="text-[10px] text-muted-foreground">{t(TODO_CAT_KEYS[todo.category] || "cp.catGeneral")}</span>
+                        {due !== null && !todo.done && <span className={`text-[10px] font-medium ${due < 0 ? "text-red-500" : due === 0 ? "text-amber-600" : "text-muted-foreground"}`}>{due < 0 ? `${t("cp.overdue")} ${Math.abs(due)}${t("cp.daysLeft")}` : due === 0 ? `${t("cp.today")}!` : `${due}д`}</span>}
                       </div>
                     </div>
                     <button onClick={() => deleteTodo(todo.id)} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -558,7 +560,7 @@ function RemindersTab() {
       });
       setReminders(p => [...p, reminder].sort((a, b) => a.dueAt - b.dueAt));
       setShowAdd(false); setForm({ title: "", description: "", type: "deadline", dueAt: "", dueTime: "12:00", notifyDaysBefore: "1" });
-      toast({ title: "🔔 Напоминание создано" });
+      toast({ title: t("cp.reminderCreated") });
     } catch (e) { toast({ variant: "destructive", title: t("common.error") }); }
     finally { setSaving(false); }
   };
@@ -582,18 +584,18 @@ function RemindersTab() {
   };
   const urgencyLabel = (r: Reminder) => {
     const d = daysLeft(r.dueAt);
-    if (d < 0) return { text: `Просрочено ${Math.abs(d)}д назад`, color: "text-red-600", icon: <AlertTriangle className="w-3 h-3" /> };
+    if (d < 0) return { text: `${t("cp.overdueAgo")} ${Math.abs(d)}${t("cp.daysAgo")}`, color: "text-red-600", icon: <AlertTriangle className="w-3 h-3" /> };
     if (d === 0) return { text: `${t("cp.today")}!`, color: "text-amber-600", icon: <Clock className="w-3 h-3" /> };
-    if (d <= 3) return { text: `Через ${d}д`, color: "text-yellow-600", icon: <Clock className="w-3 h-3" /> };
-    return { text: `Через ${d}д`, color: "text-muted-foreground", icon: <CalendarDays className="w-3 h-3" /> };
+    if (d <= 3) return { text: `${t("cp.inDays")} ${d}${t("cp.daysLeft")}`, color: "text-yellow-600", icon: <Clock className="w-3 h-3" /> };
+    return { text: `${t("cp.inDays")} ${d}${t("cp.daysLeft")}`, color: "text-muted-foreground", icon: <CalendarDays className="w-3 h-3" /> };
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <p className="font-semibold text-sm">Напоминания</p>
-          {past.length > 0 && <button onClick={() => setShowPast(p => !p)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{showPast ? "Скрыть прошедшие" : `+${past.length} прошедших`}</button>}
+          <p className="font-semibold text-sm">{t("cp.reminders")}</p>
+          {past.length > 0 && <button onClick={() => setShowPast(p => !p)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{showPast ? t("cp.hidePast") : `+${past.length} ${t("cp.pastCount")}`}</button>}
         </div>
         <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowAdd(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("cp.addEvent")}</Button>
       </div>
@@ -602,7 +604,7 @@ function RemindersTab() {
       {active.filter(r => daysLeft(r.dueAt) <= 7 && daysLeft(r.dueAt) >= 0).length > 0 && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
           <Bell className="w-4 h-4 text-amber-600 shrink-0" />
-          <p className="text-xs text-amber-700 font-medium">{active.filter(r => daysLeft(r.dueAt) <= 7 && daysLeft(r.dueAt) >= 0).length} напоминаний на этой неделе</p>
+          <p className="text-xs text-amber-700 font-medium">{active.filter(r => daysLeft(r.dueAt) <= 7 && daysLeft(r.dueAt) >= 0).length} {t("cp.remindersThisWeek")}</p>
         </div>
       )}
 
@@ -616,17 +618,17 @@ function RemindersTab() {
                 <div className="grid grid-cols-3 gap-2">
                   <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v }))}>
                     <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>{REMINDER_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                    <SelectContent>{REMINDER_TYPE_VALUES.map(v => <SelectItem key={v} value={v}>{t(REMINDER_TYPE_KEYS[v])}</SelectItem>)}</SelectContent>
                   </Select>
                   <Input type="date" value={form.dueAt} onChange={e => setForm(p => ({ ...p, dueAt: e.target.value }))} className="rounded-xl h-9" />
                   <Input type="time" value={form.dueTime} onChange={e => setForm(p => ({ ...p, dueTime: e.target.value }))} className="rounded-xl h-9" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Уведомить за:</Label>
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">{t("cp.notifyBefore")}</Label>
                   <div className="flex gap-1">
                     {["0", "1", "2", "3", "7"].map(d => (
                       <button key={d} onClick={() => setForm(p => ({ ...p, notifyDaysBefore: d }))}
-                        className={`text-xs rounded-lg px-2.5 py-1 border transition-colors ${form.notifyDaysBefore === d ? "bg-black text-white border-black" : "border-border text-muted-foreground"}`}>{d === "0" ? "В день" : `${d}д`}</button>
+                        className={`text-xs rounded-lg px-2.5 py-1 border transition-colors ${form.notifyDaysBefore === d ? "bg-black text-white border-black" : "border-border text-muted-foreground"}`}>{d === "0" ? t("cp.onDay") : `${d}${t("cp.daysLeft")}`}</button>
                     ))}
                   </div>
                 </div>
@@ -643,12 +645,12 @@ function RemindersTab() {
       </AnimatePresence>
 
       {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />) : displayed.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-2"><Bell className="w-10 h-10 opacity-20" /><p className="text-sm">Нет напоминаний</p><p className="text-xs">Создайте напоминание о дедлайне, акции или загрузке</p></div>
+        <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-2"><Bell className="w-10 h-10 opacity-20" /><p className="text-sm">{t("cp.noReminders") || "No reminders"}</p><p className="text-xs">{t("cp.createReminder") || "Create a reminder"}</p></div>
       ) : (
         <div className="space-y-2">
           {displayed.map(r => {
             const ur = urgencyLabel(r);
-            const rType = REMINDER_TYPES.find(t => t.value === r.type);
+            
             const isPast = r.dueAt < now;
             return (
               <div key={r.id} className={`flex items-start gap-3 rounded-2xl border p-4 transition-colors ${urgencyClass(r)} ${isPast ? "opacity-60" : ""}`}>
@@ -656,8 +658,8 @@ function RemindersTab() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-bold text-sm">{r.title}</p>
-                    <Badge variant="outline" className="text-[9px]">{rType?.label}</Badge>
-                    {r.notified && !isPast && <Badge variant="outline" className="text-[9px] text-blue-600 border-blue-400/30">🔔 Уведомлено</Badge>}
+                    <Badge variant="outline" className="text-[9px]">{t(REMINDER_TYPE_KEYS[r.type] || "cp.remOther")}</Badge>
+                    {r.notified && !isPast && <Badge variant="outline" className="text-[9px] text-blue-600 border-blue-400/30">🔔 {t("cp.notified") || "Notified"}</Badge>}
                   </div>
                   {r.description && <p className="text-xs text-muted-foreground mt-0.5">{r.description}</p>}
                   <div className="flex items-center gap-2 mt-1.5">
@@ -694,7 +696,7 @@ export default function ContentPlanner() {
           <TabsTrigger value="calendar" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> {t("cp.calendar")}</TabsTrigger>
           <TabsTrigger value="drafts" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><FilePen className="w-3.5 h-3.5" /> {t("cp.board")}</TabsTrigger>
           <TabsTrigger value="todos" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><ListTodo className="w-3.5 h-3.5" /> {t("cp.ideas")}</TabsTrigger>
-          <TabsTrigger value="reminders" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> Напоминания</TabsTrigger>
+          <TabsTrigger value="reminders" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> {t("cp.reminders")}</TabsTrigger>
         </TabsList>
 
         <div className="mt-6">

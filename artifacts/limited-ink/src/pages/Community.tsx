@@ -680,7 +680,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
       });
       setVotes(result);
     } catch (e) {
-      toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" });
+      toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" });
     } finally { setVoting(false); }
   };
 
@@ -726,7 +726,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
     return (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => { setSelectedGroup(null); setGroupDetail(null); }}>
-          <ArrowLeft className="w-4 h-4" /> Назад
+          <ArrowLeft className="w-4 h-4" /> {t("com.back")}
         </Button>
         {detailLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>
@@ -743,13 +743,13 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
                   <div className="flex-1 min-w-0">
                     <h2 className="text-lg font-bold">{groupDetail.name}</h2>
                     <div className="flex items-center gap-3 mt-1">
-                      <Badge variant="outline" className="text-xs"><Users className="w-3 h-3 mr-1" />{(groupDetail.memberCount || 0).toLocaleString()} участников</Badge>
+                      <Badge variant="outline" className="text-xs"><Users className="w-3 h-3 mr-1" />{(groupDetail.memberCount || 0).toLocaleString()} {t("com.members")}</Badge>
                       {groupDetail.publicEntryAllowed !== null && (
-                        <Badge variant="outline" className="text-xs">{groupDetail.publicEntryAllowed ? "Открытая" : "Закрытая"}</Badge>
+                        <Badge variant="outline" className="text-xs">{groupDetail.publicEntryAllowed ? t("com.open") : t("com.closed")}</Badge>
                       )}
                     </div>
                     {groupDetail.created && (
-                      <p className="text-[10px] text-muted-foreground mt-1">Создана: {new Date(groupDetail.created).toLocaleDateString("ru-RU")}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{t("com.created")}: {new Date(groupDetail.created).toLocaleDateString("ru-RU")}</p>
                     )}
                   </div>
                 </div>
@@ -765,7 +765,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
                     )}
                     <div>
                       <p className="text-xs font-semibold">{groupDetail.owner.displayName}</p>
-                      <p className="text-[10px] text-muted-foreground">Владелец группы</p>
+                      <p className="text-[10px] text-muted-foreground">{t("com.groupOwner")}</p>
                     </div>
                   </div>
                 )}
@@ -774,7 +774,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
 
             <Card className="rounded-2xl border-border/50">
               <CardContent className="pt-5">
-                <p className="text-sm font-semibold mb-3">Оценка группы</p>
+                <p className="text-sm font-semibold mb-3">{t("com.groupRating")}</p>
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => handleVote("like")}
@@ -793,16 +793,16 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
                     <span className="font-bold text-lg">{votes.dislikes}</span>
                   </button>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-2">Нажмите повторно, чтобы убрать голос</p>
+                <p className="text-[10px] text-muted-foreground mt-2">{t("com.removeVote")}</p>
               </CardContent>
             </Card>
 
             <a href={`https://www.roblox.com/groups/${groupDetail.groupId}`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="w-full rounded-xl gap-2"><ExternalLink className="w-4 h-4" /> Открыть на Roblox</Button>
+              <Button variant="outline" className="w-full rounded-xl gap-2"><ExternalLink className="w-4 h-4" /> {t("com.openRoblox")}</Button>
             </a>
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">Группа не найдена</div>
+          <div className="text-center py-8 text-muted-foreground">{t("com.groupNotFound")}</div>
         )}
       </div>
     );
@@ -824,7 +824,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold truncate">{g.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{(g.memberCount || 0).toLocaleString()} участников</p>
+                    <p className="text-[10px] text-muted-foreground">{(g.memberCount || 0).toLocaleString()} {t("com.members")}</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />
                 </CardContent>
@@ -1148,7 +1148,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
       setText("");
       fetchAll();
     } catch {
-      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось отправить" });
+      toast({ variant: "destructive", title: t("com.error"), description: t("com.sendFailed") });
     } finally { setSending(false); }
   };
 
@@ -1180,7 +1180,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 
   const addPendingMember = async () => {
     const user = await searchUser(memberInput);
-    if (!user) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+    if (!user) { toast({ variant: "destructive", title: t("com.userNotFound") }); return; }
     if (pendingMembers.find(m => m.id === user.id)) return;
     setPendingMembers(p => [...p, user]);
     setMemberInput("");
@@ -1198,28 +1198,28 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
       setGroupChats(p => [chat, ...p]);
       setShowCreate(false); setChatName(""); setPendingMembers([]);
       openGroup(chat);
-      toast({ title: "Групповой чат создан" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+      toast({ title: t("com.groupChatCreated") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setCreating(false); }
   };
 
   const addMemberToChat = async () => {
     if (!active || active.kind !== "group" || !addMemberInput.trim()) return;
     const user = await searchUser(addMemberInput);
-    if (!user) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+    if (!user) { toast({ variant: "destructive", title: t("com.userNotFound") }); return; }
     try {
       await apiFetch(`/api/community/group-chats/${active.chat.id}/members`, { method: "POST", body: JSON.stringify({ targetUserId: user.id }) });
       const { members } = await apiFetch<{ members: any[] }>(`/api/community/group-chats/${active.chat.id}/members`);
       setChatMembers(members);
       setAddMemberInput(""); setShowAddMember(false);
-      toast({ title: "Участник добавлен" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+      toast({ title: t("com.memberAdded") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
   };
 
   const timeAgoShort = (date: string) => {
     const d = Date.now() - new Date(date).getTime();
     const m = Math.floor(d / 60000);
-    if (m < 1) return "сейчас";
+    if (m < 1) return t("com.now");
     if (m < 60) return `${m}м`;
     const h = Math.floor(m / 60);
     if (h < 24) return `${h}ч`;
@@ -1232,8 +1232,8 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
         {/* Sidebar */}
         <div className="w-72 shrink-0 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
           <div className="p-3 border-b border-border bg-secondary/40 flex items-center justify-between">
-            <p className="font-bold text-sm">Чаты</p>
-            <Button size="sm" variant="ghost" className="rounded-xl h-7 w-7 p-0" onClick={() => setShowCreate(p => !p)} title="Создать групповой чат">
+            <p className="font-bold text-sm">{t("com.chats")}</p>
+            <Button size="sm" variant="ghost" className="rounded-xl h-7 w-7 p-0" onClick={() => setShowCreate(p => !p)} title={t("com.createGroupChat")}>
               <Plus className="w-4 h-4" />
             </Button>
           </div>
@@ -1290,8 +1290,8 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 {groupChats.length === 0 && conversations.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
                     <MessageSquare className="w-8 h-8 mb-2 opacity-30" strokeWidth={1} />
-                    <p className="text-xs font-medium">Нет чатов</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">Создайте групповой чат или напишите другу</p>
+                    <p className="text-xs font-medium">{t("com.noChats")}</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">{t("com.createChatHint")}</p>
                   </div>
                 )}
               </>
@@ -1304,12 +1304,12 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
           {showCreate ? (
             <div className="flex-1 flex flex-col p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm">Создать групповой чат</h3>
+                <h3 className="font-semibold text-sm">{t("com.createGroupChat")}</h3>
                 <Button size="sm" variant="ghost" className="rounded-xl h-7 w-7 p-0" onClick={() => setShowCreate(false)}><X className="w-4 h-4" /></Button>
               </div>
-              <Input placeholder="Название чата..." value={chatName} onChange={e => setChatName(e.target.value)} className="rounded-xl" />
+              <Input placeholder={t("com.chatNamePlaceholder")} value={chatName} onChange={e => setChatName(e.target.value)} className="rounded-xl" />
               <div className="flex gap-2">
-                <Input placeholder="Добавить участника по username..." value={memberInput} onChange={e => setMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addPendingMember()} className="rounded-xl flex-1 text-sm" />
+                <Input placeholder={t("com.addMemberPlaceholder")} value={memberInput} onChange={e => setMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addPendingMember()} className="rounded-xl flex-1 text-sm" />
                 <Button variant="outline" className="rounded-xl" onClick={addPendingMember}><Plus className="w-4 h-4" /></Button>
               </div>
               {pendingMembers.length > 0 && (
@@ -1322,16 +1322,16 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   ))}
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">Минимум 2 участника (+ вы)</p>
+              <p className="text-xs text-muted-foreground">{t("com.minMembers")}</p>
               <Button className="rounded-xl" onClick={createGroupChat} disabled={creating || !chatName.trim() || pendingMembers.length < 2}>
-                {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />} Создать
+                {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />} {t("com.create")}
               </Button>
             </div>
           ) : !active ? (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
               <MessageSquare className="w-12 h-12 mb-3 opacity-30" strokeWidth={1} />
-              <p className="font-medium">Выберите чат</p>
-              <p className="text-sm mt-1 text-muted-foreground/70">Или создайте групповой чат</p>
+              <p className="font-medium">{t("com.selectChat")}</p>
+              <p className="text-sm mt-1 text-muted-foreground/70">{t("com.orCreateChat")}</p>
             </div>
           ) : active.kind === "dm" ? (
             <>
@@ -1349,7 +1349,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 {loadingMsgs ? (
                   <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground text-sm">Нет сообщений. Скажите привет!</div>
+                  <div className="text-center py-8 text-muted-foreground text-sm">{t("com.noMessages")}</div>
                 ) : (
                   messages.map(msg => {
                     const isOwn = myUser && msg.senderId === myUser.id;
@@ -1367,7 +1367,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
               </div>
               {myUser && (
                 <div className="p-3 border-t border-border flex gap-2 items-center">
-                  <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={`Сообщение ${active.user.displayName}...`} className="rounded-xl flex-1" />
+                  <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={`${t("com.messagePlaceholder")} ${active.user.displayName}`} className="rounded-xl flex-1" />
                   <Button onClick={handleSend} disabled={sending || !text.trim()} size="sm" className="rounded-xl px-3 h-9 shrink-0">
                     {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </Button>
@@ -1382,13 +1382,13 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{active.chat.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{chatMembers.length} участников</p>
+                  <p className="text-[10px] text-muted-foreground">{chatMembers.length} {t("com.members")}</p>
                 </div>
                 <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
               </div>
               {showAddMember && (
                 <div className="flex gap-2 px-4 py-2 border-b border-border">
-                  <Input placeholder="Добавить участника..." value={addMemberInput} onChange={e => setAddMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addMemberToChat()} className="rounded-xl flex-1 text-xs h-8" />
+                  <Input placeholder={t("com.addMember")} value={addMemberInput} onChange={e => setAddMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addMemberToChat()} className="rounded-xl flex-1 text-xs h-8" />
                   <Button size="sm" className="rounded-xl h-8" onClick={addMemberToChat}><Check className="w-3.5 h-3.5" /></Button>
                 </div>
               )}
@@ -1396,7 +1396,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 {loadingMsgs ? (
                   <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground text-sm">Нет сообщений. Начните общение!</div>
+                  <div className="text-center py-8 text-muted-foreground text-sm">{t("com.noMessagesStart")}</div>
                 ) : (
                   messages.map(msg => {
                     const isMe = myUser && msg.senderId === myUser.id;
@@ -1416,7 +1416,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
               </div>
               {myUser && (
                 <div className="p-3 border-t border-border flex gap-2 items-center">
-                  <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder="Сообщение..." className="rounded-xl flex-1" />
+                  <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={t("com.messagePlaceholder")} className="rounded-xl flex-1" />
                   <Button onClick={handleSend} disabled={sending || !text.trim()} size="sm" className="rounded-xl px-3 h-9 shrink-0">
                     {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </Button>
@@ -2087,8 +2087,8 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
       });
       setWorkspaces(p => [workspace, ...p]);
       setShowCreate(false); setCreateForm({ robloxGroupId: "", groupName: "", description: "" });
-      toast({ title: "✅ Воркспейс создан" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "Ошибка" }); }
+      toast({ title: t("com.wsCreated") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : t("com.error") }); }
     finally { setCreating(false); }
   };
 
@@ -2096,7 +2096,7 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
     try {
       await apiFetch(`/api/community/workspaces/invite/${inviteId}/accept`, { method: "POST" });
       setInvites(p => p.filter(i => i.id !== inviteId));
-      load(); toast({ title: "✅ Вы присоединились к команде" });
+      load(); toast({ title: t("com.joinedTeam") });
     } catch {}
   };
 
@@ -2106,13 +2106,13 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
     try {
       const users = await apiFetch<any[]>(`/api/social/users/search?q=${encodeURIComponent(inviteUsername)}`).catch(() => []);
       const target = (users as any[]).find((u: any) => u.robloxUsername.toLowerCase() === inviteUsername.toLowerCase() || u.displayName.toLowerCase() === inviteUsername.toLowerCase());
-      if (!target) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+      if (!target) { toast({ variant: "destructive", title: t("com.userNotFound") }); return; }
       await apiFetch(`/api/community/workspaces/${activeWs.id}/invite`, { method: "POST", body: JSON.stringify({ targetUserId: target.id }) });
-      toast({ title: "✅ Приглашение отправлено" });
+      toast({ title: t("com.inviteSent") });
       setInviteUsername(""); setShowInviteInput(false);
       const { members } = await apiFetch<{ members: any[] }>(`/api/community/workspaces/${activeWs.id}/members`);
       setWsMembers(members);
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setInviting(false); }
   };
 
@@ -2121,18 +2121,18 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
     try {
       await apiFetch(`/api/community/workspaces/${activeWs.id}/members/${memberId}`, { method: "DELETE" });
       setWsMembers(p => p.filter(m => m.id !== memberId));
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
   };
 
-  const ROLE_LABELS: Record<string, string> = { owner: "👑 Владелец", admin: "⚡ Админ", member: "👤 Участник", pending: "⏳ Приглашён" };
+  const ROLE_LABELS: Record<string, string> = { owner: t("com.roleOwner"), admin: t("com.roleAdmin"), member: t("com.roleMember"), pending: t("com.roleInvited") };
   const ROLE_COLORS: Record<string, string> = { owner: "border-amber-500/30 text-amber-600", admin: "border-blue-500/30 text-blue-600", member: "border-border text-muted-foreground", pending: "border-purple-500/30 text-purple-600" };
 
-  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><Users className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>Зарегистрируйтесь для доступа к командам</p></div>;
+  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><Users className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>{t("com.registerForTeams")}</p></div>;
 
   if (activeWs) return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" className="rounded-xl gap-2" onClick={() => setActiveWs(null)}><ArrowLeft className="w-4 h-4" /> Назад</Button>
+        <Button variant="ghost" className="rounded-xl gap-2" onClick={() => setActiveWs(null)}><ArrowLeft className="w-4 h-4" /> {t("com.back")}</Button>
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {activeWs.groupThumbnailUrl && <img src={activeWs.groupThumbnailUrl} className="w-8 h-8 rounded-lg object-cover" />}
           <div className="min-w-0">
@@ -2142,14 +2142,14 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
           <Badge variant="outline" className="shrink-0">{activeWs.myRole}</Badge>
         </div>
         {["owner", "admin"].includes(activeWs.myRole) && (
-          <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowInviteInput(p => !p)}><UserPlus className="w-3.5 h-3.5" /> Пригласить</Button>
+          <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowInviteInput(p => !p)}><UserPlus className="w-3.5 h-3.5" /> {t("com.invite")}</Button>
         )}
       </div>
 
       {showInviteInput && (
         <Card className="rounded-2xl border-blue-500/20 bg-blue-500/5">
           <CardContent className="pt-4 flex gap-2">
-            <Input placeholder="Username или DisplayName..." value={inviteUsername} onChange={e => setInviteUsername(e.target.value)} onKeyDown={e => e.key === "Enter" && inviteMember()} className="rounded-xl flex-1" />
+            <Input placeholder={t("com.invitePlaceholder")} value={inviteUsername} onChange={e => setInviteUsername(e.target.value)} onKeyDown={e => e.key === "Enter" && inviteMember()} className="rounded-xl flex-1" />
             <Button className="rounded-xl" onClick={inviteMember} disabled={inviting}>{inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}</Button>
           </CardContent>
         </Card>
@@ -2157,7 +2157,7 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="md:col-span-2 space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Участники ({wsMembers.length})</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t("com.members")} ({wsMembers.length})</h3>
           {membersLoading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl" />) : wsMembers.map(m => (
             <Card key={m.id} className="rounded-2xl border-border/50">
               <CardContent className="p-3 flex items-center gap-3">
@@ -2180,7 +2180,7 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
           ))}
         </div>
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Проекты ({wsProjects.length})</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t("com.projects")} ({wsProjects.length})</h3>
           {wsProjects.map(p => (
             <Card key={p.id} className="rounded-2xl border-border/50">
               <CardContent className="p-3">
@@ -2190,7 +2190,7 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
               </CardContent>
             </Card>
           ))}
-          {wsProjects.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">Нет проектов</p>}
+          {wsProjects.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">{t("com.noProjects")}</p>}
         </div>
       </div>
     </div>
@@ -2201,14 +2201,14 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
       {invites.length > 0 && (
         <Card className="rounded-2xl border-blue-500/20 bg-blue-500/5">
           <CardContent className="pt-4 space-y-2">
-            <p className="text-sm font-semibold text-blue-600">📬 Приглашения в команду ({invites.length})</p>
+            <p className="text-sm font-semibold text-blue-600">{t("com.teamInvites")} ({invites.length})</p>
             {invites.map(inv => (
               <div key={inv.id} className="flex items-center gap-3 rounded-xl border border-blue-500/20 bg-card p-3">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{inv.workspace?.groupName}</p>
-                  <p className="text-xs text-muted-foreground">Приглашение в команду</p>
+                  <p className="text-xs text-muted-foreground">{t("com.teamInvite")}</p>
                 </div>
-                <Button size="sm" className="rounded-xl gap-1.5 h-8" onClick={() => acceptInvite(inv.id)}><Check className="w-3.5 h-3.5" /> Принять</Button>
+                <Button size="sm" className="rounded-xl gap-1.5 h-8" onClick={() => acceptInvite(inv.id)}><Check className="w-3.5 h-3.5" /> {t("com.accept")}</Button>
               </div>
             ))}
           </CardContent>
@@ -2216,8 +2216,8 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
       )}
 
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Мои рабочие пространства</h2>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowCreate(p => !p)}><Plus className="w-3.5 h-3.5" /> Создать</Button>
+        <h2 className="text-base font-semibold">{t("com.myWorkspaces")}</h2>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowCreate(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("com.create")}</Button>
       </div>
 
       <AnimatePresence>
@@ -2225,14 +2225,14 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <Card className="rounded-2xl border-black/20 bg-secondary/30">
               <CardContent className="pt-4 space-y-3">
-                <p className="text-sm font-semibold">Создать воркспейс для группы</p>
-                <Input placeholder="ID Roblox группы (число)" value={createForm.robloxGroupId} onChange={e => setCreateForm(p => ({ ...p, robloxGroupId: e.target.value }))} className="rounded-xl" />
-                <Input placeholder="Название группы" value={createForm.groupName} onChange={e => setCreateForm(p => ({ ...p, groupName: e.target.value }))} className="rounded-xl" />
-                <Textarea placeholder="Описание команды (необязательно)" value={createForm.description} onChange={e => setCreateForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={2} />
+                <p className="text-sm font-semibold">{t("com.createWs")}</p>
+                <Input placeholder={t("com.groupIdPlaceholder")} value={createForm.robloxGroupId} onChange={e => setCreateForm(p => ({ ...p, robloxGroupId: e.target.value }))} className="rounded-xl" />
+                <Input placeholder={t("com.groupNamePlaceholder")} value={createForm.groupName} onChange={e => setCreateForm(p => ({ ...p, groupName: e.target.value }))} className="rounded-xl" />
+                <Textarea placeholder={t("com.teamDescPlaceholder")} value={createForm.description} onChange={e => setCreateForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={2} />
                 <div className="flex gap-2">
                   <Button className="flex-1 rounded-xl" onClick={createWorkspace} disabled={creating || !createForm.robloxGroupId || !createForm.groupName}>
-                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Создать
-                  </Button>
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {t("com.create")}
+              </Button>
                   <Button variant="ghost" className="rounded-xl" onClick={() => setShowCreate(false)}><X className="w-4 h-4" /></Button>
                 </div>
               </CardContent>
@@ -2244,8 +2244,8 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
       {loading ? Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />) : workspaces.length === 0 ? (
         <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
           <Briefcase className="w-12 h-12 opacity-20" />
-          <p className="text-sm">Нет рабочих пространств</p>
-          <p className="text-xs">Создайте воркспейс для своей Roblox группы или примите приглашение</p>
+          <p className="text-sm">{t("com.noWorkspaces")}</p>
+          <p className="text-xs">{t("com.noWsHint")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2259,7 +2259,7 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
                     <Badge variant="outline" className="text-[9px] shrink-0">{ws.myRole}</Badge>
                   </div>
                   {ws.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{ws.description}</p>}
-                  <p className="text-xs text-muted-foreground mt-1">{ws.memberCount} участников</p>
+                  <p className="text-xs text-muted-foreground mt-1">{ws.memberCount} {t("com.members")}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
               </CardContent>
@@ -2340,7 +2340,7 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
 
   const addPendingMember = async () => {
     const user = await searchUser(memberInput);
-    if (!user) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+    if (!user) { toast({ variant: "destructive", title: t("com.userNotFound") }); return; }
     if (pendingMembers.find(m => m.id === user.id)) return;
     setPendingMembers(p => [...p, user]);
     setMemberInput("");
@@ -2357,58 +2357,58 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
       });
       setChats(p => [chat, ...p]);
       setShowCreate(false); setChatName(""); setPendingMembers([]);
-      openChat(chat); toast({ title: "✅ Групповой чат создан" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+      openChat(chat); toast({ title: t("com.groupChatCreated2") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setCreating(false); }
   };
 
   const addMemberToChat = async () => {
     if (!activeChat || !addMemberInput.trim()) return;
     const user = await searchUser(addMemberInput);
-    if (!user) { toast({ variant: "destructive", title: "Пользователь не найден" }); return; }
+    if (!user) { toast({ variant: "destructive", title: t("com.userNotFound") }); return; }
     try {
       await apiFetch(`/api/community/group-chats/${activeChat.id}/members`, { method: "POST", body: JSON.stringify({ targetUserId: user.id }) });
       const { members } = await apiFetch<{ members: any[] }>(`/api/community/group-chats/${activeChat.id}/members`);
       setChatMembers(members);
       setAddMemberInput(""); setShowAddMember(false);
-      toast({ title: "✅ Участник добавлен" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+      toast({ title: t("com.memberAdded2") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
   };
 
   const timeAgoShort = (date: string) => {
     const d = Date.now() - new Date(date).getTime();
     const m = Math.floor(d / 60000);
-    if (m < 1) return "сейчас";
+    if (m < 1) return t("com.now");
     if (m < 60) return `${m}м`;
     const h = Math.floor(m / 60);
     if (h < 24) return `${h}ч`;
     return `${Math.floor(h / 24)}д`;
   };
 
-  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>Нужна регистрация для чата</p></div>;
+  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>{t("com.needRegChat")}</p></div>;
 
   if (activeChat) return (
     <div className="flex flex-col h-[600px]">
       <div className="flex items-center gap-3 pb-3 border-b border-border">
-        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setActiveChat(null)}><ArrowLeft className="w-4 h-4" /> Назад</Button>
+        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setActiveChat(null)}><ArrowLeft className="w-4 h-4" /> {t("com.back")}</Button>
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: activeChat.avatarColor || "#6366f1" }}>
           {activeChat.name.charAt(0)}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm">{activeChat.name}</p>
-          <p className="text-[10px] text-muted-foreground">{activeChat.memberCount || chatMembers.length} участников</p>
+          <p className="text-[10px] text-muted-foreground">{activeChat.memberCount || chatMembers.length} {t("com.members")}</p>
         </div>
         <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
       </div>
       {showAddMember && (
         <div className="flex gap-2 py-2 border-b border-border">
-          <Input placeholder="Добавить участника..." value={addMemberInput} onChange={e => setAddMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addMemberToChat()} className="rounded-xl flex-1 text-xs h-8" />
+          <Input placeholder={t("com.addMember")} value={addMemberInput} onChange={e => setAddMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addMemberToChat()} className="rounded-xl flex-1 text-xs h-8" />
           <Button size="sm" className="rounded-xl h-8" onClick={addMemberToChat}><Check className="w-3.5 h-3.5" /></Button>
         </div>
       )}
       <div className="flex-1 overflow-y-auto py-3 space-y-3 min-h-0">
         {msgsLoading ? <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : messages.length === 0 ? (
-          <p className="text-center text-muted-foreground text-sm py-8">Нет сообщений. Начните общение!</p>
+          <p className="text-center text-muted-foreground text-sm py-8">{t("com.noMessagesStart")}</p>
         ) : messages.map(msg => {
           const isMe = msg.senderId === myUser.id;
           return (
@@ -2425,7 +2425,7 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
         <div ref={messagesEndRef} />
       </div>
       <div className="flex gap-2 pt-3 border-t border-border">
-        <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()} placeholder="Сообщение..." className="rounded-xl flex-1" />
+        <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()} placeholder={t("com.messagePlaceholder")} className="rounded-xl flex-1" />
         <Button className="rounded-xl" onClick={sendMessage} disabled={sending || !text.trim()}>
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </Button>
@@ -2436,8 +2436,8 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Групповые чаты</h2>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowCreate(p => !p)}><Plus className="w-3.5 h-3.5" /> Создать чат</Button>
+        <h2 className="text-base font-semibold">{t("com.groupChats")}</h2>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowCreate(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("com.createChat")}</Button>
       </div>
 
       <AnimatePresence>
@@ -2445,10 +2445,10 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <Card className="rounded-2xl border-indigo-500/20 bg-indigo-500/5">
               <CardContent className="pt-4 space-y-3">
-                <p className="text-sm font-semibold">Создать групповой чат (3+ человек)</p>
-                <Input placeholder="Название чата..." value={chatName} onChange={e => setChatName(e.target.value)} className="rounded-xl" />
+                <p className="text-sm font-semibold">{t("com.createGroupChat3")}</p>
+                <Input placeholder={t("com.chatNamePlaceholder")} value={chatName} onChange={e => setChatName(e.target.value)} className="rounded-xl" />
                 <div className="flex gap-2">
-                  <Input placeholder="Добавить участника по username..." value={memberInput} onChange={e => setMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addPendingMember()} className="rounded-xl flex-1 text-sm" />
+                  <Input placeholder={t("com.addMemberPlaceholder")} value={memberInput} onChange={e => setMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addPendingMember()} className="rounded-xl flex-1 text-sm" />
                   <Button variant="outline" className="rounded-xl" onClick={addPendingMember}><Plus className="w-4 h-4" /></Button>
                 </div>
                 {pendingMembers.length > 0 && (
@@ -2461,11 +2461,11 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">Минимум 2 участника (+ вы)</p>
+                <p className="text-xs text-muted-foreground">{t("com.minMembers")}</p>
                 <div className="flex gap-2">
                   <Button className="flex-1 rounded-xl" onClick={createChat} disabled={creating || !chatName.trim() || pendingMembers.length < 2}>
-                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Создать
-                  </Button>
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {t("com.create")}
+              </Button>
                   <Button variant="ghost" className="rounded-xl" onClick={() => setShowCreate(false)}><X className="w-4 h-4" /></Button>
                 </div>
               </CardContent>
@@ -2477,8 +2477,8 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
       {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-18 rounded-2xl" />) : chats.length === 0 ? (
         <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
           <MessageSquare className="w-12 h-12 opacity-20" />
-          <p className="text-sm">Нет групповых чатов</p>
-          <p className="text-xs">Создайте чат с 3 и более участниками</p>
+          <p className="text-sm">{t("com.noGroupChats")}</p>
+          <p className="text-xs">{t("com.noGroupChatsHint")}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -2489,7 +2489,7 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-sm truncate">{chat.name}</p>
-                    <Badge variant="outline" className="text-[9px] shrink-0">{chat.memberCount} уч.</Badge>
+                    <Badge variant="outline" className="text-[9px] shrink-0">{chat.memberCount} {t("com.membersShort")}</Badge>
                   </div>
                   {chat.lastMessage && <p className="text-xs text-muted-foreground truncate mt-0.5">{chat.lastMessage.content}</p>}
                 </div>
@@ -2523,7 +2523,7 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
   const [wsMembers, setWsMembers] = useState<any[]>([]);
 
   const STATUSES = ["todo", "in_progress", "review", "done"] as const;
-  const STATUS_LABELS: Record<string, string> = { todo: "📋 К выполнению", in_progress: "⚙️ В работе", review: "🔍 Ревью", done: "✅ Готово" };
+  const STATUS_LABELS: Record<string, string> = { todo: t("com.statusTodo"), in_progress: t("com.statusInProgress"), review: t("com.statusReview"), done: t("com.statusDone") };
   const PRIORITY_COLORS: Record<string, string> = { low: "border-gray-500/30 text-gray-500", medium: "border-blue-500/30 text-blue-600", high: "border-red-500/30 text-red-600" };
 
   useEffect(() => {
@@ -2561,8 +2561,8 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
       });
       setProjects(p => [project, ...p]);
       setShowNewProject(false); setProjectTitle(""); setProjectDesc("");
-      toast({ title: "✅ Проект создан" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+      toast({ title: t("com.projectCreated") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
   };
 
   const createTask = async () => {
@@ -2574,7 +2574,7 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
       });
       setTasks(p => [task, ...p]);
       setShowNewTask(false); setTaskForm({ title: "", description: "", priority: "medium" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setSavingTask(false); }
   };
 
@@ -2593,18 +2593,18 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
     } catch {}
   };
 
-  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><Columns className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>Нужна регистрация</p></div>;
+  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><Columns className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>{t("com.needRegistration")}</p></div>;
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
-  if (!workspaces.length) return <div className="text-center py-16 text-muted-foreground"><Columns className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="text-sm">Нет рабочих пространств</p><p className="text-xs">Создайте воркспейс в разделе "Команды"</p></div>;
+  if (!workspaces.length) return <div className="text-center py-16 text-muted-foreground"><Columns className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="text-sm">{t("com.noWorkspaces")}</p><p className="text-xs">{t("com.createWsFirst")} "Teams"</p></div>;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <Select value={selectedWs} onValueChange={setSelectedWs}>
-          <SelectTrigger className="w-52 rounded-xl h-9"><SelectValue placeholder="Выбрать воркспейс" /></SelectTrigger>
+          <SelectTrigger className="w-52 rounded-xl h-9"><SelectValue placeholder={t("com.selectWorkspace")} /></SelectTrigger>
           <SelectContent>{workspaces.map(ws => <SelectItem key={ws.id} value={String(ws.id)}>{ws.groupName}</SelectItem>)}</SelectContent>
         </Select>
-        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowNewProject(p => !p)}><Plus className="w-3.5 h-3.5" /> Проект</Button>
+        <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowNewProject(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("com.project")}</Button>
       </div>
 
       <AnimatePresence>
@@ -2612,10 +2612,10 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <Card className="rounded-2xl border-green-500/20 bg-green-500/5">
               <CardContent className="pt-4 space-y-3">
-                <Input placeholder="Название проекта..." value={projectTitle} onChange={e => setProjectTitle(e.target.value)} className="rounded-xl" />
-                <Textarea placeholder="Описание..." value={projectDesc} onChange={e => setProjectDesc(e.target.value)} className="rounded-xl resize-none" rows={2} />
+                <Input placeholder={t("com.projectNamePlaceholder")} value={projectTitle} onChange={e => setProjectTitle(e.target.value)} className="rounded-xl" />
+                <Textarea placeholder={t("com.projectDescPlaceholder")} value={projectDesc} onChange={e => setProjectDesc(e.target.value)} className="rounded-xl resize-none" rows={2} />
                 <div className="flex gap-2">
-                  <Button className="flex-1 rounded-xl" onClick={createProject}><Check className="w-4 h-4 mr-1.5" /> Создать</Button>
+                  <Button className="flex-1 rounded-xl" onClick={createProject}><Check className="w-4 h-4 mr-1.5" /> {t("com.create")}</Button>
                   <Button variant="ghost" className="rounded-xl" onClick={() => setShowNewProject(false)}><X className="w-4 h-4" /></Button>
                 </div>
               </CardContent>
@@ -2626,7 +2626,7 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
 
       {!activeProject ? (
         projects.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground"><ListTodo className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-sm">Нет проектов в этом воркспейсе</p></div>
+          <div className="text-center py-12 text-muted-foreground"><ListTodo className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-sm">{t("com.noProjectsInWs")}</p></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {projects.map(p => (
@@ -2637,7 +2637,7 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
                     <Badge variant="outline" className={`text-[9px] ${p.status === "active" ? "border-green-500/30 text-green-600" : "border-border text-muted-foreground"}`}>{p.status}</Badge>
                   </div>
                   {p.description && <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>}
-                  <p className="text-[10px] text-muted-foreground mt-2"><ChevronRight className="w-3 h-3 inline" /> Открыть задачи</p>
+                  <p className="text-[10px] text-muted-foreground mt-2"><ChevronRight className="w-3 h-3 inline" /> {t("com.openTasks")}</p>
                 </CardContent>
               </Card>
             ))}
@@ -2646,9 +2646,9 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
       ) : (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setActiveProject(null)}><ArrowLeft className="w-4 h-4" /> Проекты</Button>
+            <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => setActiveProject(null)}><ArrowLeft className="w-4 h-4" /> {t("com.projectsTab")}</Button>
             <p className="font-semibold flex-1">{activeProject.title}</p>
-            <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowNewTask(p => !p)}><Plus className="w-3.5 h-3.5" /> Задача</Button>
+            <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowNewTask(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("com.task")}</Button>
           </div>
 
           <AnimatePresence>
@@ -2656,14 +2656,14 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 <Card className="rounded-2xl border-blue-500/20 bg-blue-500/5">
                   <CardContent className="pt-4 space-y-2">
-                    <Input placeholder="Название задачи..." value={taskForm.title} onChange={e => setTaskForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
-                    <Textarea placeholder="Описание..." value={taskForm.description} onChange={e => setTaskForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={2} />
+                    <Input placeholder={t("com.taskNamePlaceholder")} value={taskForm.title} onChange={e => setTaskForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
+                    <Textarea placeholder={t("com.projectDescPlaceholder")} value={taskForm.description} onChange={e => setTaskForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={2} />
                     <Select value={taskForm.priority} onValueChange={v => setTaskForm(p => ({ ...p, priority: v }))}>
                       <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="low">🟢 Низкий</SelectItem><SelectItem value="medium">🔵 Средний</SelectItem><SelectItem value="high">🔴 Высокий</SelectItem></SelectContent>
+                      <SelectContent><SelectItem value="low">{t("com.priorityLow")}</SelectItem><SelectItem value="medium">{t("com.priorityMed")}</SelectItem><SelectItem value="high">{t("com.priorityHigh")}</SelectItem></SelectContent>
                     </Select>
                     <div className="flex gap-2">
-                      <Button className="flex-1 rounded-xl" onClick={createTask} disabled={savingTask || !taskForm.title}>{savingTask ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Создать</Button>
+                      <Button className="flex-1 rounded-xl" onClick={createTask} disabled={savingTask || !taskForm.title}>{savingTask ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {t("com.create")}</Button>
                       <Button variant="ghost" className="rounded-xl" onClick={() => setShowNewTask(false)}><X className="w-4 h-4" /></Button>
                     </div>
                   </CardContent>
@@ -2701,7 +2701,7 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
                     </Card>
                   ))}
                   {tasks.filter(t => t.status === status).length === 0 && (
-                    <div className="border-2 border-dashed border-border/30 rounded-xl p-3 text-center"><p className="text-[10px] text-muted-foreground/50">Пусто</p></div>
+                    <div className="border-2 border-dashed border-border/30 rounded-xl p-3 text-center"><p className="text-[10px] text-muted-foreground/50">{t("com.empty")}</p></div>
                   )}
                 </div>
               ))}
@@ -2714,18 +2714,29 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
 }
 
 // ── ReputationTab ──────────────────────────────────────────────────────────────
-const SKILLS_INFO = [
-  { id: "designer", label: "🎨 Дизайнер", color: "text-purple-600 bg-purple-500/10 border-purple-500/20" },
-  { id: "developer", label: "💻 Разработчик", color: "text-blue-600 bg-blue-500/10 border-blue-500/20" },
-  { id: "manager", label: "📋 Менеджер", color: "text-amber-600 bg-amber-500/10 border-amber-500/20" },
-  { id: "marketer", label: "📢 Маркетолог", color: "text-rose-600 bg-rose-500/10 border-rose-500/20" },
-  { id: "seller", label: "💰 Продавец", color: "text-green-600 bg-green-500/10 border-green-500/20" },
-  { id: "creative", label: "✨ Креатив", color: "text-indigo-600 bg-indigo-500/10 border-indigo-500/20" },
-  { id: "general", label: "⭐ Общая", color: "text-gray-600 bg-gray-500/10 border-gray-500/20" },
-];
+const SKILLS_INFO_KEYS: Record<string, string> = {
+  designer: "com.roleDesigner",
+  developer: "com.roleDeveloper",
+  manager: "com.roleManager",
+  marketer: "com.roleMarketer",
+  seller: "com.roleSeller",
+  creative: "com.roleCreative",
+  general: "com.skillGeneral",
+};
+const SKILLS_INFO_COLORS: Record<string, string> = {
+  designer: "text-purple-600 bg-purple-500/10 border-purple-500/20",
+  developer: "text-blue-600 bg-blue-500/10 border-blue-500/20",
+  manager: "text-amber-600 bg-amber-500/10 border-amber-500/20",
+  marketer: "text-rose-600 bg-rose-500/10 border-rose-500/20",
+  seller: "text-green-600 bg-green-500/10 border-green-500/20",
+  creative: "text-indigo-600 bg-indigo-500/10 border-indigo-500/20",
+  general: "text-gray-600 bg-gray-500/10 border-gray-500/20",
+};
+const SKILLS_IDS = ["designer", "developer", "manager", "marketer", "seller", "creative", "general"];
 
 function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [searchQ, setSearchQ] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
@@ -2762,21 +2773,21 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
       await apiFetch("/api/community/reputation/endorse", {
         method: "POST", body: JSON.stringify({ toUserId: viewUser.id, skill: endorseSkill, message: endorseMsg }),
       });
-      toast({ title: "✅ Репутация повышена!" });
+      toast({ title: t("com.repBoosted") });
       viewRep(viewUser);
       setEndorseSkill(""); setEndorseMsg("");
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setEndorsing(false); }
   };
 
-  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><Trophy className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>Нужна регистрация</p></div>;
+  if (!myUser) return <div className="text-center py-16 text-muted-foreground"><Trophy className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>{t("com.needRegistration")}</p></div>;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={searchQ} onChange={e => setSearchQ(e.target.value)} onKeyDown={e => e.key === "Enter" && searchUsers()} placeholder="Найти участника для просмотра репутации..." className="pl-9 rounded-xl" />
+          <Input value={searchQ} onChange={e => setSearchQ(e.target.value)} onKeyDown={e => e.key === "Enter" && searchUsers()} placeholder={t("com.findMemberPlaceholder")} className="pl-9 rounded-xl" />
         </div>
         <Button className="rounded-xl" onClick={searchUsers} disabled={searching}>{searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}</Button>
       </div>
@@ -2801,7 +2812,7 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
       {viewUser && (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => { setViewUser(null); setRepData(null); }}><ArrowLeft className="w-4 h-4" /> Назад</Button>
+            <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => { setViewUser(null); setRepData(null); }}><ArrowLeft className="w-4 h-4" /> {t("com.back")}</Button>
           </div>
           <Card className="rounded-2xl border-border/50">
             <CardContent className="pt-4 flex items-center gap-4">
@@ -2813,7 +2824,7 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
               </div>
               <div className="text-center shrink-0">
                 <p className="text-3xl font-bold text-amber-500">{repData?.total || 0}</p>
-                <p className="text-xs text-muted-foreground">эндорсментов</p>
+                <p className="text-xs text-muted-foreground">{t("com.endorsements")}</p>
               </div>
             </CardContent>
           </Card>
@@ -2821,25 +2832,25 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
           {repLoading ? <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : repData && (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {SKILLS_INFO.filter(s => (repData.bySkill[s.id] || 0) > 0).map(skill => (
-                  <Card key={skill.id} className={`rounded-xl border ${skill.color}`}>
+                {SKILLS_IDS.filter(sid => (repData.bySkill[sid] || 0) > 0).map(sid => (
+                  <Card key={sid} className={`rounded-xl border ${SKILLS_INFO_COLORS[sid]}`}>
                     <CardContent className="p-3 text-center">
-                      <p className="text-2xl font-bold">{repData.bySkill[skill.id]}</p>
-                      <p className="text-xs font-medium mt-0.5">{skill.label}</p>
+                      <p className="text-2xl font-bold">{repData.bySkill[sid]}</p>
+                      <p className="text-xs font-medium mt-0.5">{t(SKILLS_INFO_KEYS[sid])}</p>
                     </CardContent>
                   </Card>
                 ))}
               </div>
               {repData.endorsements.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Последние эндорсменты</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("com.recentEndorsements")}</p>
                   {repData.endorsements.slice(0, 5).map((e: any, i: number) => (
                     <div key={i} className="flex items-start gap-3 rounded-xl border border-border/50 p-3">
                       <Avatar className="w-8 h-8 border border-border shrink-0"><AvatarImage src={e.from?.avatarUrl || robloxHeadshot(e.from?.robloxUserId || 0)} /><AvatarFallback className="text-xs">{e.from?.displayName?.charAt(0)}</AvatarFallback></Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-xs font-semibold">{e.from?.displayName}</p>
-                          <Badge className={`text-[9px] border ${SKILLS_INFO.find(s => s.id === e.skill)?.color || ""}`}>{SKILLS_INFO.find(s => s.id === e.skill)?.label || e.skill}</Badge>
+                          <Badge className={`text-[9px] border ${SKILLS_INFO_COLORS[e.skill] || ""}`}>{SKILLS_INFO_KEYS[e.skill] ? t(SKILLS_INFO_KEYS[e.skill]) : e.skill}</Badge>
                         </div>
                         {e.message && <p className="text-xs text-muted-foreground mt-0.5">"{e.message}"</p>}
                       </div>
@@ -2853,20 +2864,20 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
           {viewUser.id !== myUser?.id && (
             <Card className="rounded-2xl border-green-500/20 bg-green-500/5">
               <CardContent className="pt-4 space-y-3">
-                <p className="text-sm font-semibold">✨ Добавить эндорсмент</p>
+                <p className="text-sm font-semibold">{t("com.addEndorsement")}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {SKILLS_INFO.map(s => (
-                    <button key={s.id} onClick={() => setEndorseSkill(s.id)}
-                      className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${endorseSkill === s.id ? "bg-black text-white border-black" : `border-border text-muted-foreground hover:border-border/80 ${s.color}`}`}>
-                      {s.label}
+                  {SKILLS_IDS.map(sid => (
+                    <button key={sid} onClick={() => setEndorseSkill(sid)}
+                      className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${endorseSkill === sid ? "bg-black text-white border-black" : `border-border text-muted-foreground hover:border-border/80 ${SKILLS_INFO_COLORS[sid]}`}`}>
+                      {t(SKILLS_INFO_KEYS[sid])}
                     </button>
                   ))}
                 </div>
-                <Input placeholder="Комментарий (необязательно)..." value={endorseMsg} onChange={e => setEndorseMsg(e.target.value)} className="rounded-xl" />
+                <Input placeholder={t("com.commentPlaceholder")} value={endorseMsg} onChange={e => setEndorseMsg(e.target.value)} className="rounded-xl" />
                 <Button className="w-full rounded-xl gap-2 bg-green-600 hover:bg-green-700" onClick={endorse} disabled={!endorseSkill || endorsing}>
-                  {endorsing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} Подтвердить навык
+                  {endorsing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} {t("com.confirmSkill")}
                 </Button>
-                <p className="text-[10px] text-center text-muted-foreground">Лимит: 5 эндорсментов в день. Каждый навык можно подтвердить только 1 раз.</p>
+                <p className="text-[10px] text-center text-muted-foreground">{t("com.endorsementLimit")}</p>
               </CardContent>
             </Card>
           )}
@@ -2876,11 +2887,11 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
       {!viewUser && !searchResults.length && (
         <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
           <Trophy className="w-12 h-12 opacity-20" />
-          <p className="text-sm">Система репутации</p>
-          <p className="text-xs text-center">Найдите участника и подтвердите его навыки. Репутация — показатель доверия в сообществе.</p>
+          <p className="text-sm">{t("com.repSystem")}</p>
+          <p className="text-xs text-center">{t("com.repSystemHint")}</p>
           {myUser && (
             <Button size="sm" variant="outline" className="rounded-xl mt-2 gap-1.5" onClick={() => viewRep(myUser)}>
-              <Trophy className="w-3.5 h-3.5" /> Моя репутация
+              <Trophy className="w-3.5 h-3.5" /> {t("com.myRep")}
             </Button>
           )}
         </div>
@@ -2891,13 +2902,14 @@ function ReputationTab({ myUser }: { myUser: PlatformUser | null }) {
 
 // ── MarketplaceTab ─────────────────────────────────────────────────────────────
 const CATEGORIES = ["template", "design", "shader", "avatar", "plugin", "asset", "script"];
-const CATEGORY_LABELS: Record<string, string> = {
-  template: "📄 Шаблон", design: "🎨 Дизайн", shader: "✨ Шейдер",
-  avatar: "👤 Аватар", plugin: "🔧 Плагин", asset: "📦 Ассет", script: "📜 Скрипт",
+const CATEGORY_LABEL_KEYS: Record<string, string> = {
+  template: "com.catTemplate", design: "com.catDesign", shader: "com.catShader",
+  avatar: "com.catAvatar", plugin: "com.catPlugin", asset: "com.catAsset", script: "com.catScript",
 };
 
 function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("all");
@@ -2933,7 +2945,7 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
       const { downloadUrl } = await apiFetch<{ downloadUrl: string | null }>(`/api/community/marketplace/${listing.id}/download`, { method: "POST" });
       setListings(p => p.map(l => l.id === listing.id ? { ...l, downloadCount: l.downloadCount + 1 } : l));
       if (downloadUrl) { window.open(downloadUrl, "_blank"); }
-      else { toast({ title: "✅ Загружено", description: "Файл отмечен как загруженный" }); }
+      else { toast({ title: t("com.uploaded"), description: t("com.fileUploaded") }); }
     } catch {}
   };
 
@@ -2948,8 +2960,8 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
       });
       setListings(p => [listing, ...p]);
       setShowCreate(false); setForm({ title: "", description: "", category: "template", previewUrl: "", downloadUrl: "", price: "0", tags: "" });
-      toast({ title: "✅ Листинг опубликован" });
-    } catch (e) { toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" }); }
+      toast({ title: t("com.listingPublished") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
     finally { setCreating(false); }
   };
 
@@ -2957,17 +2969,17 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-1.5 flex-wrap flex-1">
-          <button onClick={() => setCategory("all")} className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${category === "all" ? "bg-black text-white border-black" : "border-border text-muted-foreground hover:border-border/80"}`}>Все</button>
+          <button onClick={() => setCategory("all")} className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${category === "all" ? "bg-black text-white border-black" : "border-border text-muted-foreground hover:border-border/80"}`}>{t("com.filterAll")}</button>
           {CATEGORIES.map(c => (
-            <button key={c} onClick={() => setCategory(c)} className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${category === c ? "bg-black text-white border-black" : "border-border text-muted-foreground hover:border-border/80"}`}>{CATEGORY_LABELS[c]}</button>
+            <button key={c} onClick={() => setCategory(c)} className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${category === c ? "bg-black text-white border-black" : "border-border text-muted-foreground hover:border-border/80"}`}>{t(CATEGORY_LABEL_KEYS[c])}</button>
           ))}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Select value={sort} onValueChange={setSort}>
             <SelectTrigger className="w-32 h-9 rounded-xl text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="newest">Новые</SelectItem><SelectItem value="popular">Популярные</SelectItem><SelectItem value="likes">Лайки</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="newest">{t("com.filterNew")}</SelectItem><SelectItem value="popular">{t("com.filterPopular")}</SelectItem><SelectItem value="likes">{t("com.likes")}</SelectItem></SelectContent>
           </Select>
-          {myUser && <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowCreate(p => !p)}><Plus className="w-3.5 h-3.5" /> Продать</Button>}
+          {myUser && <Button size="sm" className="rounded-xl gap-1.5" onClick={() => setShowCreate(p => !p)}><Plus className="w-3.5 h-3.5" /> {t("com.sell")}</Button>}
         </div>
       </div>
 
@@ -2976,26 +2988,26 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <Card className="rounded-2xl border-indigo-500/20 bg-indigo-500/5">
               <CardContent className="pt-4 space-y-3">
-                <p className="text-sm font-semibold">Опубликовать в маркетплейс</p>
+                <p className="text-sm font-semibold">{t("com.publishToMarketplace")}</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="Название..." value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder={t("com.namePlaceholder")} value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className="rounded-xl" />
                   <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}</SelectContent>
+                    <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{t(CATEGORY_LABEL_KEYS[c])}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <Textarea placeholder="Описание..." value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={3} />
+                <Textarea placeholder={t("com.projectDescPlaceholder")} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className="rounded-xl resize-none" rows={3} />
                 <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="Preview URL (картинка)" value={form.previewUrl} onChange={e => setForm(p => ({ ...p, previewUrl: e.target.value }))} className="rounded-xl text-xs" />
-                  <Input placeholder="Download URL (файл)" value={form.downloadUrl} onChange={e => setForm(p => ({ ...p, downloadUrl: e.target.value }))} className="rounded-xl text-xs" />
+                  <Input placeholder={t("com.previewUrlPlaceholder")} value={form.previewUrl} onChange={e => setForm(p => ({ ...p, previewUrl: e.target.value }))} className="rounded-xl text-xs" />
+                  <Input placeholder={t("com.downloadUrlPlaceholder")} value={form.downloadUrl} onChange={e => setForm(p => ({ ...p, downloadUrl: e.target.value }))} className="rounded-xl text-xs" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="Теги (через запятую)" value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} className="rounded-xl text-xs" />
-                  <Input type="number" placeholder="Цена (0 = бесплатно)" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder={t("com.tagsPlaceholder")} value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} className="rounded-xl text-xs" />
+                  <Input type="number" placeholder={t("com.pricePlaceholder")} value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} className="rounded-xl" />
                 </div>
                 <div className="flex gap-2">
                   <Button className="flex-1 rounded-xl" onClick={createListing} disabled={creating || !form.title || !form.description}>
-                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />} Опубликовать
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />} {t("com.publish")}
                   </Button>
                   <Button variant="ghost" className="rounded-xl" onClick={() => setShowCreate(false)}><X className="w-4 h-4" /></Button>
                 </div>
@@ -3012,8 +3024,8 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
       ) : listings.length === 0 ? (
         <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
           <Store className="w-12 h-12 opacity-20" />
-          <p className="text-sm">Маркетплейс пустой</p>
-          <p className="text-xs">Будьте первым — опубликуйте шаблон или дизайн!</p>
+          <p className="text-sm">{t("com.emptyMarketplace")}</p>
+          <p className="text-xs">{t("com.beFirst")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -3034,9 +3046,9 @@ function MarketplaceTab({ myUser }: { myUser: PlatformUser | null }) {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm leading-tight">{item.title}</p>
-                      <Badge variant="outline" className="text-[9px] mt-0.5">{CATEGORY_LABELS[item.category] || item.category}</Badge>
+                      <Badge variant="outline" className="text-[9px] mt-0.5">{CATEGORY_LABEL_KEYS[item.category] ? t(CATEGORY_LABEL_KEYS[item.category]) : item.category}</Badge>
                     </div>
-                    {item.price > 0 ? <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/30 shrink-0">{item.price} 💎</Badge> : <Badge className="text-[10px] bg-green-500/15 text-green-700 border-0 shrink-0">Бесплатно</Badge>}
+                    {item.price > 0 ? <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/30 shrink-0">{item.price} 💎</Badge> : <Badge className="text-[10px] bg-green-500/15 text-green-700 border-0 shrink-0">{t("com.free")}</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground line-clamp-2 flex-1">{item.description}</p>
                   {tags.length > 0 && (
@@ -3155,7 +3167,7 @@ export default function Community() {
             <MessageSquare className="w-3.5 h-3.5" /> {t("community.chat")}
           </TabsTrigger>
           <TabsTrigger value="marketplace" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Store className="w-3.5 h-3.5" /> Маркетплейс
+            <Store className="w-3.5 h-3.5" /> {t("com.marketplace")}
           </TabsTrigger>
         </TabsList>
 

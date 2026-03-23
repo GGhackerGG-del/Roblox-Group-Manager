@@ -17,14 +17,13 @@ interface Message {
   attachedImage?: string;
 }
 
-const SUGGESTIONS = [
-  "Напиши Lua скрипт для выдачи одежды за вход в игру",
-  "Составь пост для Discord о новой коллекции",
-  "Почему модерация удалила мою одежду?",
-  "Как увеличить продажи одежды в Roblox?",
-  "Какую цену поставить на новую футболку?",
-  "Напиши описание для одежды в стиле streetwear",
-];
+function useSuggestions() {
+  const { t } = useLanguage();
+  return [
+    t("assistant.sug1"), t("assistant.sug2"), t("assistant.sug3"),
+    t("assistant.sug4"), t("assistant.sug5"), t("assistant.sug6"),
+  ];
+}
 
 function FormattedText({ text }: { text: string }) {
   const lines = text.split("\n");
@@ -95,6 +94,7 @@ function parseBoldItalic(text: string, baseKey: number): React.ReactNode[] {
 
 export default function Assistant() {
   const { t } = useLanguage();
+  const suggestions = useSuggestions();
   const cache = usePageCache();
   const [messages, setMessages] = useState<Message[]>(() => cache.get<Message[]>("assistant_messages") || []);
   const [input, setInput] = useState("");
@@ -362,7 +362,7 @@ export default function Assistant() {
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 max-w-lg w-full">
-              {SUGGESTIONS.map((s, i) => (
+              {suggestions.map((s, i) => (
                 <button
                   key={i}
                   onClick={() => sendMessage(s)}
