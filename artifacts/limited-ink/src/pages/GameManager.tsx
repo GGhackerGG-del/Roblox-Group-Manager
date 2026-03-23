@@ -22,8 +22,11 @@ import {
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 function getAuthHeaders(): Record<string, string> {
-  const { credentials } = getAuthCredentials();
-  return credentials ? { Authorization: `Bearer ${credentials}` } : {};
+  const { token, fingerprint } = getAuthCredentials();
+  const h: Record<string, string> = {};
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  if (fingerprint) h["X-Device-Fingerprint"] = fingerprint;
+  return h;
 }
 
 async function apiFetch<T = any>(url: string, opts?: RequestInit): Promise<T> {
