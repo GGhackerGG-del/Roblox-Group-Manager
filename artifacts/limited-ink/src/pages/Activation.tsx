@@ -170,7 +170,7 @@ export default function Activation() {
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0">
-                <img src={`${import.meta.env.BASE_URL}funpay-logo.png`} alt="FunPay" className="w-full h-full object-cover" />
+                <img src={`${import.meta.env.BASE_URL}funpay-logo.png`} alt="FunPay" className="w-full h-full object-cover rounded-xl" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">FunPay</p>
