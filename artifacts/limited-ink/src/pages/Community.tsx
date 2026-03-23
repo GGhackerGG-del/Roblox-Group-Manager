@@ -637,13 +637,52 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [requesting, setRequesting] = useState<number | null>(null);
+  const [featuredGroups, setFeaturedGroups] = useState<any[]>([]);
+  const [fgLoading, setFgLoading] = useState(true);
+  const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
+  const [groupDetail, setGroupDetail] = useState<any | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [votes, setVotes] = useState<{ likes: number; dislikes: number; myVote: "like" | "dislike" | null }>({ likes: 0, dislikes: 0, myVote: null });
+  const [voting, setVoting] = useState(false);
 
   useEffect(() => {
     apiFetch<{ users: Array<PlatformUser & { isMe?: boolean }> }>("/api/social/users")
       .then(d => setUsers(d.users))
       .catch(() => {})
       .finally(() => setLoading(false));
+    apiFetch<{ groups: any[] }>("/api/featured-groups")
+      .then(d => setFeaturedGroups(d.groups))
+      .catch(() => {})
+      .finally(() => setFgLoading(false));
   }, []);
+
+  const openGroupDetail = async (group: any) => {
+    setSelectedGroup(group);
+    setDetailLoading(true);
+    setGroupDetail(null);
+    try {
+      const [detail, votesData] = await Promise.all([
+        apiFetch<any>(`/api/featured-groups/${group.groupId}`),
+        apiFetch<{ likes: number; dislikes: number; myVote: "like" | "dislike" | null }>(`/api/featured-groups/${group.groupId}/votes`),
+      ]);
+      setGroupDetail(detail);
+      setVotes(votesData);
+    } catch {} finally { setDetailLoading(false); }
+  };
+
+  const handleVote = async (vote: "like" | "dislike") => {
+    if (!selectedGroup || voting) return;
+    setVoting(true);
+    const newVote = votes.myVote === vote ? null : vote;
+    try {
+      const result = await apiFetch<{ likes: number; dislikes: number; myVote: "like" | "dislike" | null }>(`/api/featured-groups/${selectedGroup.groupId}/vote`, {
+        method: "POST", body: JSON.stringify({ vote: newVote }),
+      });
+      setVotes(result);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Ошибка", description: e instanceof Error ? e.message : "" });
+    } finally { setVoting(false); }
+  };
 
   const filtered = users.filter(u =>
     !search ||
@@ -651,7 +690,6 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
     u.robloxUsername.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Sort: current user first, then others
   const sorted = [...filtered].sort((a, b) => {
     if (a.isMe) return -1;
     if (b.isMe) return 1;
@@ -684,8 +722,118 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
     return null;
   };
 
+  if (selectedGroup) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => { setSelectedGroup(null); setGroupDetail(null); }}>
+          <ArrowLeft className="w-4 h-4" /> Назад
+        </Button>
+        {detailLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>
+        ) : groupDetail ? (
+          <div className="space-y-4">
+            <Card className="rounded-2xl border-border/50">
+              <CardContent className="pt-5 space-y-4">
+                <div className="flex items-center gap-4">
+                  {groupDetail.thumbnailUrl ? (
+                    <img src={groupDetail.thumbnailUrl} alt={groupDetail.name} className="w-20 h-20 rounded-2xl border border-border object-cover" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-secondary flex items-center justify-center text-2xl font-bold text-muted-foreground">{groupDetail.name?.charAt(0)}</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-lg font-bold">{groupDetail.name}</h2>
+                    <div className="flex items-center gap-3 mt-1">
+                      <Badge variant="outline" className="text-xs"><Users className="w-3 h-3 mr-1" />{(groupDetail.memberCount || 0).toLocaleString()} участников</Badge>
+                      {groupDetail.publicEntryAllowed !== null && (
+                        <Badge variant="outline" className="text-xs">{groupDetail.publicEntryAllowed ? "Открытая" : "Закрытая"}</Badge>
+                      )}
+                    </div>
+                    {groupDetail.created && (
+                      <p className="text-[10px] text-muted-foreground mt-1">Создана: {new Date(groupDetail.created).toLocaleDateString("ru-RU")}</p>
+                    )}
+                  </div>
+                </div>
+                {groupDetail.description && (
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{groupDetail.description}</p>
+                )}
+                {groupDetail.owner && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/40 border border-border/50">
+                    {groupDetail.owner.avatar ? (
+                      <img src={groupDetail.owner.avatar} className="w-10 h-10 rounded-full border border-border" alt="" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-sm font-bold">{groupDetail.owner.displayName?.charAt(0)}</div>
+                    )}
+                    <div>
+                      <p className="text-xs font-semibold">{groupDetail.owner.displayName}</p>
+                      <p className="text-[10px] text-muted-foreground">Владелец группы</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/50">
+              <CardContent className="pt-5">
+                <p className="text-sm font-semibold mb-3">Оценка группы</p>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => handleVote("like")}
+                    disabled={voting}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl border-2 transition-all ${votes.myVote === "like" ? "border-green-500 bg-green-500/10 text-green-600" : "border-border hover:border-green-500/50"}`}
+                  >
+                    <ThumbsUp className="w-5 h-5" />
+                    <span className="font-bold text-lg">{votes.likes}</span>
+                  </button>
+                  <button
+                    onClick={() => handleVote("dislike")}
+                    disabled={voting}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl border-2 transition-all ${votes.myVote === "dislike" ? "border-red-500 bg-red-500/10 text-red-600" : "border-border hover:border-red-500/50"}`}
+                  >
+                    <ThumbsDown className="w-5 h-5" />
+                    <span className="font-bold text-lg">{votes.dislikes}</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">Нажмите повторно, чтобы убрать голос</p>
+              </CardContent>
+            </Card>
+
+            <a href={`https://www.roblox.com/groups/${groupDetail.groupId}`} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" className="w-full rounded-xl gap-2"><ExternalLink className="w-4 h-4" /> Открыть на Roblox</Button>
+            </a>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">Группа не найдена</div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
+      {!fgLoading && featuredGroups.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold flex items-center gap-2"><Star className="w-4 h-4" /> Featured Groups</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {featuredGroups.map(g => (
+              <Card key={g.groupId} className="rounded-2xl border-border/50 hover:border-black/20 cursor-pointer transition-all hover:shadow-md" onClick={() => openGroupDetail(g)}>
+                <CardContent className="p-3 flex items-center gap-3">
+                  {g.thumbnailUrl ? (
+                    <img src={g.thumbnailUrl} alt={g.name} className="w-11 h-11 rounded-xl border border-border object-cover shrink-0" />
+                  ) : (
+                    <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-sm font-bold shrink-0">{g.name?.charAt(0)}</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate">{g.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{(g.memberCount || 0).toLocaleString()} участников</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
@@ -2990,15 +3138,6 @@ export default function Community() {
           <TabsTrigger value="chat" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
             <MessageSquare className="w-3.5 h-3.5" /> {t("community.chat")}
           </TabsTrigger>
-          <TabsTrigger value="teams" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Briefcase className="w-3.5 h-3.5" /> Команды
-          </TabsTrigger>
-          <TabsTrigger value="collab" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Columns className="w-3.5 h-3.5" /> Коллаборация
-          </TabsTrigger>
-          <TabsTrigger value="reputation" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Trophy className="w-3.5 h-3.5" /> Репутация
-          </TabsTrigger>
           <TabsTrigger value="marketplace" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
             <Store className="w-3.5 h-3.5" /> Маркетплейс
           </TabsTrigger>
@@ -3019,15 +3158,6 @@ export default function Community() {
           </TabsContent>
           <TabsContent value="chat" className="mt-0">
             <ChatTab myUser={myUser} initialChatUser={chatInitUser} onClearInitial={() => setChatInitUser(null)} />
-          </TabsContent>
-          <TabsContent value="teams" className="mt-0">
-            <TeamsTab myUser={myUser} />
-          </TabsContent>
-          <TabsContent value="collab" className="mt-0">
-            <CollabTab myUser={myUser} />
-          </TabsContent>
-          <TabsContent value="reputation" className="mt-0">
-            <ReputationTab myUser={myUser} />
           </TabsContent>
           <TabsContent value="marketplace" className="mt-0">
             <MarketplaceTab myUser={myUser} />

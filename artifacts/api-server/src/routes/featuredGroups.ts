@@ -4,6 +4,14 @@ import { desc, gte, eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
+const groupVotes = new Map<string, { likes: number; dislikes: number; voters: Map<string, "like" | "dislike"> }>();
+
+function getGroupVotes(groupId: number) {
+  const key = String(groupId);
+  if (!groupVotes.has(key)) groupVotes.set(key, { likes: 0, dislikes: 0, voters: new Map() });
+  return groupVotes.get(key)!;
+}
+
 router.get("/featured-groups", async (_req, res): Promise<void> => {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -88,6 +96,35 @@ router.get("/featured-groups/:groupId", async (req, res): Promise<void> => {
       publicEntryAllowed: null,
     });
   }
+});
+
+router.get("/featured-groups/:groupId/votes", (req, res): void => {
+  const groupId = parseInt(req.params.groupId, 10);
+  if (isNaN(groupId)) { res.status(400).json({ error: "Invalid group ID" }); return; }
+  const votes = getGroupVotes(groupId);
+  const userId = String((req as any).userId || req.ip);
+  const myVote = votes.voters.get(userId) || null;
+  res.json({ likes: votes.likes, dislikes: votes.dislikes, myVote });
+});
+
+router.post("/featured-groups/:groupId/vote", (req, res): void => {
+  const groupId = parseInt(req.params.groupId, 10);
+  if (isNaN(groupId)) { res.status(400).json({ error: "Invalid group ID" }); return; }
+  const { vote } = req.body as { vote: "like" | "dislike" | null };
+  if (vote !== "like" && vote !== "dislike" && vote !== null) { res.status(400).json({ error: "Invalid vote" }); return; }
+  const votes = getGroupVotes(groupId);
+  const userId = String((req as any).userId || req.ip);
+  const prev = votes.voters.get(userId);
+  if (prev === "like") votes.likes--;
+  if (prev === "dislike") votes.dislikes--;
+  if (vote === null) {
+    votes.voters.delete(userId);
+  } else {
+    votes.voters.set(userId, vote);
+    if (vote === "like") votes.likes++;
+    if (vote === "dislike") votes.dislikes++;
+  }
+  res.json({ likes: votes.likes, dislikes: votes.dislikes, myVote: vote });
 });
 
 export default router;
