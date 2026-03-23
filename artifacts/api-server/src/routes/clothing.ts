@@ -245,15 +245,15 @@ router.get("/clothing/search", async (req, res): Promise<void> => {
     let resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
 
     if (resp.status === 429) {
-      await new Promise(r => setTimeout(r, 6000));
+      await new Promise(r => setTimeout(r, 2000));
       resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
     }
     if (resp.status === 429) {
-      await new Promise(r => setTimeout(r, 12000));
+      await new Promise(r => setTimeout(r, 4000));
       resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
     }
     if (resp.status === 429) {
-      res.status(429).json({ error: "Roblox rate limit. Wait a minute and try again." });
+      res.status(429).json({ error: "Roblox rate limit. Please try again in a few seconds." });
       return;
     }
     if (!resp.ok) {

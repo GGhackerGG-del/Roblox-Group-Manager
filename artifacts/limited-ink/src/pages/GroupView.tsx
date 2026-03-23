@@ -108,18 +108,10 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
-  const lastSearchTime = useRef(0);
-
   const doSearch = async (cursor?: string) => {
     if (!keyword.trim() && !creatorId.trim()) return;
     const isLoadMore = !!cursor;
     if (!isLoadMore) {
-      const now = Date.now();
-      if (now - lastSearchTime.current < 3000) {
-        toast({ title: t("group.slowDown"), description: t("group.slowDown.desc"), variant: "destructive" });
-        return;
-      }
-      lastSearchTime.current = now;
       playClick();
       setLoading(true);
       setSelected(new Set());
