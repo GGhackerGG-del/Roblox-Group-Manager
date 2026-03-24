@@ -161,6 +161,30 @@ router.get("/community/group-chats", async (req, res): Promise<void> => {
   const me = await getMyUser(req);
   if (!me) { res.status(401).json({ error: "Not authenticated" }); return; }
 
+  try {
+    const robloxUserId = String(me.robloxUserId);
+    const rolesResp = await fetch(`https://groups.roblox.com/v1/users/${robloxUserId}/groups/roles`);
+    if (rolesResp.ok) {
+      const rolesData = await rolesResp.json() as { data: Array<{ group: { id: number; name: string }; role: { rank: number } }> };
+      const ownedGroups = rolesData.data.filter(g => g.role.rank === 255);
+      for (const g of ownedGroups) {
+        const tag = `[roblox-group:${g.group.id}]`;
+        const existing = await db.query.groupChats.findFirst({ where: sql`${groupChats.name} LIKE ${tag + '%'}` });
+        if (!existing) {
+          const [chat] = await db.insert(groupChats).values({ name: `${tag} ${g.group.name}`, createdById: me.id, avatarColor: "#000000" }).returning();
+          await db.insert(groupChatMembers).values({ chatId: chat.id, userId: me.id, role: "admin" });
+        } else {
+          const membership = await db.query.groupChatMembers.findFirst({
+            where: and(eq(groupChatMembers.chatId, existing.id), eq(groupChatMembers.userId, me.id)),
+          });
+          if (!membership) {
+            await db.insert(groupChatMembers).values({ chatId: existing.id, userId: me.id, role: "admin" });
+          }
+        }
+      }
+    }
+  } catch {}
+
   const memberships = await db.query.groupChatMembers.findMany({ where: eq(groupChatMembers.userId, me.id) });
   if (!memberships.length) { res.json({ chats: [] }); return; }
 

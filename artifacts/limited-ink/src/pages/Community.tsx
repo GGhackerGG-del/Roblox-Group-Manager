@@ -1227,19 +1227,8 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 
   useEffect(() => {
     if (!robloxGroupChatCreated && groupsData?.groups?.length && myUser) {
-      const ownerGroup = groupsData.groups[0];
-      if (ownerGroup) {
-        setRobloxGroupChatCreated(true);
-        apiFetch<{ chat: any }>("/api/community/roblox-group-chat", {
-          method: "POST",
-          body: JSON.stringify({ groupId: ownerGroup.id, groupName: ownerGroup.name }),
-        }).then((data) => {
-          fetchAll();
-          if (data?.chat) {
-            openGroup(data.chat);
-          }
-        }).catch(() => {});
-      }
+      setRobloxGroupChatCreated(true);
+      fetchAll();
     }
   }, [groupsData, myUser, robloxGroupChatCreated, fetchAll]);
 
