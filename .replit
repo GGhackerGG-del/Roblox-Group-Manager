@@ -1,12 +1,13 @@
 modules = ["nodejs-24", "javascript", "postgresql-16"]
 
 [[artifacts]]
-id = "artifacts/api-server"
+id = "artifacts/limited-ink"
 
 [[artifacts]]
 id = "artifacts/mockup-sandbox"
 
 [deployment]
+router = "path"
 deploymentTarget = "vm"
 
 [deployment.postBuild]
