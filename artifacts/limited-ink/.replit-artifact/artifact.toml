@@ -21,6 +21,14 @@ PORT = "26249"
 BASE_PATH = "/"
 
 [services.production]
-build = ["pnpm", "--filter", "@workspace/limited-ink", "run", "build"]
-publicDir = "artifacts/limited-ink/dist/public"
-serve = "static"
+build = "pnpm --filter @workspace/limited-ink run build && pnpm --filter @workspace/api-server run build"
+
+[services.production.run]
+args = ["node", "artifacts/api-server/dist/index.cjs"]
+
+[services.production.run.env]
+PORT = "26249"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/api/healthz"

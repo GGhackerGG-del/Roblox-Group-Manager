@@ -15,16 +15,3 @@ PORT = "8080"
 
 [services.development]
 run = "pnpm --filter @workspace/api-server run dev"
-
-[services.production]
-build = "pnpm --filter @workspace/api-server run build"
-
-[services.production.run]
-args = ["node", "artifacts/api-server/dist/index.cjs"]
-
-[services.production.run.env]
-PORT = "8080"
-NODE_ENV = "production"
-
-[services.production.health.startup]
-path = "/api/healthz"
