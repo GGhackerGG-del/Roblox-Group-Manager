@@ -19,6 +19,3 @@ run = "pnpm --filter @workspace/limited-ink run dev"
 [services.env]
 PORT = "26249"
 BASE_PATH = "/"
-
-[services.production]
-build = ["pnpm", "--filter", "@workspace/limited-ink", "run", "build"]
