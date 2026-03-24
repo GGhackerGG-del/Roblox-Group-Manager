@@ -5,6 +5,9 @@ const router: IRouter = Router();
 const ROBLOX_ECONOMY_API = "https://economy.roblox.com";
 const ROBLOX_THUMBNAILS_API = "https://thumbnails.roblox.com";
 
+const pnlCache = new Map<number, { data: any; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
+
 async function fetchRoblox(url: string, cookie: string): Promise<Response> {
   return fetch(url, {
     redirect: "follow",
@@ -52,7 +55,7 @@ async function fetchTransactions(groupId: number, cookie: string, maxAgeDays: nu
   let cursor: string | null = null;
   let pages = 0;
   const MAX_PAGES = 30;
-  let retries = 0;
+  let consecutiveErrors = 0;
 
   do {
     const url = `${ROBLOX_ECONOMY_API}/v2/groups/${groupId}/transactions?transactionType=Sale&limit=100${cursor ? `&cursor=${cursor}` : ""}`;
@@ -61,17 +64,37 @@ async function fetchTransactions(groupId: number, cookie: string, maxAgeDays: nu
       resp = await fetchRobloxWithCsrf(url, cookie);
     } catch (err) {
       console.log(`[P&L] Transaction fetch error:`, err);
-      if (retries < 3) { retries++; await new Promise(r => setTimeout(r, 2000 * retries)); continue; }
+      consecutiveErrors++;
+      if (consecutiveErrors <= 5) {
+        await new Promise(r => setTimeout(r, 3000 * consecutiveErrors));
+        continue;
+      }
+      break;
+    }
+
+    if (resp.status === 429) {
+      consecutiveErrors++;
+      const wait = Math.min(5000 * consecutiveErrors, 30000);
+      console.log(`[P&L] Rate limited (attempt ${consecutiveErrors}), waiting ${wait}ms...`);
+      if (consecutiveErrors <= 8) {
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      console.log(`[P&L] Too many rate limits, stopping after ${transactions.length} transactions`);
       break;
     }
 
     if (!resp.ok) {
       const body = await resp.text().catch(() => "");
       console.log(`[P&L] Transaction API error: status=${resp.status} body=${body.slice(0, 300)}`);
-      if (resp.status === 429 && retries < 3) { retries++; await new Promise(r => setTimeout(r, 2000 * retries)); continue; }
+      consecutiveErrors++;
+      if (consecutiveErrors <= 3) {
+        await new Promise(r => setTimeout(r, 2000 * consecutiveErrors));
+        continue;
+      }
       break;
     }
-    retries = 0;
+    consecutiveErrors = 0;
 
     const d = await resp.json() as {
       nextPageCursor?: string | null;
@@ -103,7 +126,7 @@ async function fetchTransactions(groupId: number, cookie: string, maxAgeDays: nu
 
     cursor = d.nextPageCursor || null;
     pages++;
-    if (cursor) await new Promise(r => setTimeout(r, 150));
+    if (cursor) await new Promise(r => setTimeout(r, 300));
   } while (cursor && pages < MAX_PAGES);
 
   console.log(`[P&L] Fetched ${transactions.length} transactions across ${pages + 1} pages (cutoff: ${maxAgeDays}d)`);
@@ -137,6 +160,56 @@ async function fetchThumbnails(assetIds: number[]): Promise<Record<number, strin
   return thumbMap;
 }
 
+function buildPnLResponse(
+  funds: number, pendingRobux: number, transactions: Transaction[]
+) {
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const todayTx = transactions.filter(v => new Date(v.created) > dayAgo);
+  const weekTx = transactions.filter(v => new Date(v.created) > weekAgo);
+
+  const todayRevenue = todayTx.reduce((s, v) => s + v.revenue, 0);
+  const weekRevenue = weekTx.reduce((s, v) => s + v.revenue, 0);
+  const monthRevenue = transactions.reduce((s, v) => s + v.revenue, 0);
+
+  const robloxCommission = Math.round(weekRevenue * 0.3);
+  const netRevenue = weekRevenue - robloxCommission;
+  const monthCommission = Math.round(monthRevenue * 0.3);
+  const netMonth = monthRevenue - monthCommission;
+
+  const ROBUX_TO_USD = 0.0035;
+  const USD_TO_RUB = 96;
+  const netUSD = netRevenue * ROBUX_TO_USD;
+  const netRUB = netUSD * USD_TO_RUB;
+  const netMonthUSD = netMonth * ROBUX_TO_USD;
+  const netMonthRUB = netMonthUSD * USD_TO_RUB;
+
+  function buildTopItems(txList: Transaction[]) {
+    const stats: Record<string, { name: string; revenue: number; count: number; assetId: number | null }> = {};
+    for (const tx of txList) {
+      const key = tx.description || "Sale";
+      if (!stats[key]) stats[key] = { name: key, revenue: 0, count: 0, assetId: tx.assetId };
+      stats[key].revenue += tx.revenue;
+      stats[key].count += 1;
+      if (!stats[key].assetId && tx.assetId) stats[key].assetId = tx.assetId;
+    }
+    return Object.values(stats).sort((a, b) => b.revenue - a.revenue).slice(0, 20);
+  }
+
+  const topItemsDayRaw = buildTopItems(todayTx);
+  const topItemsWeekRaw = buildTopItems(weekTx.length > 0 ? weekTx : transactions);
+  const recentTx = transactions.slice(0, 50);
+
+  return {
+    funds, pendingRobux, todayRevenue, weekRevenue, monthRevenue,
+    robloxCommission, netRevenue, netMonth,
+    netUSD, netRUB, netMonthUSD, netMonthRUB,
+    todaySales: todayTx.length, weekSales: weekTx.length, totalSales: transactions.length,
+    topItemsDayRaw, topItemsWeekRaw, recentTx,
+  };
+}
+
 router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
   const cookie = req.session.robloxCookie;
   if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
@@ -145,129 +218,91 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
   const groupId = parseInt(rawId, 10);
   if (isNaN(groupId)) { res.status(400).json({ error: "Invalid group ID." }); return; }
 
-  try {
-    const [summaryResults, transactions] = await Promise.all([
-      Promise.allSettled([
-        fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/currency`, cookie),
-        fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Day`, cookie),
-        fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Week`, cookie),
-        fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Month`, cookie),
-      ]),
-      fetchTransactions(groupId, cookie, 8),
-    ]);
+  const cached = pnlCache.get(groupId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log(`[P&L] Serving cached data for group ${groupId} (age: ${Math.round((Date.now() - cached.timestamp) / 1000)}s)`);
+    res.json(cached.data);
+    return;
+  }
 
-    const [fundsResp, revDayResp, revWeekResp, revMonthResp] = summaryResults;
+  try {
+    const fundsPromise = fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/currency`, cookie);
+    await new Promise(r => setTimeout(r, 200));
+    const transactions = await fetchTransactions(groupId, cookie, 31);
 
     let funds = 0;
-    if (fundsResp.status === "fulfilled" && fundsResp.value.ok) {
-      const d = await fundsResp.value.json() as { robux: number };
-      funds = d.robux;
-    }
-
     let pendingRobux = 0;
-    let dailyRevenue = 0;
-    let summaryWeekRevenue = 0;
-    let summaryMonthRevenue = 0;
-
-    if (revDayResp.status === "fulfilled" && revDayResp.value.ok) {
-      const d = await revDayResp.value.json() as Record<string, any>;
-      pendingRobux = d.pendingRobux ?? 0;
-      dailyRevenue = d.itemSaleRobux ?? 0;
-    }
-
-    if (revWeekResp.status === "fulfilled" && revWeekResp.value.ok) {
-      const d = await revWeekResp.value.json() as Record<string, any>;
-      summaryWeekRevenue = d.itemSaleRobux ?? 0;
-    }
-
-    if (revMonthResp.status === "fulfilled" && revMonthResp.value.ok) {
-      const d = await revMonthResp.value.json() as Record<string, any>;
-      summaryMonthRevenue = d.itemSaleRobux ?? 0;
-    }
-
-    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-    const todayTx = transactions.filter(v => new Date(v.created) > dayAgo);
-    const weekTx = transactions.filter(v => new Date(v.created) > weekAgo);
-
-    const todayTxRevenue = todayTx.reduce((s, v) => s + v.revenue, 0);
-    const weekTxRevenue = weekTx.reduce((s, v) => s + v.revenue, 0);
-
-    const todayRevenue = Math.max(todayTxRevenue, dailyRevenue);
-    const grossRevenue = summaryWeekRevenue > 0 ? summaryWeekRevenue : weekTxRevenue;
-    const robloxCommission = Math.round(grossRevenue * 0.3);
-    const netRevenue = grossRevenue - robloxCommission;
-
-    const grossMonth = summaryMonthRevenue > 0 ? summaryMonthRevenue : transactions.reduce((s, v) => s + v.revenue, 0);
-    const monthCommission = Math.round(grossMonth * 0.3);
-    const netMonth = grossMonth - monthCommission;
-
-    const ROBUX_TO_USD = 0.0035;
-    const USD_TO_RUB = 96;
-    const netUSD = netRevenue * ROBUX_TO_USD;
-    const netRUB = netUSD * USD_TO_RUB;
-    const netMonthUSD = netMonth * ROBUX_TO_USD;
-    const netMonthRUB = netMonthUSD * USD_TO_RUB;
-
-    function buildTopItems(txList: Transaction[]) {
-      const stats: Record<string, { name: string; revenue: number; count: number; assetId: number | null }> = {};
-      for (const tx of txList) {
-        const key = tx.description || "Sale";
-        if (!stats[key]) stats[key] = { name: key, revenue: 0, count: 0, assetId: tx.assetId };
-        stats[key].revenue += tx.revenue;
-        stats[key].count += 1;
-        if (!stats[key].assetId && tx.assetId) stats[key].assetId = tx.assetId;
+    try {
+      const fundsResp = await fundsPromise;
+      if (fundsResp.ok) {
+        const d = await fundsResp.json() as { robux: number };
+        funds = d.robux;
       }
-      return Object.values(stats).sort((a, b) => b.revenue - a.revenue).slice(0, 20);
-    }
+    } catch {}
 
-    const topItemsDayRaw = buildTopItems(todayTx);
-    const topItemsWeekRaw = buildTopItems(weekTx.length > 0 ? weekTx : transactions);
-    const recentTx = transactions.slice(0, 50);
+    try {
+      const pendingResp = await fetchRoblox(`${ROBLOX_ECONOMY_API}/v1/groups/${groupId}/revenue/summary/Day`, cookie);
+      if (pendingResp.ok) {
+        const d = await pendingResp.json() as Record<string, any>;
+        pendingRobux = d.pendingRobux ?? 0;
+      }
+    } catch {}
+
+    const pnl = buildPnLResponse(funds, pendingRobux, transactions);
 
     const allAssetIds = [
-      ...recentTx.map(v => v.assetId),
-      ...topItemsDayRaw.map(v => v.assetId),
-      ...topItemsWeekRaw.map(v => v.assetId),
+      ...pnl.recentTx.map(v => v.assetId),
+      ...pnl.topItemsDayRaw.map(v => v.assetId),
+      ...pnl.topItemsWeekRaw.map(v => v.assetId),
     ].filter((id): id is number => id !== null && id > 0);
 
     const thumbMap = await fetchThumbnails(allAssetIds);
 
-    const mapTopItems = (raw: ReturnType<typeof buildTopItems>) => raw.map(item => ({
+    const mapTopItems = (raw: ReturnType<typeof buildPnLResponse>["topItemsDayRaw"]) => raw.map(item => ({
       name: item.name,
       revenue: item.revenue,
       count: item.count,
       thumbnailUrl: item.assetId ? (thumbMap[item.assetId] || null) : null,
     }));
 
-    res.json({
-      balance: funds,
-      pendingRobux,
-      dailyRevenue,
-      todayRevenue,
-      weekRevenue: grossRevenue,
-      monthRevenue: grossMonth,
-      robloxCommission,
-      netRevenue,
-      netMonth,
-      netUSD: Math.round(netUSD * 100) / 100,
-      netRUB: Math.round(netRUB),
-      netMonthUSD: Math.round(netMonthUSD * 100) / 100,
-      netMonthRUB: Math.round(netMonthRUB),
-      totalSales: transactions.length,
-      todaySales: todayTx.length,
-      weekSales: weekTx.length,
-      topItemsDay: mapTopItems(topItemsDayRaw),
-      topItemsWeek: mapTopItems(topItemsWeekRaw),
-      recentTransactions: recentTx.map(tx => ({
+    const result = {
+      balance: pnl.funds,
+      pendingRobux: pnl.pendingRobux,
+      dailyRevenue: pnl.todayRevenue,
+      todayRevenue: pnl.todayRevenue,
+      weekRevenue: pnl.weekRevenue,
+      monthRevenue: pnl.monthRevenue,
+      robloxCommission: pnl.robloxCommission,
+      netRevenue: pnl.netRevenue,
+      netMonth: pnl.netMonth,
+      netUSD: Math.round(pnl.netUSD * 100) / 100,
+      netRUB: Math.round(pnl.netRUB),
+      netMonthUSD: Math.round(pnl.netMonthUSD * 100) / 100,
+      netMonthRUB: Math.round(pnl.netMonthRUB),
+      totalSales: pnl.totalSales,
+      todaySales: pnl.todaySales,
+      weekSales: pnl.weekSales,
+      topItemsDay: mapTopItems(pnl.topItemsDayRaw),
+      topItemsWeek: mapTopItems(pnl.topItemsWeekRaw),
+      recentTransactions: pnl.recentTx.map(tx => ({
         ...tx,
         thumbnailUrl: tx.assetId ? (thumbMap[tx.assetId] || null) : null,
       })),
-    });
+    };
+
+    console.log(`[P&L] Group ${groupId}: balance=${funds} todayRev=${pnl.todayRevenue} weekRev=${pnl.weekRevenue} monthRev=${pnl.monthRevenue} todaySales=${pnl.todaySales} topDay=${pnl.topItemsDayRaw.length} topWeek=${pnl.topItemsWeekRaw.length} txTotal=${transactions.length}`);
+
+    pnlCache.set(groupId, { data: result, timestamp: Date.now() });
+
+    res.json(result);
   } catch (err) {
     console.error("[P&L] Error:", err);
-    res.status(500).json({ error: "Failed to calculate P&L." });
+    if (cached) {
+      console.log(`[P&L] Returning stale cache for group ${groupId} after error`);
+      res.json(cached.data);
+    } else {
+      res.status(500).json({ error: "Failed to calculate P&L." });
+    }
   }
 });
 
