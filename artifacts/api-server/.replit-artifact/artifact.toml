@@ -3,12 +3,12 @@ previewPath = "/api"
 title = "API Server"
 version = "1.0.0"
 id = "3B4_FFSkEVBkAeYMFRJ2e"
-deploymentTarget = "autoscale"
+deploymentTarget = "vm"
 
 [[services]]
 localPort = 8080
 name = "API Server"
-paths = ["/"]
+paths = ["/api"]
 
 [services.env]
 PORT = "8080"
@@ -26,4 +26,4 @@ args = ["node", "artifacts/api-server/dist/index.cjs"]
 PORT = "8080"
 
 [services.production.health.startup]
-path = "/healthz"
+path = "/api/healthz"

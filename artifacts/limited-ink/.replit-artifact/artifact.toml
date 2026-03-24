@@ -1,8 +1,9 @@
 kind = "web"
-previewPath = "/app"
+previewPath = "/"
 title = "Limited.Ink"
 version = "1.0.0"
 id = "artifacts/limited-ink"
+router = "path"
 
 [[integratedSkills]]
 name = "react-vite"
@@ -11,11 +12,16 @@ version = "1.0.0"
 [[services]]
 localPort = 26249
 name = "web"
-paths = ["/app"]
+paths = ["/"]
 
 [services.development]
 run = "pnpm --filter @workspace/limited-ink run dev"
 
 [services.env]
 PORT = "26249"
-BASE_PATH = "/app"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/limited-ink", "run", "build"]
+publicDir = "artifacts/limited-ink/dist/public"
+serve = "static"
