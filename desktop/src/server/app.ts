@@ -4,7 +4,7 @@ import session from "express-session";
 import path from "path";
 import { fileURLToPath } from "url";
 import type Database from "better-sqlite3";
-import { SQLiteSessionStore } from "../db/session-store.js";
+import { SQLiteSessionStore } from "../db/session-store.cjs";
 
 export function createApp(sqlite: Database.Database): express.Express {
   const app = express();

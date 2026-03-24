@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell } from "electron";
 import path from "path";
-import { initDatabase, closeDatabase, getSqlite } from "./db/index.js";
-import { startServer, stopServer } from "./server/start.js";
+import { initDatabase, closeDatabase, getSqlite } from "./db/index.cjs";
+import { startServer, stopServer } from "./server/start.cjs";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -23,7 +23,7 @@ function createWindow(serverPort: number): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"),
     },
   });
 

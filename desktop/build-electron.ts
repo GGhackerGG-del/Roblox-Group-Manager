@@ -22,6 +22,7 @@ async function buildElectron() {
     target: "node20",
     format: "cjs",
     outdir: path.join(DESKTOP, "dist"),
+    outExtension: { ".js": ".cjs" },
     sourcemap: true,
     loader: {
       ".ts": "ts",
