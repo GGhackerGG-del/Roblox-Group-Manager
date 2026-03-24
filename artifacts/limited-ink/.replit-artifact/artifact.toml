@@ -12,7 +12,6 @@ version = "1.0.0"
 [[services]]
 localPort = 26249
 name = "web"
-paths = ["/"]
 
 [services.development]
 run = "pnpm --filter @workspace/limited-ink run dev"
