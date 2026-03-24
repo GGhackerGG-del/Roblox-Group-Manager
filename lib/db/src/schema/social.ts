@@ -219,6 +219,7 @@ export const groupChatMessages = pgTable("group_chat_messages", {
   chatId: integer("chat_id").notNull().references(() => groupChats.id, { onDelete: "cascade" }),
   senderId: integer("sender_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
+  isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   index("group_chat_msgs_chat_idx").on(t.chatId),

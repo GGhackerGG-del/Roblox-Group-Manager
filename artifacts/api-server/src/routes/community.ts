@@ -183,12 +183,29 @@ router.get("/community/group-chats", async (req, res): Promise<void> => {
     if (!lastMsgMap[m.chatId]) lastMsgMap[m.chatId] = m;
   }
 
-  res.json({ chats: chats.map(c => {
+  const enriched = chats.map(c => {
     const robloxGroupMatch = c.name.match(/^\[roblox-group:(\d+)\]\s*/);
     const robloxGroupId = robloxGroupMatch ? parseInt(robloxGroupMatch[1]) : null;
     const displayName = robloxGroupMatch ? c.name.replace(robloxGroupMatch[0], '') : c.name;
-    return { ...c, name: displayName, robloxGroupId, memberCount: countMap[c.id] || 0, lastMessage: lastMsgMap[c.id] || null };
-  }) });
+    const lastMsg = lastMsgMap[c.id] || null;
+    const safeLastMsg = lastMsg && lastMsg.isDeleted ? { ...lastMsg, content: "" } : lastMsg;
+    return { ...c, name: displayName, robloxGroupId, memberCount: countMap[c.id] || 0, lastMessage: safeLastMsg, groupThumbnailUrl: null as string | null };
+  });
+
+  const robloxGroupIds = enriched.filter(c => c.robloxGroupId).map(c => c.robloxGroupId!);
+  if (robloxGroupIds.length > 0) {
+    try {
+      const thumbResp = await fetch(`https://thumbnails.roblox.com/v1/groups/icons?groupIds=${robloxGroupIds.join(",")}&size=150x150&format=Png&isCircular=false`);
+      if (thumbResp.ok) {
+        const thumbData = await thumbResp.json() as { data?: Array<{ targetId?: number; imageUrl?: string }> };
+        const thumbMap: Record<number, string> = {};
+        for (const t of thumbData.data || []) { if (t.targetId && t.imageUrl) thumbMap[t.targetId] = t.imageUrl; }
+        for (const c of enriched) { if (c.robloxGroupId && thumbMap[c.robloxGroupId]) c.groupThumbnailUrl = thumbMap[c.robloxGroupId]; }
+      }
+    } catch {}
+  }
+
+  res.json({ chats: enriched });
 });
 
 router.post("/community/group-chats", async (req, res): Promise<void> => {
@@ -229,7 +246,7 @@ router.get("/community/group-chats/:id/messages", async (req, res): Promise<void
   const senders = senderIds.length ? await db.query.platformUsers.findMany({ where: inArray(platformUsers.id, senderIds) }) : [];
   const senderMap = Object.fromEntries(senders.map(s => [s.id, s]));
 
-  res.json({ messages: messages.reverse().map(m => ({ ...m, sender: senderMap[m.senderId] })) });
+  res.json({ messages: messages.reverse().map(m => ({ ...m, content: m.isDeleted ? "" : m.content, sender: senderMap[m.senderId] })) });
 });
 
 router.post("/community/group-chats/:id/messages", async (req, res): Promise<void> => {
@@ -248,6 +265,25 @@ router.post("/community/group-chats/:id/messages", async (req, res): Promise<voi
   await db.update(groupChats).set({ lastMessageAt: new Date() }).where(eq(groupChats.id, chatId));
 
   res.json({ message: { ...msg, sender: me } });
+});
+
+router.delete("/community/group-chats/:chatId/messages/:msgId", async (req, res): Promise<void> => {
+  const me = await getMyUser(req);
+  if (!me) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const chatId = parseInt(req.params.chatId);
+  const msgId = parseInt(req.params.msgId);
+
+  const membership = await db.query.groupChatMembers.findFirst({
+    where: and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, me.id)),
+  });
+  if (!membership) { res.status(403).json({ error: "Not a member" }); return; }
+
+  const msg = await db.query.groupChatMessages.findFirst({ where: eq(groupChatMessages.id, msgId) });
+  if (!msg || msg.chatId !== chatId) { res.status(404).json({ error: "Message not found" }); return; }
+  if (msg.senderId !== me.id && membership.role !== "admin") { res.status(403).json({ error: "Cannot delete others' messages" }); return; }
+
+  await db.update(groupChatMessages).set({ isDeleted: true }).where(eq(groupChatMessages.id, msgId));
+  res.json({ ok: true });
 });
 
 router.get("/community/group-chats/:id/members", async (req, res): Promise<void> => {
@@ -287,6 +323,15 @@ router.post("/community/roblox-group-chat", async (req, res): Promise<void> => {
   const { groupId, groupName } = req.body as { groupId?: number; groupName?: string };
   if (!groupId || !groupName) { res.status(400).json({ error: "groupId and groupName required" }); return; }
 
+  let groupThumbnailUrl: string | undefined;
+  try {
+    const thumbResp = await fetch(`https://thumbnails.roblox.com/v1/groups/icons?groupIds=${groupId}&size=150x150&format=Png&isCircular=false`);
+    if (thumbResp.ok) {
+      const thumbData = await thumbResp.json() as { data?: Array<{ imageUrl?: string }> };
+      groupThumbnailUrl = thumbData.data?.[0]?.imageUrl || undefined;
+    }
+  } catch {}
+
   const tag = `[roblox-group:${groupId}]`;
   const existing = await db.query.groupChats.findFirst({
     where: sql`${groupChats.name} LIKE ${tag + '%'}`,
@@ -300,7 +345,7 @@ router.post("/community/roblox-group-chat", async (req, res): Promise<void> => {
       await db.insert(groupChatMembers).values({ chatId: existing.id, userId: me.id, role: "admin" });
     }
     const memberCount = await db.select({ total: count() }).from(groupChatMembers).where(eq(groupChatMembers.chatId, existing.id));
-    res.json({ chat: { ...existing, name: existing.name.replace(tag, '').trim(), robloxGroupId: groupId, memberCount: memberCount[0]?.total || 0 } });
+    res.json({ chat: { ...existing, name: existing.name.replace(tag, '').trim(), robloxGroupId: groupId, groupThumbnailUrl, memberCount: memberCount[0]?.total || 0 } });
     return;
   }
 
@@ -312,7 +357,7 @@ router.post("/community/roblox-group-chat", async (req, res): Promise<void> => {
 
   await db.insert(groupChatMembers).values({ chatId: chat.id, userId: me.id, role: "admin" });
 
-  res.json({ chat: { ...chat, name: groupName, robloxGroupId: groupId, memberCount: 1 } });
+  res.json({ chat: { ...chat, name: groupName, robloxGroupId: groupId, groupThumbnailUrl, memberCount: 1 } });
 });
 
 // ── Collaboration ─────────────────────────────────────────────────────────────

@@ -1550,16 +1550,20 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                     onClick={() => openGroup(gc)}
                     className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${active?.kind === "group" && active.chat.id === gc.id ? "bg-secondary/70" : ""} ${gc.robloxGroupId ? "bg-secondary/20" : ""}`}
                   >
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: gc.robloxGroupId ? "#000" : (gc.avatarColor || "#6366f1") }}>
-                      {gc.robloxGroupId ? <Users className="w-4 h-4" /> : gc.name.charAt(0)}
-                    </div>
+                    {gc.groupThumbnailUrl ? (
+                      <img src={gc.groupThumbnailUrl} alt={gc.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: gc.robloxGroupId ? "#000" : (gc.avatarColor || "#6366f1") }}>
+                        {gc.robloxGroupId ? <Users className="w-4 h-4" /> : gc.name.charAt(0)}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <p className="text-xs font-semibold truncate">{gc.name}</p>
                         {gc.robloxGroupId && <Badge className="text-[8px] h-4 px-1 shrink-0 bg-black text-white border-0">Roblox</Badge>}
                         <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0">{gc.memberCount || "?"}</Badge>
                       </div>
-                      {gc.lastMessage && <p className="text-[10px] text-muted-foreground truncate">{gc.lastMessage.content}</p>}
+                      {gc.lastMessage && <p className="text-[10px] text-muted-foreground truncate">{gc.lastMessage.isDeleted ? <span className="italic">{t("com.deletedMessage")}</span> : gc.lastMessage.content}</p>}
                     </div>
                     {gc.lastMessage && <span className="text-[9px] text-muted-foreground shrink-0">{timeAgoShort(gc.lastMessage.createdAt)}</span>}
                   </div>
@@ -1728,9 +1732,13 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
           ) : (
             <>
               <div className="p-4 border-b border-border bg-secondary/30 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: active.chat.robloxGroupId ? "#000" : (active.chat.avatarColor || "#6366f1") }}>
-                  {active.chat.robloxGroupId ? <Users className="w-4 h-4" /> : active.chat.name.charAt(0)}
-                </div>
+                {active.chat.groupThumbnailUrl ? (
+                  <img src={active.chat.groupThumbnailUrl} alt={active.chat.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: active.chat.robloxGroupId ? "#000" : (active.chat.avatarColor || "#6366f1") }}>
+                    {active.chat.robloxGroupId ? <Users className="w-4 h-4" /> : active.chat.name.charAt(0)}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p className="font-semibold text-sm">{active.chat.name}</p>
@@ -1777,13 +1785,33 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 ) : (
                   messages.map(msg => {
                     const isMe = myUser && msg.senderId === myUser.id;
+                    const deleted = msg.isDeleted;
                     return (
-                      <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                      <div key={msg.id} className={`flex items-end gap-2 group/msg ${isMe ? "flex-row-reverse" : "flex-row"}`}>
                         {!isMe && <Avatar className="w-7 h-7 border border-border shrink-0 mb-0.5"><AvatarImage src={msg.sender?.avatarUrl || robloxHeadshot(msg.sender?.robloxUserId || 0)} /><AvatarFallback className="text-[10px]">{msg.sender?.displayName?.charAt(0) || "?"}</AvatarFallback></Avatar>}
                         <div className={`max-w-[70%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
                           {!isMe && <p className="text-[10px] text-muted-foreground px-1">{msg.sender?.displayName}</p>}
-                          <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>
-                            {isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isMe} /> : msg.content}
+                          <div className="flex items-center gap-1">
+                            {isMe && !deleted && (
+                              <button
+                                className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-full hover:bg-secondary"
+                                onClick={async () => {
+                                  const chatId = active?.kind === "group" ? active.group.id : null;
+                                  if (!chatId) return;
+                                  try {
+                                    await apiFetch(`/api/community/group-chats/${chatId}/messages/${msg.id}`, { method: "DELETE" });
+                                    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isDeleted: true } : m));
+                                  } catch {}
+                                }}
+                                title={t("com.deleteMessage")}
+                              >
+                                <Trash2 className="w-3 h-3 text-muted-foreground" />
+                              </button>
+                            )}
+                            <div className={`rounded-2xl px-3 py-2 text-sm ${deleted ? "bg-secondary/50 border border-dashed border-border" : isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>
+                              {deleted ? <span className="italic text-muted-foreground text-xs">{t("com.deletedMessage")}</span> : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isMe} /> : msg.content}
+                            </div>
+                            
                           </div>
                           <p className="text-[10px] text-muted-foreground px-1">{timeAgoShort(msg.createdAt)}</p>
                         </div>
