@@ -227,6 +227,7 @@ router.get("/pnl/group/:groupId/top-items", async (req, res): Promise<void> => {
 
     const mapItems = (raw: typeof topItemsDayRaw) => raw.map(item => ({
       name: item.name, revenue: item.revenue, count: item.count,
+      assetId: item.assetId,
       thumbnailUrl: item.assetId ? (thumbMap[item.assetId] || null) : null,
     }));
 

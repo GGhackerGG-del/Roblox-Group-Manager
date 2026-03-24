@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   TrendingUp, TrendingDown, Loader2, RefreshCw,
   Wallet, Clock, BarChart3, Coins, PiggyBank,
-  Image as ImageIcon
+  Image as ImageIcon, ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -39,8 +39,8 @@ interface SummaryData {
 }
 
 interface TopItemsData {
-  topItemsDay: Array<{ name: string; revenue: number; count: number; thumbnailUrl?: string | null }>;
-  topItemsWeek: Array<{ name: string; revenue: number; count: number; thumbnailUrl?: string | null }>;
+  topItemsDay: Array<{ name: string; revenue: number; count: number; assetId?: number | null; thumbnailUrl?: string | null }>;
+  topItemsWeek: Array<{ name: string; revenue: number; count: number; assetId?: number | null; thumbnailUrl?: string | null }>;
   todayRevenue: number;
   todaySales: number;
   weekSales: number;
@@ -331,7 +331,17 @@ export default function PnL({ groupId }: { groupId: string }) {
                             <ImageIcon className="w-4 h-4 text-muted-foreground/30" />
                           </div>
                         )}
-                        <span className="font-medium truncate flex-1">{item.name}</span>
+                        {item.assetId ? (
+                          <button
+                            onClick={() => window.open(`https://www.roblox.com/catalog/${item.assetId}`, "_blank", "noopener,noreferrer")}
+                            className="font-medium truncate flex-1 text-left hover:text-blue-400 hover:underline transition-colors flex items-center gap-1 group"
+                          >
+                            {item.name}
+                            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 shrink-0 transition-opacity" />
+                          </button>
+                        ) : (
+                          <span className="font-medium truncate flex-1">{item.name}</span>
+                        )}
                         <div className="flex items-center gap-1.5 shrink-0">
                           <Badge variant="outline" className="text-[10px]">{item.count} {t("pnl.sales")}</Badge>
                           <span className="font-mono font-semibold text-green-600 text-xs">{item.revenue.toLocaleString()} R$</span>
