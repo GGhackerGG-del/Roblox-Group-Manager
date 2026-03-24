@@ -11,7 +11,7 @@ const ITEM_CONFIG_API = "https://itemconfiguration.roblox.com";
 
 const _cache = new Map<string, { data: unknown; ts: number }>();
 const SEARCH_CACHE_TTL = 30 * 60_000;
-const GROUP_CACHE_TTL = 15 * 60_000;
+const GROUP_CACHE_TTL = 60 * 60_000;
 
 function cacheGet<T>(k: string, ttl = SEARCH_CACHE_TTL): T | null {
   const e = _cache.get(k);
@@ -29,6 +29,28 @@ async function throttledFetch(url: string, init?: RequestInit): Promise<Response
   const wait = MIN_REQUEST_GAP - (now - _lastRobloxRequest);
   if (wait > 0) await new Promise(r => setTimeout(r, wait));
   _lastRobloxRequest = Date.now();
+  return fetch(url, init);
+}
+
+let _lastAssetRequest = 0;
+const ASSET_REQUEST_GAP = 200;
+
+async function assetFetch(url: string, init?: RequestInit): Promise<Response> {
+  const now = Date.now();
+  const wait = ASSET_REQUEST_GAP - (now - _lastAssetRequest);
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  _lastAssetRequest = Date.now();
+  return fetch(url, init);
+}
+
+let _lastItemConfigRequest = 0;
+const ITEMCONFIG_REQUEST_GAP = 200;
+
+async function itemConfigFetch(url: string, init?: RequestInit): Promise<Response> {
+  const now = Date.now();
+  const wait = ITEMCONFIG_REQUEST_GAP - (now - _lastItemConfigRequest);
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  _lastItemConfigRequest = Date.now();
   return fetch(url, init);
 }
 
@@ -321,7 +343,7 @@ async function fetchGroupItemsViaItemConfig(groupId: number, cookie: string): Pr
     let retries = 0;
     while (pages < 50) {
       const url = `${ITEM_CONFIG_API}/v1/creations/get-assets?assetType=${assetType}&groupId=${groupId}&limit=100${cursor ? `&cursor=${cursor}` : ""}`;
-      const resp = await throttledFetch(url, { headers: robloxHeaders(cookie) });
+      const resp = await itemConfigFetch(url, { headers: robloxHeaders(cookie) });
 
       if (resp.status === 429) {
         if (retries < 5) {
@@ -421,9 +443,9 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
         }
       }
 
-      const THUMB_LIMIT = 200;
+      const THUMB_LIMIT = 100;
       const thumbIds = rawItems.slice(0, THUMB_LIMIT).map(i => i.id);
-      const thumbMap = await fetchThumbnails(thumbIds);
+      const thumbMap = rawItems.length > 500 ? {} : await fetchThumbnails(thumbIds);
 
       allItems = rawItems.map(d => ({
         id: d.id,
@@ -464,19 +486,33 @@ function isAllowedAssetUrl(url: string): boolean {
   } catch { return false; }
 }
 
+async function waitForRateLimit(): Promise<void> {
+  const testUrl = "https://assetdelivery.roblox.com/v2/asset?id=1";
+  for (let i = 0; i < 12; i++) {
+    try {
+      const r = await fetch(testUrl);
+      if (r.status !== 429) return;
+    } catch {}
+    const wait = Math.min(10000, 3000 + 2000 * i);
+    console.log(`[Clothing] Rate limit active, waiting ${wait / 1000}s before download... (${i + 1}/12)`);
+    await new Promise(resolve => setTimeout(resolve, wait));
+  }
+  console.log(`[Clothing] Rate limit may still be active, proceeding anyway...`);
+}
+
 async function fetchAssetTexture(itemId: number, cookie: string): Promise<ArrayBuffer | null> {
-  async function fetchRetry(url: string, init?: RequestInit, retries = 5): Promise<Response> {
+  async function fetchRetry(url: string, init?: RequestInit, retries = 8): Promise<Response> {
     for (let attempt = 0; attempt < retries; attempt++) {
-      const resp = await throttledFetch(url, init);
+      const resp = await assetFetch(url, init);
       if (resp.status === 429) {
-        const delay = 3000 * (attempt + 1);
-        console.log(`[Clothing] Asset fetch rate limited (attempt ${attempt + 1}), waiting ${delay}ms...`);
+        const delay = 5000 * (attempt + 1);
+        console.log(`[Clothing] Asset ${itemId} rate limited (attempt ${attempt + 1}/${retries}), waiting ${delay / 1000}s...`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
       return resp;
     }
-    return throttledFetch(url, init);
+    return assetFetch(url, init);
   }
 
   try {
@@ -557,8 +593,9 @@ router.get("/clothing/:itemId/template", async (req, res): Promise<void> => {
       } catch {}
     }
 
+    await waitForRateLimit();
     const texBuf = await fetchAssetTexture(itemId, cookie);
-    if (!texBuf) { res.status(502).json({ error: "Could not extract texture." }); return; }
+    if (!texBuf) { res.status(502).json({ error: "Could not extract texture. Roblox rate limit may be active — try again in 30 seconds." }); return; }
 
     const b64 = Buffer.from(texBuf).toString("base64");
     const clothingType = assetTypeId === 12 ? "Pants" : "Shirt";
@@ -566,6 +603,41 @@ router.get("/clothing/:itemId/template", async (req, res): Promise<void> => {
   } catch (err) {
     console.error("[Clothing] Template error:", err);
     res.status(502).json({ error: "Failed to extract clothing template." });
+  }
+});
+
+router.get("/clothing/:itemId/asset-url", async (req, res): Promise<void> => {
+  const cookie = req.session.robloxCookie;
+  if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
+
+  const itemId = parseInt(req.params.itemId, 10);
+  if (isNaN(itemId) || itemId <= 0) { res.status(400).json({ error: "Invalid item ID." }); return; }
+
+  try {
+    const v2resp = await assetFetch(`https://assetdelivery.roblox.com/v2/asset?id=${itemId}`, { headers: robloxHeaders(cookie) });
+    if (v2resp.ok) {
+      const v2data = await v2resp.json() as { locations?: Array<{ location: string }> };
+      const loc = v2data.locations?.[0]?.location;
+      if (loc && isAllowedAssetUrl(loc)) {
+        res.json({ url: loc });
+        return;
+      }
+    }
+
+    const v1resp = await assetFetch(`${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`, {
+      headers: robloxHeaders(cookie),
+      redirect: "manual",
+    });
+    const redirectUrl = v1resp.headers.get("location");
+    if (redirectUrl && isAllowedAssetUrl(redirectUrl)) {
+      res.json({ url: redirectUrl });
+      return;
+    }
+
+    res.status(502).json({ error: "Could not resolve asset URL" });
+  } catch (err) {
+    console.error("[Clothing] Asset URL error:", err);
+    res.status(502).json({ error: "Failed to resolve asset URL" });
   }
 });
 
@@ -916,6 +988,9 @@ router.post("/clothing/bulk-download", async (req, res): Promise<void> => {
     const dMap = await fetchItemDetails(itemIds, cookie);
     for (const [id, d] of dMap) nameMap.set(id, d.name);
   } catch {}
+
+  console.log(`[Clothing] Bulk download: waiting for rate limit to clear before ${itemIds.length} items...`);
+  await waitForRateLimit();
 
   const archiver = (await import("archiver")).default;
   res.setHeader("Content-Type", "application/zip");

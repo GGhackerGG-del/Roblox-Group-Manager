@@ -216,16 +216,37 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
   const downloadTemplate = async (item: ClothingItem) => {
     playClick();
     try {
-      const data = await apiFetch<{ b64: string; name: string }>(`/api/clothing/${item.id}/template`);
+      const data = await apiFetch<{ b64: string; name: string }>(`/api/clothing/${item.id}/template?name=${encodeURIComponent(item.name)}`);
       const link = document.createElement("a");
       link.href = `data:image/png;base64,${data.b64}`;
       link.download = `${data.name.replace(/[^a-z0-9_.-]/gi, "_")}.png`;
       link.click();
       playSuccess();
-    } catch (e: unknown) {
+    } catch {
       playError();
-      toast({ title: t("group.downloadFailed"), description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      window.open(`https://www.roblox.com/catalog/${item.id}`, "_blank", "noopener,noreferrer");
+      toast({ title: t("group.downloadFailed"), description: "Rate limited — opened Roblox page instead", variant: "destructive" });
     }
+  };
+
+  const copyAllIds = () => {
+    if (!selected.size) return;
+    playClick();
+    const ids = Array.from(selected).join("\n");
+    navigator.clipboard.writeText(ids).then(() => {
+      playSuccess();
+      toast({ title: "IDs Copied", description: `${selected.size} IDs copied to clipboard` });
+    }).catch(() => {
+      const blob = new Blob([ids], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "clothing_ids.txt";
+      link.click();
+      URL.revokeObjectURL(url);
+      playSuccess();
+      toast({ title: "IDs Saved", description: `${selected.size} IDs saved to file` });
+    });
   };
 
   return (
@@ -272,6 +293,9 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
                   <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 gap-1" onClick={bulkDownload} disabled={bulkDownloading}>
                     {bulkDownloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <FolderDown className="w-3 h-3" />}
                     {t("group.download")} {selected.size}
+                  </Button>
+                  <Button size="sm" variant="outline" className="rounded-lg text-[10px] h-7 gap-1" onClick={copyAllIds}>
+                    <Copy className="w-3 h-3" /> Copy IDs
                   </Button>
                   <Button size="sm" variant="ghost" className="rounded-lg text-[10px] h-7" onClick={() => setSelected(new Set())}>{t("group.clear")}</Button>
                 </>
@@ -667,9 +691,10 @@ function GroupClothingTab({ groupId }: { groupId: number }) {
       link.download = `${data.name.replace(/[^a-z0-9_.-]/gi, "_")}.png`;
       link.click();
       playSuccess();
-    } catch (e: unknown) {
+    } catch {
       playError();
-      toast({ title: t("group.downloadFailed"), description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      window.open(`https://www.roblox.com/catalog/${item.id}`, "_blank", "noopener,noreferrer");
+      toast({ title: t("group.downloadFailed"), description: "Rate limited — opened Roblox page instead", variant: "destructive" });
     } finally {
       setDownloading(null);
     }
