@@ -39,11 +39,11 @@ async function getRobloxCsrf(cookie: string): Promise<string> {
       "Referer": "https://www.roblox.com/",
       "Origin": "https://www.roblox.com",
     };
-    const r1 = await fetch("https://auth.roblox.com/v1/authentication-ticket", { method: "POST", headers: hdrs });
+    const r1 = await fetch("https://friends.roblox.com/v1/my/friends/count", { method: "GET", headers: hdrs });
     const token = r1.headers.get("x-csrf-token");
     if (token) return token;
-    const r1b = await fetch("https://auth.roblox.com/", { method: "POST", headers: hdrs });
-    return r1b.headers.get("x-csrf-token") || "";
+    const r2 = await fetch("https://auth.roblox.com/v2/metadata", { method: "POST", headers: hdrs });
+    return r2.headers.get("x-csrf-token") || "";
   } catch (err) {
     console.error("[Clothing] CSRF error:", err);
     return "";

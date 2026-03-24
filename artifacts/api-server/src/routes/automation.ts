@@ -18,25 +18,13 @@ function rHeaders(cookie: string, extra: Record<string, string> = {}): Record<st
   };
 }
 
-async function getCsrf(cookie: string): Promise<string> {
-  try {
-    const r = await fetch("https://auth.roblox.com/v1/authentication-ticket", {
-      method: "POST",
-      headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "Content-Length": "0", "User-Agent": UA, "Referer": "https://www.roblox.com/" },
-    });
-    return r.headers.get("x-csrf-token") || "";
-  } catch { return ""; }
-}
-
 async function fetchWithCsrfRetry(url: string, cookie: string, opts: RequestInit): Promise<Response> {
-  const csrf = await getCsrf(cookie);
   const headers: Record<string, string> = { ...rHeaders(cookie, { "Content-Type": "application/json" }) };
-  if (csrf) headers["X-CSRF-TOKEN"] = csrf;
   let resp = await fetch(url, { ...opts, headers });
   if (resp.status === 403) {
-    const newCsrf = resp.headers.get("x-csrf-token");
-    if (newCsrf) {
-      headers["X-CSRF-TOKEN"] = newCsrf;
+    const csrf = resp.headers.get("x-csrf-token");
+    if (csrf) {
+      headers["X-CSRF-TOKEN"] = csrf;
       resp = await fetch(url, { ...opts, headers });
     }
   }
@@ -362,9 +350,7 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       PayoutType: payoutType,
       Recipients: payouts.map(p => ({ recipientId: p.recipientId, recipientType: "User", amount: p.amount })),
     };
-    const csrf = await getCsrf(cookie);
     const headers: Record<string, string> = { ...rHeaders(cookie, { "Content-Type": "application/json" }) };
-    if (csrf) headers["X-CSRF-TOKEN"] = csrf;
     if (challengeId && verificationToken) {
       headers["rblx-challenge-id"] = challengeId;
       headers["rblx-challenge-type"] = "twostepverification";
