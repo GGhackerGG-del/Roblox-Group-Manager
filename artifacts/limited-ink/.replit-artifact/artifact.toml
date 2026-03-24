@@ -11,6 +11,7 @@ version = "1.0.0"
 [[services]]
 localPort = 26249
 name = "web"
+paths = ["/"]
 
 [services.development]
 run = "pnpm --filter @workspace/limited-ink run dev"
@@ -21,3 +22,5 @@ BASE_PATH = "/"
 
 [services.production]
 build = ["pnpm", "--filter", "@workspace/limited-ink", "run", "build"]
+publicDir = "artifacts/limited-ink/dist/public"
+serve = "static"
