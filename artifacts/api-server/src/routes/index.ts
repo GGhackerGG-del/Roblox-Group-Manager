@@ -31,6 +31,7 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use(licenseRouter);
 router.use(featuredGroupsRouter);
+router.use(qualityRouter);
 
 router.delete("/roblox/session", (req, res): void => {
   req.session.destroy((err) => {
@@ -64,7 +65,6 @@ router.use("/content", requireLicense);
 router.use("/gamification", requireLicense);
 router.use("/integrations", requireLicense);
 router.use("/team", requireLicense);
-router.use("/quality", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
@@ -86,6 +86,5 @@ router.use(contentPlannerRouter);
 router.use(gamificationRouter);
 router.use(integrationsRouter);
 router.use(teamRouter);
-router.use(qualityRouter);
 
 export default router;
