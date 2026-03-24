@@ -73,8 +73,7 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "resources/icon.png"
+      "allowToChangeInstallationDirectory": true
     }
   }
 }
