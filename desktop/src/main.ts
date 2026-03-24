@@ -1,7 +1,5 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, dialog } from "electron";
 import path from "path";
-import { initDatabase, closeDatabase, getSqlite } from "./db/index.js";
-import { startServer, stopServer } from "./server/start.js";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -51,12 +49,15 @@ app.whenReady().then(async () => {
       process.env.ELECTRON_IS_PACKAGED = "true";
     }
 
+    const { initDatabase, getSqlite } = require("./db/index.js");
+
     const dbPath = getDbPath();
     console.log(`[Limited.Ink] Database path: ${dbPath}`);
     const drizzleDb = initDatabase(dbPath);
     (globalThis as any).__limitedInkDb = drizzleDb;
     const sqlite = getSqlite();
 
+    const { startServer } = require("./server/start.js");
     const port = await startServer(sqlite);
     console.log(`[Limited.Ink] Server running on http://localhost:${port}`);
 
@@ -67,8 +68,12 @@ app.whenReady().then(async () => {
         createWindow(port);
       }
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("[Limited.Ink] Failed to start:", err);
+    dialog.showErrorBox(
+      "Limited.Ink — Startup Error",
+      `Failed to start the application:\n\n${err?.message || err}\n\n${err?.stack || ""}`
+    );
     app.quit();
   }
 });
@@ -80,6 +85,12 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  stopServer();
-  closeDatabase();
+  try {
+    const { stopServer } = require("./server/start.js");
+    stopServer();
+  } catch {}
+  try {
+    const { closeDatabase } = require("./db/index.js");
+    closeDatabase();
+  } catch {}
 });
