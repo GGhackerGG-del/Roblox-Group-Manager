@@ -323,6 +323,25 @@ router.post("/community/roblox-group-chat", async (req, res): Promise<void> => {
   const { groupId, groupName } = req.body as { groupId?: number; groupName?: string };
   if (!groupId || !groupName) { res.status(400).json({ error: "groupId and groupName required" }); return; }
 
+  const robloxUserId = String(me.robloxUserId);
+  try {
+    const rolesResp = await fetch(`https://groups.roblox.com/v1/users/${robloxUserId}/groups/roles`);
+    if (rolesResp.ok) {
+      const rolesData = await rolesResp.json() as { data: Array<{ group: { id: number }; role: { rank: number } }> };
+      const membership = rolesData.data.find(g => g.group.id === groupId);
+      if (!membership || membership.role.rank !== 255) {
+        res.status(403).json({ error: "You must be the owner of this Roblox group" });
+        return;
+      }
+    } else {
+      res.status(502).json({ error: "Could not verify group ownership" });
+      return;
+    }
+  } catch {
+    res.status(502).json({ error: "Could not verify group ownership" });
+    return;
+  }
+
   let groupThumbnailUrl: string | undefined;
   try {
     const thumbResp = await fetch(`https://thumbnails.roblox.com/v1/groups/icons?groupIds=${groupId}&size=150x150&format=Png&isCircular=false`);
