@@ -26,6 +26,7 @@ export async function startServer(sqlite: Database.Database): Promise<number> {
   process.env.PORT = String(port);
   process.env.SESSION_SECRET = process.env.SESSION_SECRET || "limited-ink-desktop-" + Math.random().toString(36).slice(2);
   process.env.JWT_SECRET = process.env.JWT_SECRET || "limited-ink-jwt-" + Math.random().toString(36).slice(2);
+  process.env.ADMIN_SECRET = process.env.ADMIN_SECRET || "limited-ink-admin-" + Math.random().toString(36).slice(2);
   process.env.NODE_ENV = "production";
   process.env.DESKTOP_MODE = "true";
   process.env.SQLITE_DB_READY = "true";
