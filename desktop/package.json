@@ -1,0 +1,78 @@
+{
+  "name": "limited-ink-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Limited.Ink — Roblox Group Management Tool",
+  "author": "Limited.Ink",
+  "license": "UNLICENSED",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "build:frontend": "node --import tsx build-frontend.ts",
+    "build:server": "node --import tsx build-server.ts",
+    "build:electron": "node --import tsx build-electron.ts",
+    "build:all": "npm run build:frontend && npm run build:server && npm run build:electron",
+    "pack": "npm run build:all && electron-builder --dir",
+    "dist:win": "npm run build:all && electron-builder --win",
+    "dist:mac": "npm run build:all && electron-builder --mac",
+    "dist": "npm run build:all && electron-builder --win --mac",
+    "dev": "node --import tsx build-server.ts && electron dist/main.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.9.1",
+    "cors": "^2.8.5",
+    "drizzle-orm": "^0.45.1",
+    "express": "^5.1.0",
+    "express-session": "^1.19.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-fetch": "^3.3.2",
+    "node-telegram-bot-api": "^0.67.0",
+    "sharp": "^0.34.5",
+    "archiver": "^7.0.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.14",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.18.2",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.15.0",
+    "@types/node-telegram-bot-api": "^0.64.14",
+    "esbuild": "^0.27.3",
+    "electron": "^35.2.1",
+    "electron-builder": "^26.0.12",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.2"
+  },
+  "build": {
+    "appId": "com.limitedink.desktop",
+    "productName": "Limited.Ink",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/frontend-src/**"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/frontend",
+        "to": "frontend"
+      }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "resources/icon.png"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "resources/icon.png",
+      "category": "public.app-category.business"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "resources/icon.png"
+    }
+  }
+}

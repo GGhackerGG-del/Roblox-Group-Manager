@@ -14,6 +14,8 @@
   },
   "devDependencies": {
     "typescript": "~5.9.2",
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.1",
+    "esbuild": "^0.27.3",
+    "tsx": "^4.21.0"
   }
 }
