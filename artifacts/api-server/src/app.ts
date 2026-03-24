@@ -3,8 +3,11 @@ import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import path from "path";
+import { fileURLToPath } from "url";
 import { pool } from "@workspace/db";
 import router from "./routes";
+
+const __dirname_safe = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 const SESSION_SECRET = process.env.SESSION_SECRET;
 if (!SESSION_SECRET) {
@@ -41,6 +44,6 @@ app.use(session({
 }));
 
 app.use("/api", router);
-app.use("/uploads", express.static(path.join(import.meta.dirname, "..", "uploads")));
+app.use("/uploads", express.static(path.join(__dirname_safe, "..", "uploads")));
 
 export default app;

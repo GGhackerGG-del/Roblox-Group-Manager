@@ -3,6 +3,9 @@ import OpenAI from "openai";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname_safe = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 const router: IRouter = Router();
 
@@ -139,7 +142,7 @@ router.post("/marketing/webhook-avatar-upload", (req, res): void => {
   const buffer = Buffer.from(match[2], "base64");
   if (buffer.length > 5 * 1024 * 1024) { res.status(400).json({ error: "File too large (max 5MB)" }); return; }
   const filename = `${randomUUID()}.${ext}`;
-  const dir = path.join(import.meta.dirname, "..", "..", "uploads", "webhook-avatars");
+  const dir = path.join(__dirname_safe, "..", "..", "uploads", "webhook-avatars");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, filename), buffer);
   const host = req.get("host") || "localhost";
