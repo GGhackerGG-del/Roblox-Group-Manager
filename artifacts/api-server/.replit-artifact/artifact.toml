@@ -8,7 +8,7 @@ deploymentTarget = "vm"
 [[services]]
 localPort = 8080
 name = "API Server"
-paths = ["/api"]
+paths = ["/"]
 
 [services.env]
 PORT = "8080"
@@ -24,6 +24,7 @@ args = ["node", "artifacts/api-server/dist/index.cjs"]
 
 [services.production.run.env]
 PORT = "8080"
+NODE_ENV = "production"
 
 [services.production.health.startup]
 path = "/api/healthz"
