@@ -401,11 +401,19 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       }
     }
     if (!resp.ok) {
-      const err = await resp.json().catch(() => ({})) as { errors?: Array<{ message: string }> };
-      res.status(resp.status).json({ error: err.errors?.[0]?.message || "Failed to send payout." }); return;
+      const raw = await resp.text().catch(() => "");
+      let errMsg = "Failed to send payout.";
+      try {
+        const err = JSON.parse(raw) as { errors?: Array<{ message: string; code?: number }>; message?: string };
+        const robloxMsg = err.errors?.[0]?.message || err.message || "";
+        if (robloxMsg) errMsg = robloxMsg;
+      } catch {}
+      console.error(`[Payout] Roblox API error: status=${resp.status} body=${raw.slice(0, 500)}`);
+      res.status(resp.status).json({ error: errMsg }); return;
     }
     res.json({ success: true, message: `Выплата отправлена ${payouts.length} участникам` });
   } catch (err) {
+    console.error(`[Payout] Exception:`, err);
     res.status(502).json({ error: "Failed to send payout." });
   }
 });
