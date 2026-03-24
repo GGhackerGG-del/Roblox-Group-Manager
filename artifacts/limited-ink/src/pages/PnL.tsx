@@ -16,10 +16,10 @@ import { motion } from "framer-motion";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-interface SummaryData {
-  partial?: boolean;
+interface PnLData {
   balance: number;
   pendingRobux: number;
+  dailyRevenue: number;
   todayRevenue: number;
   weekRevenue: number;
   monthRevenue: number;
@@ -30,95 +30,67 @@ interface SummaryData {
   netRUB: number;
   netMonthUSD: number;
   netMonthRUB: number;
-}
-
-interface TxData {
-  todayRevenue: number;
+  totalSales: number;
   todaySales: number;
   weekSales: number;
-  totalSales: number;
   topItemsDay: Array<{ name: string; revenue: number; count: number; thumbnailUrl?: string | null }>;
   topItemsWeek: Array<{ name: string; revenue: number; count: number; thumbnailUrl?: string | null }>;
   recentTransactions: Array<{ id: string; created: string; revenue: number; agentName: string; description: string; thumbnailUrl?: string | null; assetId?: number | null }>;
 }
 
-function makeHeaders() {
-  const { token, fingerprint } = getAuthCredentials();
-  const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
-  return headers;
-}
-
 export default function PnL({ groupId }: { groupId: string }) {
   const { t } = useLanguage();
   const cache = usePageCache();
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [txData, setTxData] = useState<TxData | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
-  const [txLoading, setTxLoading] = useState(true);
+  const [data, setData] = useState<PnLData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [txError, setTxError] = useState(false);
   const [topItemsPeriod, setTopItemsPeriod] = useState<"day" | "week">("day");
+
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchSummary = useCallback(async (silent = false) => {
-    if (!silent) setSummaryLoading(true);
-    try {
-      const resp = await fetch(`${BASE}/api/pnl/group/${groupId}/summary`, {
-        credentials: "include", headers: makeHeaders(),
-      });
-      if (!resp.ok) throw new Error("Failed");
-      const data = await resp.json();
-      setSummary(data);
-      cache.set(`pnl_summary_${groupId}`, data);
-    } catch (err) {
-      if (!silent) setError(t("pnl.failedLoad"));
-    } finally {
-      setSummaryLoading(false);
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
     }
-  }, [groupId]);
-
-  const fetchTx = useCallback(async (silent = false) => {
-    if (!silent) setTxLoading(true);
-    setTxError(false);
+    setError(null);
+    playClick();
     try {
-      const resp = await fetch(`${BASE}/api/pnl/group/${groupId}/transactions`, {
-        credentials: "include", headers: makeHeaders(),
+      const { token, fingerprint } = getAuthCredentials();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
+
+      const resp = await fetch(`${BASE}/api/pnl/group/${groupId}`, {
+        credentials: "include",
+        headers,
       });
-      if (!resp.ok) throw new Error("Failed");
-      const data = await resp.json();
-      setTxData(data);
-      setTxError(false);
-      cache.set(`pnl_tx_${groupId}`, data);
+
+      if (!resp.ok) throw new Error(t("pnl.failedLoad"));
+      const result = await resp.json();
+      setData(result);
+      cache.set(`pnl_${groupId}`, result);
       playSuccess();
-    } catch {
-      setTxError(true);
+    } catch (err) {
+      if (!isRefresh) setError(err instanceof Error ? err.message : t("pnl.loadFailed"));
     } finally {
-      setTxLoading(false);
+      setLoading(false);
       setRefreshing(false);
     }
   }, [groupId]);
 
-  const refresh = useCallback(() => {
-    setRefreshing(true);
-    playClick();
-    fetchSummary(true);
-    fetchTx(true);
-  }, [fetchSummary, fetchTx]);
-
   useEffect(() => {
-    const cachedSummary = cache.get<SummaryData>(`pnl_summary_${groupId}`);
-    const cachedTx = cache.get<TxData>(`pnl_tx_${groupId}`);
-    if (cachedSummary) { setSummary(cachedSummary); setSummaryLoading(false); }
-    if (cachedTx) { setTxData(cachedTx); setTxLoading(false); }
-
-    fetchSummary(!!cachedSummary).then(() => {
-      fetchTx(!!cachedTx);
-    });
+    const cached = cache.get<PnLData>(`pnl_${groupId}`);
+    if (cached && cached.monthRevenue !== undefined && cached.topItemsDay !== undefined) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      fetchData();
+    }
   }, [groupId]);
 
-  if (summaryLoading && !summary) {
+  if (loading) {
     return (
       <div className="space-y-4 p-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -129,36 +101,24 @@ export default function PnL({ groupId }: { groupId: string }) {
     );
   }
 
-  if (error && !summary) {
+  if (error || !data) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <TrendingDown className="w-8 h-8 mb-3 opacity-30" />
-        <p className="text-sm">{error}</p>
-        <Button variant="outline" size="sm" onClick={refresh} className="mt-3">{t("sniper.refresh")}</Button>
+        <p className="text-sm">{error || t("pnl.noData")}</p>
+        <Button variant="outline" size="sm" onClick={fetchData} className="mt-3">{t("sniper.refresh")}</Button>
       </div>
     );
   }
-
-  const s = summary!;
-  const todayRev = txData ? Math.max(txData.todayRevenue, s.todayRevenue) : s.todayRevenue;
-  const todaySales = txData?.todaySales ?? 0;
-  const weekSales = txData?.weekSales ?? 0;
-  const totalSales = txData?.totalSales ?? 0;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{t("pnl.title")}</h3>
-        <Button variant="ghost" size="sm" onClick={refresh} disabled={refreshing}>
+        <Button variant="ghost" size="sm" onClick={() => fetchData(true)} disabled={refreshing}>
           <RefreshCw className={`w-3.5 h-3.5 mr-1 ${refreshing ? "animate-spin" : ""}`} /> {t("sniper.refresh")}
         </Button>
       </div>
-
-      {s.partial && (
-        <div className="text-xs text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
-          {t("pnl.partialData") || "Some data may be incomplete due to Roblox API rate limits. Try refreshing in a minute."}
-        </div>
-      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="bg-gradient-to-br from-green-500/5 to-green-500/0 border-green-500/20">
@@ -167,7 +127,7 @@ export default function PnL({ groupId }: { groupId: string }) {
               <Wallet className="w-4 h-4 text-green-500" />
               <span className="text-xs text-muted-foreground">{t("pnl.balance") || "Balance"}</span>
             </div>
-            <p className="text-xl font-bold">{s.balance.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
+            <p className="text-xl font-bold">{data.balance.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
           </CardContent>
         </Card>
 
@@ -177,7 +137,7 @@ export default function PnL({ groupId }: { groupId: string }) {
               <Clock className="w-4 h-4 text-blue-500" />
               <span className="text-xs text-muted-foreground">{t("pnl.pending") || "Pending"}</span>
             </div>
-            <p className="text-xl font-bold">{s.pendingRobux.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
+            <p className="text-xl font-bold">{data.pendingRobux.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
           </CardContent>
         </Card>
 
@@ -187,8 +147,8 @@ export default function PnL({ groupId }: { groupId: string }) {
               <TrendingUp className="w-4 h-4 text-emerald-500" />
               <span className="text-xs text-muted-foreground">{t("pnl.today") || "Today"}</span>
             </div>
-            <p className="text-xl font-bold">{todayRev.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
-            <p className="text-xs text-muted-foreground">{todaySales} {t("pnl.sales")}</p>
+            <p className="text-xl font-bold">{data.todayRevenue.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
+            <p className="text-xs text-muted-foreground">{data.todaySales} {t("pnl.sales")}</p>
           </CardContent>
         </Card>
 
@@ -198,7 +158,7 @@ export default function PnL({ groupId }: { groupId: string }) {
               <PiggyBank className="w-4 h-4 text-purple-500" />
               <span className="text-xs text-muted-foreground">{t("pnl.net7d") || "Net (7d)"}</span>
             </div>
-            <p className="text-xl font-bold">{s.netRevenue.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
+            <p className="text-xl font-bold">{data.netRevenue.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
           </CardContent>
         </Card>
       </div>
@@ -207,29 +167,29 @@ export default function PnL({ groupId }: { groupId: string }) {
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{t("pnl.weekRevenue") || "Week Revenue"}</p>
-            <p className="text-lg font-bold text-green-500">{s.weekRevenue.toLocaleString()} R$</p>
-            <p className="text-[10px] text-muted-foreground">{weekSales} {t("pnl.sales")}</p>
+            <p className="text-lg font-bold text-green-500">{data.weekRevenue.toLocaleString()} R$</p>
+            <p className="text-[10px] text-muted-foreground">{data.weekSales ?? 0} {t("pnl.sales")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{t("pnl.monthRevenue") || "Month Revenue"}</p>
-            <p className="text-lg font-bold text-green-500">{s.monthRevenue.toLocaleString()} R$</p>
-            <p className="text-[10px] text-muted-foreground">{totalSales} {t("pnl.sales")}</p>
+            <p className="text-lg font-bold text-green-500">{(data.monthRevenue ?? 0).toLocaleString()} R$</p>
+            <p className="text-[10px] text-muted-foreground">{data.totalSales} {t("pnl.sales")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{t("pnl.commission") || "Commission (30%)"}</p>
-            <p className="text-lg font-bold text-red-500">-{s.robloxCommission.toLocaleString()} R$</p>
-            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: -{Math.round(s.monthRevenue * 0.3).toLocaleString()} R$</p>
+            <p className="text-lg font-bold text-red-500">-{data.robloxCommission.toLocaleString()} R$</p>
+            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: -{Math.round((data.monthRevenue ?? 0) * 0.3).toLocaleString()} R$</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">{t("pnl.netFiat") || "Net in Fiat"}</p>
-            <p className="text-lg font-bold">${s.netUSD} <span className="text-sm text-muted-foreground">/ {s.netRUB.toLocaleString()} ₽</span></p>
-            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: ${s.netMonthUSD} / {s.netMonthRUB.toLocaleString()} ₽</p>
+            <p className="text-lg font-bold">${data.netUSD} <span className="text-sm text-muted-foreground">/ {data.netRUB.toLocaleString()} ₽</span></p>
+            <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: ${data.netMonthUSD ?? 0} / {(data.netMonthRUB ?? 0).toLocaleString()} ₽</p>
           </CardContent>
         </Card>
       </div>
@@ -257,20 +217,9 @@ export default function PnL({ groupId }: { groupId: string }) {
           </div>
         </CardHeader>
         <CardContent>
-          {txError && !txData ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <TrendingDown className="w-6 h-6 mb-2 opacity-30" />
-              <p className="text-sm mb-2">{t("pnl.txFailed") || "Failed to load transactions"}</p>
-              <Button variant="outline" size="sm" onClick={() => { setTxError(false); fetchTx(); }}>{t("sniper.refresh")}</Button>
-            </div>
-          ) : (txLoading && !txData) ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <Loader2 className="w-6 h-6 mb-2 animate-spin opacity-40" />
-              <p className="text-sm">{t("pnl.loadingTx") || "Loading transactions..."}</p>
-            </div>
-          ) : (() => {
-            const items = topItemsPeriod === "day" ? (txData?.topItemsDay || []) : (txData?.topItemsWeek || []);
-            if (items.length === 0) {
+          {(() => {
+            const items = topItemsPeriod === "day" ? data.topItemsDay : data.topItemsWeek;
+            if (!items || items.length === 0) {
               return (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                   <BarChart3 className="w-8 h-8 mb-2 opacity-20" />
@@ -311,7 +260,7 @@ export default function PnL({ groupId }: { groupId: string }) {
         </CardContent>
       </Card>
 
-      {txData && txData.recentTransactions.length > 0 && (
+      {data.recentTransactions.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -320,7 +269,7 @@ export default function PnL({ groupId }: { groupId: string }) {
           </CardHeader>
           <CardContent>
             <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
-              {txData.recentTransactions.map((tx) => (
+              {data.recentTransactions.map((tx) => (
                 <div key={tx.id} className="flex items-center gap-3 py-2 border-b border-border/20 last:border-0">
                   {tx.thumbnailUrl ? (
                     <img src={tx.thumbnailUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-border/50 shrink-0" />
