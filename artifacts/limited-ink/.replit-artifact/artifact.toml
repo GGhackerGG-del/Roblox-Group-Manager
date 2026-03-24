@@ -25,7 +25,3 @@ BASE_PATH = "/"
 build = ["pnpm", "--filter", "@workspace/limited-ink", "run", "build"]
 publicDir = "artifacts/limited-ink/dist/public"
 serve = "static"
-
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
