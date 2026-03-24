@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { db, gameVisitSnapshots } from "@workspace/db";
+import { eq, desc, and, gte } from "drizzle-orm";
 
 const router = Router();
 
@@ -6,10 +8,28 @@ const GAMES_API = "https://games.roblox.com";
 const THUMBNAILS_API = "https://thumbnails.roblox.com";
 const VOTES_API = "https://games.roblox.com/v1/games/votes";
 
-// In-memory snapshot store: universeId -> snapshot[] (shared across users for same games)
-const snapshotStore = new Map<number, { ts: number; playing: number; visits: number }[]>();
-// Alert settings: userId -> universeId -> { enabled, threshold }
 const alertStore = new Map<number, Map<number, { enabled: boolean; threshold: number }>>();
+
+async function saveSnapshot(universeId: number, playing: number, visits: number) {
+  const lastSnap = await db.query.gameVisitSnapshots.findFirst({
+    where: eq(gameVisitSnapshots.universeId, universeId),
+    orderBy: desc(gameVisitSnapshots.ts),
+  });
+  if (lastSnap && Date.now() - new Date(lastSnap.ts).getTime() < 300000) return;
+  await db.insert(gameVisitSnapshots).values({ universeId, playing, visits });
+}
+
+async function getSnapshots(universeId: number) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const snaps = await db.query.gameVisitSnapshots.findMany({
+    where: and(
+      eq(gameVisitSnapshots.universeId, universeId),
+      gte(gameVisitSnapshots.ts, thirtyDaysAgo),
+    ),
+    orderBy: gameVisitSnapshots.ts,
+  });
+  return snaps.map(s => ({ ts: new Date(s.ts).getTime(), playing: s.playing, visits: Number(s.visits) }));
+}
 
 function getHeaders(cookie: string) {
   return {
@@ -74,18 +94,10 @@ router.get("/game-manager/groups/:groupId/games", async (req, res): Promise<void
       votesMap[v.id] = { up: v.upVotes ?? 0, down: v.downVotes ?? 0 };
     }
 
-    // 3. Record snapshot for history
-    const now = Date.now();
-
+    // 3. Record snapshot for history (persisted to DB)
     const result = games.map((g: any) => {
       const detail = detailsMap[g.id] || {};
-      const snap = { ts: now, playing: detail.playing ?? 0, visits: detail.visits ?? 0 };
-      if (!snapshotStore.has(g.id)) snapshotStore.set(g.id, []);
-      const arr = snapshotStore.get(g.id)!;
-      if (!arr.length || now - arr[arr.length - 1].ts > 30000) {
-        arr.push(snap);
-        if (arr.length > 2880) arr.shift();
-      }
+      saveSnapshot(g.id, detail.playing ?? 0, detail.visits ?? 0).catch(() => {});
       return {
         universeId: g.id,
         name: detail.name || g.name,
@@ -112,7 +124,6 @@ router.get("/game-manager/groups/:groupId/games", async (req, res): Promise<void
   }
 });
 
-// GET /game-manager/universe/:universeId/history — visit + playing history snapshots
 router.get("/game-manager/universe/:universeId/history", async (req, res): Promise<void> => {
   const cookie = req.session.robloxCookie;
   if (!cookie) { res.status(401).json({ error: "Not authenticated" }); return; }
@@ -124,18 +135,12 @@ router.get("/game-manager/universe/:universeId/history", async (req, res): Promi
       const detailData = await detailRes.json() as any;
       const d = (detailData.data || [])[0];
       if (d) {
-        const now = Date.now();
-        if (!snapshotStore.has(uid)) snapshotStore.set(uid, []);
-        const arr = snapshotStore.get(uid)!;
-        if (!arr.length || now - arr[arr.length - 1].ts > 30000) {
-          arr.push({ ts: now, playing: d.playing ?? 0, visits: d.visits ?? 0 });
-          if (arr.length > 2880) arr.shift();
-        }
+        await saveSnapshot(uid, d.playing ?? 0, d.visits ?? 0);
       }
     }
   } catch {}
 
-  const snaps = snapshotStore.get(uid) || [];
+  const snaps = await getSnapshots(uid);
   res.json({ snapshots: snaps });
 });
 
@@ -171,7 +176,7 @@ router.get("/game-manager/alerts/check", async (req, res): Promise<void> => {
 
   for (const [uid, settings] of userAlerts.entries()) {
     if (!settings.enabled) continue;
-    const snaps = snapshotStore.get(uid) || [];
+    const snaps = await getSnapshots(uid);
     if (snaps.length < 2) continue;
     const current = snaps[snaps.length - 1].playing;
     const previous = snaps[snaps.length - 2].playing;

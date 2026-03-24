@@ -55,10 +55,10 @@ interface Promotion {
   status: "scheduled" | "active" | "ended";
 }
 
-function timeAgo(ts: number): string {
+function timeAgo(ts: number, justNowLabel = "now"): string {
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
-  if (m < 1) return t("mkt.justNow");
+  if (m < 1) return justNowLabel;
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h`;
@@ -911,7 +911,7 @@ export default function Marketing() {
                             {!wh.enabled && <Badge variant="outline" className="text-[9px] border-red-500/30 text-red-500">{t("mkt.disabled")}</Badge>}
                           </div>
                           <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">{wh.url.slice(0, 60)}...</p>
-                          {wh.lastTriggered && <p className="text-[10px] text-muted-foreground mt-0.5">{t("mkt.lastTriggered")}: {timeAgo(wh.lastTriggered)}</p>}
+                          {wh.lastTriggered && <p className="text-[10px] text-muted-foreground mt-0.5">{t("mkt.lastTriggered")}: {timeAgo(wh.lastTriggered, t("mkt.justNow"))}</p>}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">

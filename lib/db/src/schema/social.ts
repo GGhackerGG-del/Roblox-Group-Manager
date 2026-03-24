@@ -298,6 +298,19 @@ export const marketplaceLikes = pgTable("marketplace_likes", {
   uniqueIndex("marketplace_likes_unique").on(t.listingId, t.userId),
 ]);
 
+export const gameVisitSnapshots = pgTable("game_visit_snapshots", {
+  id: serial("id").primaryKey(),
+  universeId: bigint("universe_id", { mode: "number" }).notNull(),
+  playing: integer("playing").notNull().default(0),
+  visits: bigint("visits", { mode: "number" }).notNull().default(0),
+  ts: timestamp("ts", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("game_visit_snapshots_universe_idx").on(t.universeId),
+  index("game_visit_snapshots_ts_idx").on(t.ts),
+]);
+
+export type GameVisitSnapshot = typeof gameVisitSnapshots.$inferSelect;
+
 export type GroupWorkspace = typeof groupWorkspaces.$inferSelect;
 export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
 export type GroupChat = typeof groupChats.$inferSelect;
