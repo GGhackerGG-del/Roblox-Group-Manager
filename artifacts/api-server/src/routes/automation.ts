@@ -335,8 +335,13 @@ router.delete("/automation/shout/scheduled/:id", async (req, res): Promise<void>
 });
 
 router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
-  const cookie = req.session.robloxCookie;
+  let cookie = req.session.robloxCookie;
   if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
+  if (cookie.startsWith(".ROBLOSECURITY=")) cookie = cookie.slice(".ROBLOSECURITY=".length);
+  if (cookie.startsWith("_|WARNING:")) {
+    const idx = cookie.indexOf("|_");
+    if (idx !== -1 && idx < 200) cookie = cookie.slice(idx + 2);
+  }
   const { groupId } = req.params;
   const { payouts, payoutType = "FixedAmount", challengeId, verificationToken } = req.body as {
     payouts?: Array<{ recipientId: number; amount: number }>;
@@ -346,6 +351,14 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
   };
   if (!payouts?.length) { res.status(400).json({ error: "payouts array required." }); return; }
   try {
+    const verifyResp = await fetch("https://users.roblox.com/v1/users/authenticated", {
+      headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "User-Agent": UA },
+    });
+    console.log(`[Payout] Cookie verify: status=${verifyResp.status}`);
+    if (!verifyResp.ok) {
+      res.status(401).json({ error: "Roblox cookie expired. Please re-login." });
+      return;
+    }
     const body = {
       PayoutType: payoutType,
       Recipients: payouts.map(p => ({ recipientId: p.recipientId, recipientType: "User", amount: p.amount })),
@@ -360,12 +373,23 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
         challengeId,
       })).toString("base64");
     }
+    console.log(`[Payout] Sending to ${GROUPS_API}/v1/groups/${groupId}/payouts, body=${JSON.stringify(body)}`);
     let resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
+    console.log(`[Payout] First attempt: status=${resp.status}, csrf=${resp.headers.get("x-csrf-token") || "none"}`);
     if (resp.status === 403) {
       const newCsrf = resp.headers.get("x-csrf-token");
       if (newCsrf) {
         headers["X-CSRF-TOKEN"] = newCsrf;
         resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
+        console.log(`[Payout] CSRF retry: status=${resp.status}`);
+      }
+    }
+    if (resp.status === 401) {
+      const newCsrf = resp.headers.get("x-csrf-token");
+      if (newCsrf && !headers["X-CSRF-TOKEN"]) {
+        headers["X-CSRF-TOKEN"] = newCsrf;
+        resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
+        console.log(`[Payout] 401->CSRF retry: status=${resp.status}`);
       }
     }
     if (resp.status === 403) {
