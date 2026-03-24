@@ -2,9 +2,41 @@ import express from "express";
 import cors from "cors";
 import session from "express-session";
 import path from "path";
-import { fileURLToPath } from "url";
 import type Database from "better-sqlite3";
 import { SQLiteSessionStore } from "../db/session-store.js";
+
+const REMOTE_API = "https://4b5d8148-8fba-4738-9147-973ed1bd523f-00-2wfsny5wxe6oo.sisko.replit.dev";
+
+async function proxyToRemote(
+  remotePath: string,
+  req: express.Request,
+  res: express.Response
+): Promise<void> {
+  try {
+    const fetch = (globalThis as any).fetch || (await import("node-fetch")).default;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (req.headers.authorization) {
+      headers["Authorization"] = req.headers.authorization as string;
+    }
+    if (req.headers["x-device-fingerprint"]) {
+      headers["X-Device-Fingerprint"] = req.headers["x-device-fingerprint"] as string;
+    }
+
+    const response = await fetch(`${REMOTE_API}${remotePath}`, {
+      method: req.method,
+      headers,
+      body: req.method !== "GET" ? JSON.stringify(req.body) : undefined,
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err: any) {
+    console.error("[License Proxy] Error:", err.message);
+    res.status(502).json({ error: "Cannot connect to license server. Check internet connection." });
+  }
+}
 
 export function createApp(sqlite: Database.Database): express.Express {
   const app = express();
@@ -38,6 +70,10 @@ export function createApp(sqlite: Database.Database): express.Express {
   } else {
     frontendPath = path.join(__dirname, "..", "frontend");
   }
+
+  app.post("/api/license/verify", (req, res) => proxyToRemote("/api/license/verify", req, res));
+  app.post("/api/license/status", (req, res) => proxyToRemote("/api/license/status", req, res));
+  app.get("/api/license/status", (req, res) => proxyToRemote("/api/license/status", req, res));
 
   const routesBundle = require(path.join(__dirname, "..", "server", "_routes-entry.js"));
   const router = routesBundle.default || routesBundle;
