@@ -1294,7 +1294,9 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     }
   };
 
-  const endCall = () => {
+  const endCall = async () => {
+    const duration = formatCallTime(callTimer);
+    const wasMissed = callTimer === 0;
     callStreamRef.current?.getTracks().forEach(t => t.stop());
     callStreamRef.current = null;
     if (callTimerRef.current) clearInterval(callTimerRef.current);
@@ -1304,6 +1306,23 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     setCallTimer(0);
     setCallConnecting(false);
     toast({ title: t("com.callEnded") });
+
+    if (active) {
+      const callContent = wasMissed ? "[call:missed:]" : `[call:outgoing:${duration}]`;
+      try {
+        if (active.kind === "dm") {
+          const d = await apiFetch<{ message: DmMessage }>(`/api/social/messages/${active.user.id}`, {
+            method: "POST", body: JSON.stringify({ content: callContent }),
+          });
+          setMessages(prev => [...prev, d.message]);
+        } else {
+          const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${active.chat.id}/messages`, {
+            method: "POST", body: JSON.stringify({ content: callContent }),
+          });
+          setMessages(prev => [...prev, message]);
+        }
+      } catch {}
+    }
   };
 
   const toggleMute = () => {
@@ -1488,6 +1507,13 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const isVoiceMsg = (content: string) => content.startsWith("[voice:") && content.endsWith("]");
   const getVoiceSrc = (content: string) => content.slice(7, -1);
 
+  const isCallMsg = (content: string) => content.startsWith("[call:") && content.endsWith("]");
+  const parseCallMsg = (content: string) => {
+    const inner = content.slice(6, -1);
+    const [type, duration] = inner.split(":");
+    return { type: type as "outgoing" | "missed" | "declined", duration: duration || "" };
+  };
+
   const VoicePlayer = ({ src, isOwn }: { src: string; isOwn: boolean }) => {
     const [playing, setPlaying] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -1563,7 +1589,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                         {gc.robloxGroupId && <Badge className="text-[8px] h-4 px-1 shrink-0 bg-black text-white border-0">Roblox</Badge>}
                         <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0">{gc.memberCount || "?"}</Badge>
                       </div>
-                      {gc.lastMessage && <p className="text-[10px] text-muted-foreground truncate">{gc.lastMessage.isDeleted ? <span className="italic">{t("com.deletedMessage")}</span> : gc.lastMessage.content}</p>}
+                      {gc.lastMessage && <p className="text-[10px] text-muted-foreground truncate">{gc.lastMessage.isDeleted ? <span className="italic">{t("com.deletedMessage")}</span> : isCallMsg(gc.lastMessage.content) ? <span className="inline-flex items-center gap-1">{parseCallMsg(gc.lastMessage.content).type === "missed" ? <><PhoneOff className="w-3 h-3 text-red-400 inline" /> {t("com.callMissed")}</> : <><Phone className="w-3 h-3 text-green-400 inline" /> {t("com.callOutgoing")}</>}</span> : isVoiceMsg(gc.lastMessage.content) ? `🎤 ${t("com.voiceMessage")}` : gc.lastMessage.content}</p>}
                     </div>
                     {gc.lastMessage && <span className="text-[9px] text-muted-foreground shrink-0">{timeAgoShort(gc.lastMessage.createdAt)}</span>}
                   </div>
@@ -1685,7 +1711,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                     return (
                       <div key={msg.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${isOwn ? "bg-black text-white rounded-br-md" : "bg-secondary rounded-bl-md"}`}>
-                          {isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isOwn} /> : msg.content}
+                          {isCallMsg(msg.content) ? (() => { const c = parseCallMsg(msg.content); return (<span className="flex items-center gap-1.5 text-xs"><span>{c.type === "missed" ? <PhoneOff className="w-3.5 h-3.5 text-red-400 inline" /> : <Phone className="w-3.5 h-3.5 text-green-400 inline" />}</span><span>{c.type === "missed" ? t("com.callMissed") : `${t("com.callOutgoing")} ${c.duration}`}</span></span>); })() : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isOwn} /> : msg.content}
                           <p className={`text-[10px] mt-1 ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>{timeAgo(msg.createdAt, t)}</p>
                         </div>
                       </div>
@@ -1809,7 +1835,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                               </button>
                             )}
                             <div className={`rounded-2xl px-3 py-2 text-sm ${deleted ? "bg-secondary/50 border border-dashed border-border" : isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>
-                              {deleted ? <span className="italic text-muted-foreground text-xs">{t("com.deletedMessage")}</span> : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isMe} /> : msg.content}
+                              {deleted ? <span className="italic text-muted-foreground text-xs">{t("com.deletedMessage")}</span> : isCallMsg(msg.content) ? (() => { const c = parseCallMsg(msg.content); return (<span className="flex items-center gap-1.5 text-xs"><span>{c.type === "missed" ? <PhoneOff className="w-3.5 h-3.5 text-red-400 inline" /> : <Phone className="w-3.5 h-3.5 text-green-400 inline" />}</span><span>{c.type === "missed" ? t("com.callMissed") : `${t("com.callOutgoing")} ${c.duration}`}</span></span>); })() : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isMe} /> : msg.content}
                             </div>
                             
                           </div>
