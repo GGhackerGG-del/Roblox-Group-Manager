@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, bigint, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, bigint, uniqueIndex, json } from "drizzle-orm/pg-core";
 
 export const gamificationProfiles = pgTable("gamification_profiles", {
   id: serial("id").primaryKey(),
@@ -12,6 +12,14 @@ export const gamificationProfiles = pgTable("gamification_profiles", {
   invoices: integer("invoices").notNull().default(0),
   drafts: integer("drafts").notNull().default(0),
   achievementsCount: integer("achievements_count").notNull().default(0),
+  currentStreak: integer("current_streak").notNull().default(0),
+  longestStreak: integer("longest_streak").notNull().default(0),
+  totalLogins: integer("total_logins").notNull().default(0),
+  lastLoginDate: text("last_login_date"),
+  streakStartDate: text("streak_start_date"),
+  visitedSections: json("visited_sections").$type<string[]>().default([]),
+  claimedMilestones: json("claimed_milestones").$type<string[]>().default([]),
+  unlockedAchievements: json("unlocked_achievements").$type<string[]>().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("gamification_profiles_roblox_user_id_idx").on(table.robloxUserId),

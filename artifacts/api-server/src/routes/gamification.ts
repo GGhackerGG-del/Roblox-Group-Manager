@@ -48,9 +48,86 @@ const MILESTONES = [
   { id: "m_goals_1", title: "Первая цель", desc: "Создай финансовую цель", icon: "🎯", reward: "50 XP", target: 1, metric: "goals", xp: 50 },
 ];
 
-function getMetrics(session: any) {
-  const streak = session.streakData?.currentStreak || 0;
-  const totalLogins = session.streakData?.totalLogins || 0;
+interface StreakData {
+  currentStreak: number;
+  longestStreak: number;
+  lastLoginDate: string;
+  totalLogins: number;
+  streakStartDate: string;
+}
+
+interface GamifState {
+  streakData: StreakData;
+  visitedSections: string[];
+  claimedMilestones: string[];
+  unlockedAchievements: string[];
+}
+
+async function loadGamifState(robloxUserId: number): Promise<GamifState> {
+  const today = TODAY();
+  const rows = await db.select().from(gamificationProfiles).where(eq(gamificationProfiles.robloxUserId, robloxUserId)).limit(1);
+  if (rows.length > 0) {
+    const p = rows[0];
+    return {
+      streakData: {
+        currentStreak: p.currentStreak || 0,
+        longestStreak: p.longestStreak || 0,
+        lastLoginDate: p.lastLoginDate || today,
+        totalLogins: p.totalLogins || 0,
+        streakStartDate: p.streakStartDate || today,
+      },
+      visitedSections: (p.visitedSections as string[]) || [],
+      claimedMilestones: (p.claimedMilestones as string[]) || [],
+      unlockedAchievements: (p.unlockedAchievements as string[]) || [],
+    };
+  }
+  return {
+    streakData: { currentStreak: 0, longestStreak: 0, lastLoginDate: "", totalLogins: 0, streakStartDate: today },
+    visitedSections: [],
+    claimedMilestones: [],
+    unlockedAchievements: [],
+  };
+}
+
+async function saveGamifState(robloxUserId: number, state: GamifState, extra: {
+  username: string; displayName: string; avatarUrl: string | null;
+  xp: number; level: number; streak: number; invoices: number; drafts: number; achievementsCount: number;
+}) {
+  try {
+    const existing = await db.select({ id: gamificationProfiles.id }).from(gamificationProfiles).where(eq(gamificationProfiles.robloxUserId, robloxUserId)).limit(1);
+    const data = {
+      username: extra.username,
+      displayName: extra.displayName,
+      avatarUrl: extra.avatarUrl,
+      xp: extra.xp,
+      level: extra.level,
+      streak: extra.streak,
+      invoices: extra.invoices,
+      drafts: extra.drafts,
+      achievementsCount: extra.achievementsCount,
+      currentStreak: state.streakData.currentStreak,
+      longestStreak: state.streakData.longestStreak,
+      totalLogins: state.streakData.totalLogins,
+      lastLoginDate: state.streakData.lastLoginDate,
+      streakStartDate: state.streakData.streakStartDate,
+      visitedSections: state.visitedSections,
+      claimedMilestones: state.claimedMilestones,
+      unlockedAchievements: state.unlockedAchievements,
+      updatedAt: new Date(),
+    };
+    if (existing.length > 0) {
+      await db.update(gamificationProfiles).set(data).where(eq(gamificationProfiles.robloxUserId, robloxUserId));
+    } else {
+      await db.insert(gamificationProfiles).values({ robloxUserId, ...data });
+    }
+  } catch (e) {
+    console.error("[Gamification] Failed to save state:", e);
+  }
+}
+
+function getMetrics(session: any, state: GamifState) {
+  const streak = state.streakData.currentStreak;
+  const totalLogins = state.streakData.totalLogins;
   const invoices = (session.invoices || []).length;
   const paidInvoices = (session.invoices || []).filter((i: any) => i.status === "paid").length;
   const drafts = (session.contentDrafts || []).length;
@@ -61,12 +138,12 @@ function getMetrics(session: any) {
   const socialAccounts = (session.socialAccounts || []).length;
   const autoPostOn = session.autoPostConfig?.enabled || false;
   const links = (session.socialLinks || []).length;
-  const visited = (session.visitedSections || []).length;
+  const visited = state.visitedSections.length;
   return { streak, totalLogins, invoices, paidInvoices, drafts, todosDone, calendar, goals, completedGoals, socialAccounts, autoPostOn, links, visited };
 }
 
-function computeUnlocked(session: any): string[] {
-  const m = getMetrics(session);
+function computeUnlocked(session: any, state: GamifState): string[] {
+  const m = getMetrics(session, state);
   const unlocked: string[] = [];
   unlocked.push("early_adopter");
   if (m.visited >= 5) unlocked.push("explorer");
@@ -92,9 +169,9 @@ function computeUnlocked(session: any): string[] {
   return unlocked;
 }
 
-function getMilestoneProgress(session: any) {
-  const m = getMetrics(session);
-  const claimed = session.claimedMilestones || [];
+function getMilestoneProgress(session: any, state: GamifState) {
+  const m = getMetrics(session, state);
+  const claimed = state.claimedMilestones;
   return MILESTONES.map(ms => {
     let current = 0;
     if (ms.metric === "invoices") current = m.invoices;
@@ -124,23 +201,6 @@ function xpToLevel(xp: number) {
   const nextXP = thresholds[Math.min(level, thresholds.length - 1)] || thresholds[thresholds.length - 1];
   const prevXP = thresholds[level - 1] || 0;
   return { level, nextXP, prevXP, progress: nextXP > prevXP ? (xp - prevXP) / (nextXP - prevXP) : 1 };
-}
-
-async function upsertProfile(robloxUserId: number, username: string, displayName: string, avatarUrl: string | null, xp: number, level: number, streak: number, invoices: number, drafts: number, achievementsCount: number) {
-  try {
-    const existing = await db.select().from(gamificationProfiles).where(eq(gamificationProfiles.robloxUserId, robloxUserId)).limit(1);
-    if (existing.length > 0) {
-      await db.update(gamificationProfiles).set({
-        username, displayName, avatarUrl, xp, level, streak, invoices, drafts, achievementsCount, updatedAt: new Date(),
-      }).where(eq(gamificationProfiles.robloxUserId, robloxUserId));
-    } else {
-      await db.insert(gamificationProfiles).values({
-        robloxUserId, username, displayName, avatarUrl, xp, level, streak, invoices, drafts, achievementsCount, updatedAt: new Date(),
-      });
-    }
-  } catch (e) {
-    console.error("[Gamification] Failed to upsert profile:", e);
-  }
 }
 
 async function getLeaderboard() {
@@ -173,28 +233,57 @@ const VALID_SECTIONS = new Set([
   "settings", "groups",
 ]);
 
-router.post("/gamification/visit", (req, res): void => {
+router.post("/gamification/visit", async (req, res): Promise<void> => {
+  const robloxUserId = req.session.robloxUserId;
+  if (!robloxUserId) { res.status(401).json({ error: "Not authenticated" }); return; }
   const { section } = req.body;
   if (!section || !VALID_SECTIONS.has(section)) { res.status(400).json({ error: "Invalid section" }); return; }
+
+  const state = await loadGamifState(robloxUserId);
+  if (!state.visitedSections.includes(section)) {
+    state.visitedSections.push(section);
+  }
+
   if (!req.session.visitedSections) req.session.visitedSections = [];
   if (!req.session.visitedSections.includes(section)) {
     req.session.visitedSections.push(section);
   }
-  req.session.save(() => res.json({ ok: true, visited: req.session.visitedSections }));
+
+  const unlocked = computeUnlocked(req.session, state);
+  const xp = computeXP(unlocked, state.claimedMilestones);
+  const levelInfo = xpToLevel(xp);
+  const metrics = getMetrics(req.session, state);
+
+  state.unlockedAchievements = unlocked;
+  const robloxProfile = req.session.robloxProfile;
+  const username = robloxProfile?.name || "User";
+  const displayName = robloxProfile?.displayName || username;
+  const avatarUrl = robloxProfile?.avatarUrl || null;
+
+  await saveGamifState(robloxUserId, state, {
+    username, displayName, avatarUrl, xp, level: levelInfo.level,
+    streak: metrics.streak, invoices: metrics.invoices, drafts: metrics.drafts, achievementsCount: unlocked.length,
+  });
+
+  req.session.save(() => res.json({ ok: true, visited: state.visitedSections }));
 });
 
 router.get("/gamification/dashboard", async (req, res): Promise<void> => {
+  const robloxUserId = req.session.robloxUserId;
+  if (!robloxUserId) { res.status(401).json({ error: "Not authenticated" }); return; }
+
   const today = TODAY();
   const yesterday = YESTERDAY();
 
-  if (!req.session.streakData) {
-    req.session.streakData = {
+  const state = await loadGamifState(robloxUserId);
+
+  if (state.streakData.totalLogins === 0) {
+    state.streakData = {
       currentStreak: 1, longestStreak: 1, lastLoginDate: today,
       totalLogins: 1, streakStartDate: today,
     };
-    req.session.save(() => {});
-  } else if (req.session.streakData.lastLoginDate !== today) {
-    const sd = req.session.streakData;
+  } else if (state.streakData.lastLoginDate !== today) {
+    const sd = state.streakData;
     if (sd.lastLoginDate === yesterday) {
       sd.currentStreak += 1;
       sd.longestStreak = Math.max(sd.longestStreak, sd.currentStreak);
@@ -204,29 +293,36 @@ router.get("/gamification/dashboard", async (req, res): Promise<void> => {
     }
     sd.lastLoginDate = today;
     sd.totalLogins += 1;
-    req.session.save(() => {});
   }
 
-  const unlocked = computeUnlocked(req.session);
-  const claimed = req.session.claimedMilestones || [];
-  const xp = computeXP(unlocked, claimed);
-  const levelInfo = xpToLevel(xp);
-  const metrics = getMetrics(req.session);
+  if (!req.session.visitedSections) req.session.visitedSections = [];
+  for (const s of state.visitedSections) {
+    if (!req.session.visitedSections.includes(s)) req.session.visitedSections.push(s);
+  }
 
-  const prevUnlocked = req.session.unlockedAchievements || [];
+  const unlocked = computeUnlocked(req.session, state);
+  const xp = computeXP(unlocked, state.claimedMilestones);
+  const levelInfo = xpToLevel(xp);
+  const metrics = getMetrics(req.session, state);
+
+  const prevUnlocked = state.unlockedAchievements;
   const newlyUnlocked = unlocked.filter(id => !prevUnlocked.includes(id));
-  req.session.unlockedAchievements = unlocked;
-  req.session.save(() => {});
+  state.unlockedAchievements = unlocked;
 
   const robloxProfile = req.session.robloxProfile;
-  const robloxUserId = req.session.robloxUserId;
   const username = robloxProfile?.name || "User";
   const displayName = robloxProfile?.displayName || username;
   const avatarUrl = robloxProfile?.avatarUrl || null;
 
-  if (robloxUserId) {
-    await upsertProfile(robloxUserId, username, displayName, avatarUrl, xp, levelInfo.level, metrics.streak, metrics.invoices, metrics.drafts, unlocked.length);
-  }
+  await saveGamifState(robloxUserId, state, {
+    username, displayName, avatarUrl, xp, level: levelInfo.level,
+    streak: metrics.streak, invoices: metrics.invoices, drafts: metrics.drafts, achievementsCount: unlocked.length,
+  });
+
+  req.session.streakData = state.streakData;
+  req.session.claimedMilestones = state.claimedMilestones;
+  req.session.unlockedAchievements = unlocked;
+  req.session.save(() => {});
 
   const dbBoard = await getLeaderboard();
 
@@ -235,7 +331,7 @@ router.get("/gamification/dashboard", async (req, res): Promise<void> => {
     avatar: avatarUrl || "⭐",
     robloxUserId: robloxUserId || 0,
     xp,
-    streak: req.session.streakData?.currentStreak || 1,
+    streak: state.streakData.currentStreak,
     invoices: metrics.invoices,
     drafts: metrics.drafts,
     isMe: true,
@@ -247,28 +343,51 @@ router.get("/gamification/dashboard", async (req, res): Promise<void> => {
     .map((e, i) => ({ ...e, rank: i + 1 }));
 
   res.json({
-    streak: req.session.streakData,
+    streak: state.streakData,
     xp,
     level: levelInfo,
     achievements: ACHIEVEMENTS.map(a => ({ ...a, unlocked: unlocked.includes(a.id) })),
-    milestones: getMilestoneProgress(req.session),
+    milestones: getMilestoneProgress(req.session, state),
     leaderboard: board,
     newlyUnlocked,
     metrics,
   });
 });
 
-router.post("/gamification/milestones/:id/claim", (req, res): void => {
-  if (!req.session.claimedMilestones) req.session.claimedMilestones = [];
+router.post("/gamification/milestones/:id/claim", async (req, res): Promise<void> => {
+  const robloxUserId = req.session.robloxUserId;
+  if (!robloxUserId) { res.status(401).json({ error: "Not authenticated" }); return; }
+
   const ms = MILESTONES.find(m => m.id === req.params.id);
   if (!ms) { res.status(404).json({ error: "Not found" }); return; }
-  const milestones = getMilestoneProgress(req.session);
+
+  const state = await loadGamifState(robloxUserId);
+  const milestones = getMilestoneProgress(req.session, state);
   const milestone = milestones.find(m => m.id === req.params.id);
   if (!milestone?.reached) { res.status(400).json({ error: "Not yet reached" }); return; }
-  if (!req.session.claimedMilestones.includes(req.params.id)) {
-    req.session.claimedMilestones.push(req.params.id);
-    req.session.save(() => {});
+
+  if (!state.claimedMilestones.includes(req.params.id)) {
+    state.claimedMilestones.push(req.params.id);
   }
+
+  const unlocked = computeUnlocked(req.session, state);
+  const xp = computeXP(unlocked, state.claimedMilestones);
+  const levelInfo = xpToLevel(xp);
+  const metrics = getMetrics(req.session, state);
+
+  const robloxProfile = req.session.robloxProfile;
+  const username = robloxProfile?.name || "User";
+  const displayName = robloxProfile?.displayName || username;
+  const avatarUrl = robloxProfile?.avatarUrl || null;
+
+  await saveGamifState(robloxUserId, state, {
+    username, displayName, avatarUrl, xp, level: levelInfo.level,
+    streak: metrics.streak, invoices: metrics.invoices, drafts: metrics.drafts, achievementsCount: unlocked.length,
+  });
+
+  req.session.claimedMilestones = state.claimedMilestones;
+  req.session.save(() => {});
+
   res.json({ ok: true, xpGained: ms.xp });
 });
 

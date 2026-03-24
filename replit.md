@@ -115,13 +115,22 @@ CREATE TABLE gamification_profiles (
   invoices INTEGER DEFAULT 0,
   drafts INTEGER DEFAULT 0,
   achievements_count INTEGER DEFAULT 0,
+  current_streak INTEGER DEFAULT 0,
+  longest_streak INTEGER DEFAULT 0,
+  total_logins INTEGER DEFAULT 0,
+  last_login_date TEXT,
+  streak_start_date TEXT,
+  visited_sections JSONB DEFAULT '[]',
+  claimed_milestones JSONB DEFAULT '[]',
+  unlocked_achievements JSONB DEFAULT '[]',
   updated_at TIMESTAMP DEFAULT NOW()
 );
 ```
 
 ### Gamification System
 - Section visit tracking in `DashboardLayout.tsx` — fires POST to `/api/gamification/visit` on every page navigation, server-side validated against whitelist
-- Achievements computed dynamically from session data (invoices, drafts, todos, goals, social accounts, visited sections, streak)
+- Achievements computed dynamically from session + DB data (invoices, drafts, todos, goals, social accounts, visited sections, streak)
+- **All gamification state persisted to DB** — streaks, visited sections, claimed milestones, unlocked achievements survive re-login/session expiry
 - Leaderboard backed by `gamification_profiles` DB table — stores real user XP/stats, shows Roblox avatars
 - XP → Level progression with 11 tiers (0→7000 XP)
 - Milestones with claimable XP rewards
