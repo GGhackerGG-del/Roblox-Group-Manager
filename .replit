@@ -10,7 +10,6 @@ id = "artifacts/limited-ink"
 id = "artifacts/mockup-sandbox"
 
 [deployment]
-router = "path"
 deploymentTarget = "vm"
 
 [deployment.postBuild]
