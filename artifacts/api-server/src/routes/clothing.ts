@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { globalRobloxFetch, setDownloadMode } from "../lib/robloxThrottle.js";
+import { globalRobloxFetch } from "../lib/robloxThrottle.js";
 
 const router: IRouter = Router();
 
@@ -24,10 +24,6 @@ function cacheSet(k: string, v: unknown) { _cache.set(k, { data: v, ts: Date.now
 
 async function throttledFetch(url: string, init?: RequestInit): Promise<Response> {
   return globalRobloxFetch(url, init, "normal");
-}
-
-async function assetFetch(url: string, init?: RequestInit): Promise<Response> {
-  return globalRobloxFetch(url, init, "high");
 }
 
 async function itemConfigFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -458,26 +454,61 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
   res.json({ items: filtered, total: allItems.length });
 });
 
-const ALLOWED_ASSET_HOSTS = ["roblox.com", "rbxcdn.com", "rbxtrk.com", "robloxcdn.com"];
-function isAllowedAssetUrl(url: string): boolean {
+const ALLOWED_CDN_HOSTS = ["rbxcdn.com", "robloxcdn.com", "rbxtrk.com", "roblox.com"];
+function isAllowedCdnUrl(url: string): boolean {
   try {
     const h = new URL(url).hostname;
-    return ALLOWED_ASSET_HOSTS.some(d => h === d || h.endsWith(`.${d}`));
+    return ALLOWED_CDN_HOSTS.some(d => h === d || h.endsWith(`.${d}`));
   } catch { return false; }
 }
 
-async function waitForRateLimit(): Promise<void> {
-  const testUrl = "https://assetdelivery.roblox.com/v2/asset?id=1";
-  for (let i = 0; i < 12; i++) {
-    try {
-      const r = await fetch(testUrl);
-      if (r.status !== 429) return;
-    } catch {}
-    const wait = Math.min(10000, 3000 + 2000 * i);
-    console.log(`[Clothing] Rate limit active, waiting ${wait / 1000}s before download... (${i + 1}/12)`);
-    await new Promise(resolve => setTimeout(resolve, wait));
+const _textureIdCache = new Map<number, number>();
+
+function extractTextureId(text: string): number | null {
+  const patterns = [
+    /rbxassetid:\/\/(\d+)/i,
+    /<url>[^<]*asset[^<]*id=(\d+)[^<]*<\/url>/i,
+    /assetid="(\d+)"/i,
+    /<url>https?:\/\/[^<]*\/(\d+)[^<]*<\/url>/i,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) return parseInt(m[1], 10);
   }
-  console.log(`[Clothing] Rate limit may still be active, proceeding anyway...`);
+  return null;
+}
+
+class AuthError extends Error {
+  constructor(msg: string) { super(msg); this.name = "AuthError"; }
+}
+
+async function directFetchWithRetry(
+  url: string,
+  headers: Record<string, string>,
+  maxRetries = 4,
+  label = ""
+): Promise<Response | null> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const resp = await fetch(url, { headers });
+      if (resp.status === 429) {
+        const wait = 2000 * Math.pow(2, attempt);
+        console.log(`[DL] ${label} 429 (attempt ${attempt + 1}/${maxRetries + 1}), wait ${wait / 1000}s`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      if (resp.status === 401 || resp.status === 403) {
+        console.log(`[DL] ${label} ${resp.status} — auth issue`);
+        throw new AuthError(`Roblox returned ${resp.status}`);
+      }
+      return resp;
+    } catch (e) {
+      if (e instanceof AuthError) throw e;
+      console.log(`[DL] ${label} network error (attempt ${attempt + 1}):`, e);
+      if (attempt < maxRetries) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  return null;
 }
 
 function gameClientHeaders(cookie: string): Record<string, string> {
@@ -490,107 +521,130 @@ function gameClientHeaders(cookie: string): Record<string, string> {
   };
 }
 
-const _textureIdCache = new Map<number, number>();
+async function resolveAssetXml(itemId: number, cookie: string): Promise<{ texId: number; directImage?: ArrayBuffer } | null> {
+  const cached = _textureIdCache.get(itemId);
+  if (cached) return { texId: cached };
 
-function extractTextureId(xml: string): number | null {
-  const m = xml.match(/rbxassetid:\/\/(\d+)/i)
-    || xml.match(/<url>https?:\/\/[^<]*\/(\d+)[^<]*<\/url>/i)
-    || xml.match(/assetid="(\d+)"/i)
-    || xml.match(/<Content name="ShirtTemplate"><url>[^<]*asset[^<]*id=(\d+)[^<]*<\/url>/i)
-    || xml.match(/<Content name="PantsTemplate"><url>[^<]*asset[^<]*id=(\d+)[^<]*<\/url>/i);
-  return m ? parseInt(m[1], 10) : null;
+  async function tryV1GameClient(): Promise<{ texId: number; directImage?: ArrayBuffer } | null> {
+    const resp = await directFetchWithRetry(
+      `${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`,
+      gameClientHeaders(cookie),
+      3, `v1-gc-${itemId}`
+    );
+    if (!resp || !resp.ok) return null;
+    const ct = resp.headers.get("content-type") || "";
+    if (ct.includes("image")) {
+      const buf = await resp.arrayBuffer();
+      if (buf.byteLength > 100) return { texId: itemId, directImage: buf };
+      return null;
+    }
+    const xml = await resp.text();
+    const texId = extractTextureId(xml);
+    return texId ? { texId } : null;
+  }
+
+  async function tryV2Browser(): Promise<{ texId: number; directImage?: ArrayBuffer } | null> {
+    const resp = await directFetchWithRetry(
+      `https://assetdelivery.roblox.com/v2/asset?id=${itemId}`,
+      robloxHeaders(cookie),
+      2, `v2-${itemId}`
+    );
+    if (!resp || !resp.ok) return null;
+    const data = await resp.json() as { locations?: Array<{ location: string }> };
+    const loc = data.locations?.[0]?.location;
+    if (!loc || !isAllowedCdnUrl(loc)) return null;
+    const cdnResp = await fetch(loc);
+    if (!cdnResp.ok) return null;
+    const ct = cdnResp.headers.get("content-type") || "";
+    if (ct.includes("image")) {
+      const buf = await cdnResp.arrayBuffer();
+      if (buf.byteLength > 100) return { texId: itemId, directImage: buf };
+      return null;
+    }
+    const xml = await cdnResp.text();
+    const texId = extractTextureId(xml);
+    return texId ? { texId } : null;
+  }
+
+  const methods = [tryV1GameClient, tryV2Browser];
+  for (const method of methods) {
+    try {
+      const result = await method();
+      if (result) {
+        _textureIdCache.set(itemId, result.texId);
+        return result;
+      }
+    } catch (e) {
+      if (e instanceof AuthError) throw e;
+      console.log(`[DL] resolveAsset method failed for ${itemId}:`, e);
+    }
+  }
+  return null;
+}
+
+async function downloadTextureById(texId: number, cookie: string): Promise<ArrayBuffer | null> {
+  try {
+    const gcResp = await directFetchWithRetry(
+      `${ASSET_DELIVERY_API}/v1/asset/?id=${texId}`,
+      gameClientHeaders(cookie),
+      3, `tex-gc-${texId}`
+    );
+    if (gcResp?.ok) {
+      const buf = await gcResp.arrayBuffer();
+      if (buf.byteLength > 100) return buf;
+    }
+  } catch (e) {
+    if (e instanceof AuthError) throw e;
+    console.log(`[DL] gc texture failed for ${texId}:`, e);
+  }
+
+  try {
+    const v2Resp = await directFetchWithRetry(
+      `https://assetdelivery.roblox.com/v2/asset?id=${texId}`,
+      robloxHeaders(cookie),
+      2, `tex-v2-${texId}`
+    );
+    if (v2Resp?.ok) {
+      const data = await v2Resp.json() as { locations?: Array<{ location: string }> };
+      const loc = data.locations?.[0]?.location;
+      if (loc && isAllowedCdnUrl(loc)) {
+        const cdnResp = await fetch(loc);
+        if (cdnResp.ok) {
+          const buf = await cdnResp.arrayBuffer();
+          if (buf.byteLength > 100) return buf;
+        }
+      }
+    }
+  } catch (e) {
+    if (e instanceof AuthError) throw e;
+    console.log(`[DL] v2 texture failed for ${texId}:`, e);
+  }
+
+  return null;
 }
 
 async function fetchAssetTexture(itemId: number, cookie: string): Promise<ArrayBuffer | null> {
-  async function fetchWithRetry(url: string, headers: Record<string, string>, retries = 5): Promise<Response> {
-    for (let attempt = 0; attempt < retries; attempt++) {
-      const resp = await assetFetch(url, { headers });
-      if (resp.status === 429) {
-        const delay = 3000 * (attempt + 1);
-        console.log(`[Clothing] Asset rate limited (attempt ${attempt + 1}/${retries}), waiting ${delay / 1000}s...`);
-        await new Promise(r => setTimeout(r, delay));
-        continue;
-      }
-      return resp;
-    }
-    return assetFetch(url, { headers });
-  }
+  console.log(`[DL] Downloading texture for asset ${itemId}...`);
 
-  const gcHeaders = gameClientHeaders(cookie);
-  const browserHeaders = robloxHeaders(cookie);
-
-  let texId = _textureIdCache.get(itemId);
-
-  if (!texId) {
-    try {
-      const xmlResp = await fetchWithRetry(`${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`, gcHeaders);
-      if (xmlResp.ok) {
-        const ct = xmlResp.headers.get("content-type") || "";
-        if (ct.includes("image")) return xmlResp.arrayBuffer();
-        const xml = await xmlResp.text();
-        texId = extractTextureId(xml) || undefined;
-        if (texId) _textureIdCache.set(itemId, texId);
-      }
-    } catch (e) {
-      console.log(`[Clothing] Game client v1 failed for ${itemId}:`, e);
-    }
-  }
-
-  if (!texId) {
-    try {
-      const v2resp = await fetchWithRetry(`https://assetdelivery.roblox.com/v2/asset?id=${itemId}`, browserHeaders);
-      if (v2resp.ok) {
-        const v2data = await v2resp.json() as { locations?: Array<{ location: string }> };
-        const loc = v2data.locations?.[0]?.location;
-        if (loc && isAllowedAssetUrl(loc)) {
-          const cdnResp = await fetch(loc);
-          if (cdnResp.ok) {
-            const ct = cdnResp.headers.get("content-type") || "";
-            if (ct.includes("image")) return cdnResp.arrayBuffer();
-            const xml = await cdnResp.text();
-            texId = extractTextureId(xml) || undefined;
-            if (texId) _textureIdCache.set(itemId, texId);
-          }
-        }
-      }
-    } catch (e) {
-      console.log(`[Clothing] v2 path failed for ${itemId}:`, e);
-    }
-  }
-
-  if (!texId) {
-    console.log(`[Clothing] Could not extract texture ID for ${itemId}`);
+  const resolved = await resolveAssetXml(itemId, cookie);
+  if (!resolved) {
+    console.log(`[DL] Could not resolve texture ID for ${itemId}`);
     return null;
   }
 
-  try {
-    const texResp = await fetchWithRetry(`${ASSET_DELIVERY_API}/v1/asset/?id=${texId}`, gcHeaders);
-    if (texResp.ok) {
-      const ct = texResp.headers.get("content-type") || "";
-      if (ct.includes("image") || ct.includes("octet-stream") || ct.length === 0) {
-        return texResp.arrayBuffer();
-      }
-    }
-  } catch (e) {
-    console.log(`[Clothing] Game client texture fetch failed for ${texId}:`, e);
+  if (resolved.directImage) {
+    console.log(`[DL] Success (direct image): ${itemId} → ${resolved.directImage.byteLength} bytes`);
+    return resolved.directImage;
   }
 
-  try {
-    const v2tex = await fetchWithRetry(`https://assetdelivery.roblox.com/v2/asset?id=${texId}`, browserHeaders);
-    if (v2tex.ok) {
-      const v2td = await v2tex.json() as { locations?: Array<{ location: string }> };
-      const tloc = v2td.locations?.[0]?.location;
-      if (tloc && isAllowedAssetUrl(tloc)) {
-        const texResp = await fetch(tloc);
-        if (texResp.ok) return texResp.arrayBuffer();
-      }
-    }
-  } catch (e) {
-    console.log(`[Clothing] v2 texture path failed for ${texId}:`, e);
+  console.log(`[DL] Asset ${itemId} → texture ${resolved.texId}`);
+  const buf = await downloadTextureById(resolved.texId, cookie);
+  if (buf) {
+    console.log(`[DL] Success: ${itemId} → ${buf.byteLength} bytes`);
+  } else {
+    console.log(`[DL] Failed to download texture ${resolved.texId} for asset ${itemId}`);
   }
-
-  console.log(`[Clothing] All download paths failed for ${itemId} (texture ${texId})`);
-  return null;
+  return buf;
 }
 
 router.get("/clothing/:itemId/template", async (req, res): Promise<void> => {
@@ -600,7 +654,6 @@ router.get("/clothing/:itemId/template", async (req, res): Promise<void> => {
   const itemId = parseInt(req.params.itemId, 10);
   if (isNaN(itemId) || itemId <= 0) { res.status(400).json({ error: "Invalid item ID." }); return; }
 
-  setDownloadMode(true);
   try {
     let assetName = (req.query.name as string) || `Asset_${itemId}`;
     let assetTypeId = 11;
@@ -612,20 +665,22 @@ router.get("/clothing/:itemId/template", async (req, res): Promise<void> => {
       } catch {}
     }
 
-    console.log(`[Clothing] Download mode ON — downloading template for ${itemId}`);
-    await waitForRateLimit();
     const texBuf = await fetchAssetTexture(itemId, cookie);
-    if (!texBuf) { res.status(502).json({ error: "Could not extract texture. Roblox rate limit may be active — try again in 30 seconds." }); return; }
+    if (!texBuf) {
+      res.status(502).json({ error: "Could not download texture. Try again in a minute." });
+      return;
+    }
 
     const b64 = Buffer.from(texBuf).toString("base64");
     const clothingType = assetTypeId === 12 ? "Pants" : "Shirt";
     res.json({ b64, name: assetName, clothingType, originalId: itemId });
   } catch (err) {
+    if (err instanceof AuthError) {
+      res.status(401).json({ error: "Roblox session expired. Please re-login." });
+      return;
+    }
     console.error("[Clothing] Template error:", err);
     res.status(502).json({ error: "Failed to extract clothing template." });
-  } finally {
-    setDownloadMode(false);
-    console.log(`[Clothing] Download mode OFF`);
   }
 });
 
@@ -637,24 +692,29 @@ router.get("/clothing/:itemId/asset-url", async (req, res): Promise<void> => {
   if (isNaN(itemId) || itemId <= 0) { res.status(400).json({ error: "Invalid item ID." }); return; }
 
   try {
-    const v2resp = await assetFetch(`https://assetdelivery.roblox.com/v2/asset?id=${itemId}`, { headers: robloxHeaders(cookie) });
-    if (v2resp.ok) {
+    const v2resp = await directFetchWithRetry(
+      `https://assetdelivery.roblox.com/v2/asset?id=${itemId}`,
+      robloxHeaders(cookie), 2, `asset-url-v2-${itemId}`
+    );
+    if (v2resp?.ok) {
       const v2data = await v2resp.json() as { locations?: Array<{ location: string }> };
       const loc = v2data.locations?.[0]?.location;
-      if (loc && isAllowedAssetUrl(loc)) {
+      if (loc && isAllowedCdnUrl(loc)) {
         res.json({ url: loc });
         return;
       }
     }
 
-    const v1resp = await assetFetch(`${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`, {
-      headers: robloxHeaders(cookie),
-      redirect: "manual",
-    });
-    const redirectUrl = v1resp.headers.get("location");
-    if (redirectUrl && isAllowedAssetUrl(redirectUrl)) {
-      res.json({ url: redirectUrl });
-      return;
+    const v1resp = await directFetchWithRetry(
+      `${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`,
+      { ...robloxHeaders(cookie) }, 2, `asset-url-v1-${itemId}`
+    );
+    if (v1resp) {
+      const redirectUrl = v1resp.headers.get("location");
+      if (redirectUrl && isAllowedCdnUrl(redirectUrl)) {
+        res.json({ url: redirectUrl });
+        return;
+      }
     }
 
     res.status(502).json({ error: "Could not resolve asset URL" });
@@ -1012,13 +1072,9 @@ router.post("/clothing/bulk-download", async (req, res): Promise<void> => {
     for (const [id, d] of dMap) nameMap.set(id, d.name);
   } catch {}
 
-  setDownloadMode(true);
-  console.log(`[Clothing] Download mode ON — bulk download ${itemIds.length} items`);
+  console.log(`[DL] Bulk download starting: ${itemIds.length} items`);
 
   try {
-    console.log(`[Clothing] Bulk download: waiting for rate limit to clear before ${itemIds.length} items...`);
-    await waitForRateLimit();
-
     const archiver = (await import("archiver")).default;
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="clothing_${Date.now()}.zip"`);
@@ -1037,22 +1093,26 @@ router.post("/clothing/bulk-download", async (req, res): Promise<void> => {
         if (texBuf) {
           archive.append(Buffer.from(texBuf), { name: `${safeName}_${itemId}.png` });
           downloaded++;
-          console.log(`[Clothing] Bulk: downloaded ${downloaded}/${itemIds.length} (${safeName})`);
+          console.log(`[DL] Bulk: ${downloaded}/${itemIds.length} ok (${safeName})`);
         } else {
           failed++;
-          console.log(`[Clothing] Bulk: failed ${itemId} (${safeName})`);
+          console.log(`[DL] Bulk: failed ${itemId} (${safeName})`);
         }
       } catch {
         failed++;
       }
-      await new Promise(r => setTimeout(r, 800));
+      if (itemIds.indexOf(itemId) < itemIds.length - 1) {
+        await new Promise(r => setTimeout(r, 500));
+      }
     }
 
-    console.log(`[Clothing] Bulk download ZIP: ${downloaded} ok, ${failed} failed out of ${itemIds.length}`);
+    console.log(`[DL] Bulk ZIP complete: ${downloaded} ok, ${failed} failed / ${itemIds.length}`);
     await archive.finalize();
-  } finally {
-    setDownloadMode(false);
-    console.log(`[Clothing] Download mode OFF`);
+  } catch (err) {
+    console.error("[DL] Bulk download error:", err);
+    if (!res.headersSent) {
+      res.status(502).json({ error: "Bulk download failed." });
+    }
   }
 });
 
