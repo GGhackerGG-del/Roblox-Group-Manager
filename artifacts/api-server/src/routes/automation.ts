@@ -3,7 +3,6 @@ import { Router, type IRouter } from "express";
 const router: IRouter = Router();
 
 const GROUPS_API = "https://groups.roblox.com";
-const ECONOMY_API = "https://economy.roblox.com";
 const USERS_API = "https://users.roblox.com";
 const TWO_STEP_API = "https://twostepverification.roblox.com";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -375,12 +374,12 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
         challengeId,
       })).toString("base64");
     }
-    let resp = await fetch(`${ECONOMY_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
+    let resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
     if (resp.status === 403) {
       const newCsrf = resp.headers.get("x-csrf-token");
       if (newCsrf) {
         headers["X-CSRF-TOKEN"] = newCsrf;
-        resp = await fetch(`${ECONOMY_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
+        resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
       }
     }
     if (resp.status === 403) {
