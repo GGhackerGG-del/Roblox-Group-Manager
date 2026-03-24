@@ -46,10 +46,13 @@ export default function PnL({ groupId }: { groupId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [topItemsPeriod, setTopItemsPeriod] = useState<"day" | "week">("day");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
+    else setRefreshing(true);
     setError(null);
-    playClick();
+    if (!background) playClick();
     try {
       const { token, fingerprint } = getAuthCredentials();
       const headers: Record<string, string> = {};
@@ -65,11 +68,12 @@ export default function PnL({ groupId }: { groupId: string }) {
       const result = await resp.json();
       setData(result);
       cache.set(`pnl_${groupId}`, result);
-      playSuccess();
+      if (!background) playSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("pnl.loadFailed"));
+      if (!background) setError(err instanceof Error ? err.message : t("pnl.loadFailed"));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [groupId]);
 
@@ -78,6 +82,7 @@ export default function PnL({ groupId }: { groupId: string }) {
     if (cached && cached.monthRevenue !== undefined && cached.topItemsDay !== undefined) {
       setData(cached);
       setLoading(false);
+      fetchData(true);
     } else {
       fetchData();
     }
@@ -108,8 +113,8 @@ export default function PnL({ groupId }: { groupId: string }) {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{t("pnl.title")}</h3>
-        <Button variant="ghost" size="sm" onClick={fetchData}>
-          <RefreshCw className="w-3.5 h-3.5 mr-1" /> {t("sniper.refresh")}
+        <Button variant="ghost" size="sm" onClick={() => fetchData(false)} disabled={refreshing}>
+          <RefreshCw className={`w-3.5 h-3.5 mr-1 ${refreshing ? "animate-spin" : ""}`} /> {t("sniper.refresh")}
         </Button>
       </div>
 
