@@ -1,8 +1,12 @@
 import * as esbuild from "esbuild";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 
-const ROOT = path.resolve(import.meta.dirname, "..");
+const __filename_local = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
+const __dirname_local = path.dirname(__filename_local);
+
+const ROOT = path.resolve(__dirname_local, "..");
 const API_SERVER = path.join(ROOT, "artifacts", "api-server");
 const DESKTOP = path.join(ROOT, "desktop");
 

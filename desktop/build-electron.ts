@@ -1,7 +1,11 @@
 import * as esbuild from "esbuild";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const DESKTOP = path.resolve(import.meta.dirname);
+const __filename_local = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
+const __dirname_local = path.dirname(__filename_local);
+
+const DESKTOP = path.resolve(__dirname_local);
 
 async function buildElectron() {
   console.log("[build-electron] Compiling Electron main + preload...");
@@ -22,7 +26,6 @@ async function buildElectron() {
     target: "node20",
     format: "cjs",
     outdir: path.join(DESKTOP, "dist"),
-    outExtension: { ".js": ".cjs" },
     sourcemap: true,
     loader: {
       ".ts": "ts",

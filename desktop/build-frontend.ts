@@ -1,7 +1,11 @@
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 
-const DESKTOP = path.resolve(import.meta.dirname);
+const __filename_local = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
+const __dirname_local = path.dirname(__filename_local);
+
+const DESKTOP = path.resolve(__dirname_local);
 const PRE_BUILT = path.join(DESKTOP, "frontend-build");
 const FRONTEND_DIST = path.join(DESKTOP, "dist", "frontend");
 

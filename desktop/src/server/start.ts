@@ -30,7 +30,7 @@ export async function startServer(sqlite: Database.Database): Promise<number> {
   process.env.DESKTOP_MODE = "true";
   process.env.SQLITE_DB_READY = "true";
 
-  const { createApp } = await import("./app.cjs");
+  const { createApp } = await import("./app.js");
   const app = createApp(sqlite);
 
   return new Promise((resolve, reject) => {
