@@ -159,24 +159,25 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
     playClick();
     setBulkDownloading(true);
     try {
-      const data = await apiFetch<{ results: Array<{ id: number; name: string; b64: string | null; error?: string }> }>("/api/clothing/bulk-download", {
+      const resp = await fetch(`${BASE}/api/clothing/bulk-download`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...makeHeaders() },
         body: JSON.stringify({ itemIds: Array.from(selected) }),
       });
-      let ok = 0;
-      for (const r of data.results) {
-        if (r.b64) {
-          const link = document.createElement("a");
-          link.href = `data:image/png;base64,${r.b64}`;
-          link.download = `${r.name.replace(/[^a-z0-9_.-]/gi, "_")}.png`;
-          link.click();
-          ok++;
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Download failed" }));
+        throw new Error(err.error || "Download failed");
       }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `clothing_${selected.size}_items.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
       playSuccess();
-      toast({ title: t("group.bulkDownload"), description: `${ok} / ${selected.size}` });
+      toast({ title: t("group.bulkDownload"), description: `${selected.size} items → ZIP` });
     } catch (e: unknown) {
       playError();
       toast({ title: t("group.downloadFailed"), description: e instanceof Error ? e.message : "Error", variant: "destructive" });

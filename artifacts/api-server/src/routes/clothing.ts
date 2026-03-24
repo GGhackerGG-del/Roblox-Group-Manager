@@ -881,19 +881,17 @@ router.post("/clothing/bulk-download", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Max 50 items per batch." }); return;
   }
 
-  const results: Array<{ id: number; name: string; b64: string | null; error?: string }> = [];
-
   let nameMap = new Map<number, string>();
   try {
     const dMap = await fetchItemDetails(itemIds, cookie);
     for (const [id, d] of dMap) nameMap.set(id, d.name);
   } catch {}
 
-  async function fetchWithRetry(url: string, init?: RequestInit, retries = 3): Promise<Response> {
+  async function fetchWithRetry(url: string, init?: RequestInit, retries = 4): Promise<Response> {
     for (let attempt = 0; attempt < retries; attempt++) {
       const resp = await throttledFetch(url, init);
       if (resp.status === 429) {
-        const delay = 2000 * (attempt + 1);
+        const delay = 3000 * (attempt + 1);
         console.log(`[Clothing] Bulk download rate limited (attempt ${attempt + 1}), waiting ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         continue;
@@ -903,14 +901,22 @@ router.post("/clothing/bulk-download", async (req, res): Promise<void> => {
     return throttledFetch(url, init);
   }
 
+  const archiver = (await import("archiver")).default;
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="clothing_${Date.now()}.zip"`);
+
+  const archive = archiver("zip", { zlib: { level: 5 } });
+  archive.pipe(res);
+
+  let downloaded = 0;
+  let failed = 0;
+
   for (const itemId of itemIds) {
     const assetName = nameMap.get(itemId) || `Asset_${itemId}`;
+    const safeName = assetName.replace(/[^a-z0-9_. -]/gi, "_");
     try {
       const xmlResp = await fetchWithRetry(`${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`, { headers: robloxHeaders(cookie) });
-      if (!xmlResp.ok) {
-        results.push({ id: itemId, name: assetName, b64: null, error: `Fetch failed (${xmlResp.status})` });
-        continue;
-      }
+      if (!xmlResp.ok) { failed++; continue; }
 
       const ct = xmlResp.headers.get("content-type") || "";
       let texBuf: ArrayBuffer | null = null;
@@ -940,17 +946,19 @@ router.post("/clothing/bulk-download", async (req, res): Promise<void> => {
       }
 
       if (texBuf) {
-        results.push({ id: itemId, name: assetName, b64: Buffer.from(texBuf).toString("base64") });
+        archive.append(Buffer.from(texBuf), { name: `${safeName}_${itemId}.png` });
+        downloaded++;
       } else {
-        results.push({ id: itemId, name: assetName, b64: null, error: "Could not extract texture" });
+        failed++;
       }
     } catch {
-      results.push({ id: itemId, name: assetName, b64: null, error: "Download failed" });
+      failed++;
     }
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 1000));
   }
 
-  res.json({ results });
+  console.log(`[Clothing] Bulk download ZIP: ${downloaded} ok, ${failed} failed out of ${itemIds.length}`);
+  await archive.finalize();
 });
 
 export default router;
