@@ -34,6 +34,7 @@ export { default as initBot } from "${path.join(API_SERVER, "src", "bot.ts").rep
     outdir: path.join(DESKTOP, "dist", "server"),
     sourcemap: true,
     minify: false,
+    nodePaths: [path.join(DESKTOP, "node_modules")],
     alias: {
       "@workspace/db": shimPath,
       "@workspace/api-zod": path.join(ROOT, "lib", "api-zod", "src", "index.ts"),
