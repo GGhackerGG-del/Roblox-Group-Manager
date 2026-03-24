@@ -44,6 +44,7 @@ app.use(session({
 }));
 
 app.use("/api", router);
+app.use("/", router);
 app.use("/uploads", express.static(path.join(__dirname_safe, "..", "uploads")));
 
 export default app;
