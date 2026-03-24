@@ -18,13 +18,30 @@ function rHeaders(cookie: string, extra: Record<string, string> = {}): Record<st
   };
 }
 
+async function getSafeCsrf(cookie: string): Promise<string> {
+  try {
+    const resp = await fetch("https://catalog.roblox.com/v1/catalog/items/details", {
+      method: "POST",
+      headers: {
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "Content-Type": "application/json",
+        "User-Agent": UA,
+      },
+      body: JSON.stringify({ items: [] }),
+    });
+    return resp.headers.get("x-csrf-token") || "";
+  } catch { return ""; }
+}
+
 async function fetchWithCsrfRetry(url: string, cookie: string, opts: RequestInit): Promise<Response> {
+  const csrf = await getSafeCsrf(cookie);
   const headers: Record<string, string> = { ...rHeaders(cookie, { "Content-Type": "application/json" }) };
+  if (csrf) headers["X-CSRF-TOKEN"] = csrf;
   let resp = await fetch(url, { ...opts, headers });
   if (resp.status === 403) {
-    const csrf = resp.headers.get("x-csrf-token");
-    if (csrf) {
-      headers["X-CSRF-TOKEN"] = csrf;
+    const newCsrf = resp.headers.get("x-csrf-token");
+    if (newCsrf) {
+      headers["X-CSRF-TOKEN"] = newCsrf;
       resp = await fetch(url, { ...opts, headers });
     }
   }
@@ -373,23 +390,18 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
         challengeId,
       })).toString("base64");
     }
+    const csrf = await getSafeCsrf(cookie);
+    console.log(`[Payout] Got CSRF: ${csrf ? "yes" : "no"}`);
+    if (csrf) headers["X-CSRF-TOKEN"] = csrf;
     console.log(`[Payout] Sending to ${GROUPS_API}/v1/groups/${groupId}/payouts, body=${JSON.stringify(body)}`);
     let resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
-    console.log(`[Payout] First attempt: status=${resp.status}, csrf=${resp.headers.get("x-csrf-token") || "none"}`);
+    console.log(`[Payout] Response: status=${resp.status}`);
     if (resp.status === 403) {
       const newCsrf = resp.headers.get("x-csrf-token");
       if (newCsrf) {
         headers["X-CSRF-TOKEN"] = newCsrf;
         resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
         console.log(`[Payout] CSRF retry: status=${resp.status}`);
-      }
-    }
-    if (resp.status === 401) {
-      const newCsrf = resp.headers.get("x-csrf-token");
-      if (newCsrf && !headers["X-CSRF-TOKEN"]) {
-        headers["X-CSRF-TOKEN"] = newCsrf;
-        resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
-        console.log(`[Payout] 401->CSRF retry: status=${resp.status}`);
       }
     }
     if (resp.status === 403) {
