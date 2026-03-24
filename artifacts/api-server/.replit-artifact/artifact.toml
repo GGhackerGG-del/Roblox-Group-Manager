@@ -18,6 +18,7 @@ run = "pnpm --filter @workspace/api-server run dev"
 
 [services.production]
 build = "pnpm --filter @workspace/api-server run build"
+publicDir = "artifacts/limited-ink/dist/public"
 
 [services.production.run]
 args = ["node", "artifacts/api-server/dist/index.cjs"]
