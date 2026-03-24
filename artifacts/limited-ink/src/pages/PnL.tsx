@@ -94,7 +94,7 @@ export default function PnL({ groupId }: { groupId: string }) {
   const [topItemsPeriod, setTopItemsPeriod] = useState<"day" | "week">("day");
 
   const fetchSummary = useCallback(async (silent = false) => {
-    if (!silent) setSummaryLoading(true);
+    setSummaryLoading(true);
     setSummaryError(false);
     try {
       const resp = await fetch(`${BASE}/api/pnl/group/${groupId}/summary`, {
@@ -113,7 +113,7 @@ export default function PnL({ groupId }: { groupId: string }) {
   }, [groupId]);
 
   const fetchTopItems = useCallback(async (silent = false) => {
-    if (!silent) setTopLoading(true);
+    setTopLoading(true);
     setTopError(false);
     try {
       const resp = await fetch(`${BASE}/api/pnl/group/${groupId}/top-items`, {
@@ -132,7 +132,7 @@ export default function PnL({ groupId }: { groupId: string }) {
   }, [groupId]);
 
   const fetchRecent = useCallback(async (silent = false) => {
-    if (!silent) setRecentLoading(true);
+    setRecentLoading(true);
     setRecentError(false);
     try {
       const resp = await fetch(`${BASE}/api/pnl/group/${groupId}/recent`, {
