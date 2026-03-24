@@ -26,8 +26,18 @@ app.use(cors({
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-app.use((req, _res, next) => {
+app.use((req, res, next) => {
   console.log(`[REQ] ${req.method} ${req.url} ${req.path}`);
+  const originalEnd = res.end;
+  res.end = function(...args: any[]) {
+    console.log(`[RES] ${req.method} ${req.url} ${res.statusCode}`);
+    return originalEnd.apply(res, args);
+  } as any;
+  next();
+});
+
+app.use((req, _res, next) => {
+  console.log(`[SESSION-PRE] about to enter session middleware`);
   next();
 });
 
