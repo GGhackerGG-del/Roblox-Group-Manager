@@ -46,8 +46,14 @@ export default function PnL({ groupId }: { groupId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [topItemsPeriod, setTopItemsPeriod] = useState<"day" | "week">("day");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     playClick();
     try {
@@ -67,9 +73,10 @@ export default function PnL({ groupId }: { groupId: string }) {
       cache.set(`pnl_${groupId}`, result);
       playSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("pnl.loadFailed"));
+      if (!isRefresh) setError(err instanceof Error ? err.message : t("pnl.loadFailed"));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [groupId]);
 
@@ -108,8 +115,8 @@ export default function PnL({ groupId }: { groupId: string }) {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{t("pnl.title")}</h3>
-        <Button variant="ghost" size="sm" onClick={fetchData}>
-          <RefreshCw className="w-3.5 h-3.5 mr-1" /> {t("sniper.refresh")}
+        <Button variant="ghost" size="sm" onClick={() => fetchData(true)} disabled={refreshing}>
+          <RefreshCw className={`w-3.5 h-3.5 mr-1 ${refreshing ? "animate-spin" : ""}`} /> {t("sniper.refresh")}
         </Button>
       </div>
 

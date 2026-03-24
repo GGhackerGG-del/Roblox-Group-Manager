@@ -148,13 +148,18 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
       }
 
       if (!txResp.ok) {
+        if (txResp.status === 429) {
+          txRetries++;
+          if (txRetries <= 3) {
+            await txResp.text().catch(() => {});
+            await new Promise(r => setTimeout(r, 5000 * txRetries));
+            continue;
+          }
+          console.log(`[P&L] Rate limited, returning ${transactions.length} transactions collected so far`);
+          break;
+        }
         const body = await txResp.text().catch(() => "");
         console.log(`[P&L] Transaction API error: status=${txResp.status} body=${body.slice(0, 300)}`);
-        if (txResp.status === 429 && txRetries < 5) {
-          txRetries++;
-          await new Promise(r => setTimeout(r, 3000 * txRetries));
-          continue;
-        }
         break;
       }
       txRetries = 0;
