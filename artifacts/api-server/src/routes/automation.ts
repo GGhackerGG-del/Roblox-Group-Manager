@@ -380,27 +380,42 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       PayoutType: payoutType,
       Recipients: payouts.map(p => ({ recipientId: p.recipientId, recipientType: "User", amount: p.amount })),
     };
-    const headers: Record<string, string> = { ...rHeaders(cookie, { "Content-Type": "application/json" }) };
+    const csrf = await getSafeCsrf(cookie);
+    console.log(`[Payout] Got CSRF: ${csrf ? "yes" : "no"}`);
+    const payoutHeaders: Record<string, string> = {
+      "Cookie": `.ROBLOSECURITY=${cookie};`,
+      "X-CSRF-TOKEN": csrf || "",
+      "Content-Type": "application/json",
+      "Accept": "application/json, text/plain, */*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Accept-Encoding": "gzip, deflate, br",
+      "User-Agent": UA,
+      "Referer": "https://www.roblox.com/groups/" + groupId,
+      "Origin": "https://www.roblox.com",
+      "Sec-Fetch-Dest": "empty",
+      "Sec-Fetch-Mode": "cors",
+      "Sec-Fetch-Site": "same-site",
+      "Sec-Ch-Ua": '"Chromium";v="120", "Google Chrome";v="120", "Not=A?Brand";v="8"',
+      "Sec-Ch-Ua-Mobile": "?0",
+      "Sec-Ch-Ua-Platform": '"Windows"',
+    };
     if (challengeId && verificationToken) {
-      headers["rblx-challenge-id"] = challengeId;
-      headers["rblx-challenge-type"] = "twostepverification";
-      headers["rblx-challenge-metadata"] = Buffer.from(JSON.stringify({
+      payoutHeaders["rblx-challenge-id"] = challengeId;
+      payoutHeaders["rblx-challenge-type"] = "twostepverification";
+      payoutHeaders["rblx-challenge-metadata"] = Buffer.from(JSON.stringify({
         verificationToken,
         rememberDevice: false,
         challengeId,
       })).toString("base64");
     }
-    const csrf = await getSafeCsrf(cookie);
-    console.log(`[Payout] Got CSRF: ${csrf ? "yes" : "no"}`);
-    if (csrf) headers["X-CSRF-TOKEN"] = csrf;
     console.log(`[Payout] Sending to ${GROUPS_API}/v1/groups/${groupId}/payouts, body=${JSON.stringify(body)}`);
-    let resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
+    let resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
     console.log(`[Payout] Response: status=${resp.status}`);
     if (resp.status === 403) {
       const newCsrf = resp.headers.get("x-csrf-token");
       if (newCsrf) {
-        headers["X-CSRF-TOKEN"] = newCsrf;
-        resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers, body: JSON.stringify(body) });
+        payoutHeaders["X-CSRF-TOKEN"] = newCsrf;
+        resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
         console.log(`[Payout] CSRF retry: status=${resp.status}`);
       }
     }
