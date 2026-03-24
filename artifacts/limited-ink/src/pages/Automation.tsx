@@ -122,6 +122,7 @@ export default function Automation() {
   const [payoutSearchResults, setPayoutSearchResults] = useState<Member[]>([]);
   const [payoutSearchLoading, setPayoutSearchLoading] = useState(false);
   const [payoutAmount, setPayoutAmount] = useState("100");
+  const payoutSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sendingPayout, setSendingPayout] = useState(false);
   const [twoFA, setTwoFA] = useState<{ open: boolean; challengeId: string; mediaType: string; code: string; verifying: boolean }>({ open: false, challengeId: "", mediaType: "Authenticator", code: "", verifying: false });
 
@@ -342,12 +343,8 @@ export default function Automation() {
     if (!q.trim() || !groupId) return;
     setPayoutSearchLoading(true);
     try {
-      const data = await apiFetch<{ members: Member[] }>(`/api/automation/members/${groupId}?limit=50`);
-      const filtered = (data.members || []).filter(m =>
-        m.user.username.toLowerCase().includes(q.toLowerCase()) ||
-        m.user.displayName.toLowerCase().includes(q.toLowerCase())
-      ).slice(0, 8);
-      setPayoutSearchResults(filtered);
+      const data = await apiFetch<{ members: Member[] }>(`/api/automation/search-member/${groupId}?username=${encodeURIComponent(q.trim())}`);
+      setPayoutSearchResults(data.members || []);
     } catch { }
     finally { setPayoutSearchLoading(false); }
   }, [groupId]);
@@ -924,7 +921,14 @@ export default function Automation() {
                   <Input
                     placeholder={t("auto.memberName")}
                     value={payoutUserSearch}
-                    onChange={e => { setPayoutUserSearch(e.target.value); if (e.target.value.length >= 2) searchPayoutUser(e.target.value); else setPayoutSearchResults([]); }}
+                    onChange={e => {
+                      setPayoutUserSearch(e.target.value);
+                      if (payoutSearchTimer.current) clearTimeout(payoutSearchTimer.current);
+                      if (e.target.value.length >= 3) {
+                        setPayoutSearchLoading(true);
+                        payoutSearchTimer.current = setTimeout(() => searchPayoutUser(e.target.value), 500);
+                      } else { setPayoutSearchResults([]); setPayoutSearchLoading(false); }
+                    }}
                     className="rounded-xl flex-1"
                   />
                   <Input
