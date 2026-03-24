@@ -47,4 +47,12 @@ app.use("/api", router);
 app.use("/", router);
 app.use("/uploads", express.static(path.join(__dirname_safe, "..", "uploads")));
 
+if (process.env.NODE_ENV === "production") {
+  const frontendDir = path.join(__dirname_safe, "..", "..", "limited-ink", "dist", "public");
+  app.use(express.static(frontendDir));
+  app.use((_req, res) => {
+    res.sendFile(path.join(frontendDir, "index.html"));
+  });
+}
+
 export default app;

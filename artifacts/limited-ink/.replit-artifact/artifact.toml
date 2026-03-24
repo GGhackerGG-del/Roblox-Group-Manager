@@ -23,5 +23,3 @@ BASE_PATH = "/"
 
 [services.production]
 build = ["pnpm", "--filter", "@workspace/limited-ink", "run", "build"]
-publicDir = "artifacts/limited-ink/dist/public"
-serve = "static"
