@@ -225,11 +225,10 @@ router.get("/pnl/group/:groupId", async (req, res): Promise<void> => {
     function buildTopItems(txList: typeof transactions) {
       const stats: Record<string, { name: string; revenue: number; count: number; assetId: number | null }> = {};
       for (const tx of txList) {
-        const key = tx.description || "Sale";
-        if (!stats[key]) stats[key] = { name: key, revenue: 0, count: 0, assetId: tx.assetId };
+        const key = tx.assetId ? String(tx.assetId) : (tx.description || "Sale");
+        if (!stats[key]) stats[key] = { name: tx.description || "Sale", revenue: 0, count: 0, assetId: tx.assetId };
         stats[key].revenue += tx.revenue;
         stats[key].count += 1;
-        if (!stats[key].assetId && tx.assetId) stats[key].assetId = tx.assetId;
       }
       return Object.values(stats).sort((a, b) => b.revenue - a.revenue).slice(0, 20);
     }
