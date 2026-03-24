@@ -132,12 +132,13 @@ const CATALOG_PRICE_CACHE_TTL = 10 * 60_000;
 
 async function getRobloxCsrf(cookie: string): Promise<string> {
   try {
-    const r = await fetch("https://auth.roblox.com/v2/logout", {
+    const r = await fetch("https://auth.roblox.com/v1/authentication-ticket", {
       method: "POST",
       headers: {
         "Cookie": `.ROBLOSECURITY=${cookie}`,
         "Content-Length": "0",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://www.roblox.com/",
       },
     });
     return r.headers.get("x-csrf-token") || "";
@@ -419,12 +420,13 @@ router.post("/sniper/buy", async (req, res): Promise<void> => {
       res.status(400).json({ error: `Live price (${livePrice} R$) exceeds your max (${maxPrice} R$). Purchase blocked.` }); return;
     }
 
-    const csrfResp = await fetch("https://auth.roblox.com/v2/logout", {
+    const csrfResp = await fetch("https://auth.roblox.com/v1/authentication-ticket", {
       method: "POST",
       headers: {
         "Cookie": `.ROBLOSECURITY=${cookie}`,
         "Content-Length": "0",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://www.roblox.com/",
       },
     });
     const csrf = csrfResp.headers.get("x-csrf-token");

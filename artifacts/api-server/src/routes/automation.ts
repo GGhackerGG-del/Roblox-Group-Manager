@@ -20,9 +20,9 @@ function rHeaders(cookie: string, extra: Record<string, string> = {}): Record<st
 
 async function getCsrf(cookie: string): Promise<string> {
   try {
-    const r = await fetch("https://auth.roblox.com/v2/logout", {
+    const r = await fetch("https://auth.roblox.com/v1/authentication-ticket", {
       method: "POST",
-      headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "Content-Length": "0", "User-Agent": UA },
+      headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "Content-Length": "0", "User-Agent": UA, "Referer": "https://www.roblox.com/" },
     });
     return r.headers.get("x-csrf-token") || "";
   } catch { return ""; }

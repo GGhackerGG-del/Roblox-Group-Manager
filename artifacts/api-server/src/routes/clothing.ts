@@ -39,7 +39,7 @@ async function getRobloxCsrf(cookie: string): Promise<string> {
       "Referer": "https://www.roblox.com/",
       "Origin": "https://www.roblox.com",
     };
-    const r1 = await fetch("https://auth.roblox.com/v2/logout", { method: "POST", headers: hdrs });
+    const r1 = await fetch("https://auth.roblox.com/v1/authentication-ticket", { method: "POST", headers: hdrs });
     const token = r1.headers.get("x-csrf-token");
     if (token) return token;
     const r1b = await fetch("https://auth.roblox.com/", { method: "POST", headers: hdrs });
