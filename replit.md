@@ -167,6 +167,23 @@ CREATE TABLE gamification_profiles (
 - License system preserved (JWT_SECRET auto-generated if not set)
 - esbuild bundles api-server routes with @workspace/db aliased to SQLite shim
 
+### Desktop Build (Electron)
+- `desktop/` — Standalone Electron desktop app for Windows + MacOS
+- License verification proxied to remote API: `REMOTE_API` in `desktop/src/server/app.ts`
+- Frontend pre-built on Replit and stored in `desktop/frontend-build/`
+- Build steps for user: `cd desktop && npm install && npm run dist:win` (Windows) or `npm run dist:mac` (MacOS)
+- Requirements: Node.js 20 LTS, Visual Studio Build Tools (Windows)
+- CRITICAL: `desktop/package.json` must NOT have `"type": "module"`
+- Build scripts use `fileURLToPath(import.meta.url)` with `__dirname` fallback
+- esbuild uses `nodePaths` pointing to `desktop/node_modules/` so `zod` resolves correctly
+- Telegram bot in api-server only runs in production/desktop (skipped in development to avoid conflicts)
+
+### Deployment
+- API server deployed as VM (`deploymentTarget = "vm"`) for always-running Telegram bot
+- Production URL: `workspace-zljs204.replit.app`
+- Health check: `/api/healthz`
+- Telegram bot polling conflicts resolved: bot disabled in development mode
+
 ## Known Limitations / Pending Work
 - Roblox clothing upload uses `apis.roblox.com/assets/user-auth/v1/assets` (Open Cloud API) with multipart form. Price set + release via `itemconfiguration.roblox.com/v1/collectibles` with correct payload (targetId, creatorGroupId, publisherUserId, priceInRobux, agreedPublishingFee:10, publishingType:2, resaleRestriction:2, saleLocationConfiguration).
 - Upload tab supports Template Overlay: user can upload a template PNG that gets composited on top of each clothing image via HTML5 Canvas (585x559 px) before upload. Also has bulk name/type/price/description settings.

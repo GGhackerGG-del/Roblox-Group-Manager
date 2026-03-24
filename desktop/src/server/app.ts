@@ -5,7 +5,7 @@ import path from "path";
 import type Database from "better-sqlite3";
 import { SQLiteSessionStore } from "../db/session-store.js";
 
-const REMOTE_API = "https://4b5d8148-8fba-4738-9147-973ed1bd523f-00-2wfsny5wxe6oo.sisko.replit.dev";
+const REMOTE_API = process.env.REMOTE_API_URL || "https://workspace-zljs204.replit.app";
 
 async function proxyToRemote(
   remotePath: string,
