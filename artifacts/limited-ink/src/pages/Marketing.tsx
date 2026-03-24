@@ -831,7 +831,7 @@ export default function Marketing() {
                                   });
                                   const resp = await fetch(`${BASE}/api/marketing/webhook-avatar-upload`, {
                                     method: "POST",
-                                    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                                    headers: { "Content-Type": "application/json" },
                                     credentials: "include",
                                     body: JSON.stringify({ data: dataUrl }),
                                   });
