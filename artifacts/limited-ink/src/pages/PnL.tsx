@@ -89,14 +89,16 @@ export default function PnL({ groupId }: { groupId: string }) {
       if (!resp.ok) throw new Error("Failed");
       const data = await resp.json();
       setTxData(data);
+      setTxError(false);
       cache.set(`pnl_tx_${groupId}`, data);
+      playSuccess();
     } catch {
-      if (!txData) setTxError(true);
+      setTxError(true);
     } finally {
       setTxLoading(false);
       setRefreshing(false);
     }
-  }, [groupId, txData]);
+  }, [groupId]);
 
   const refresh = useCallback(() => {
     setRefreshing(true);
@@ -111,8 +113,9 @@ export default function PnL({ groupId }: { groupId: string }) {
     if (cachedSummary) { setSummary(cachedSummary); setSummaryLoading(false); }
     if (cachedTx) { setTxData(cachedTx); setTxLoading(false); }
 
-    fetchSummary(!!cachedSummary);
-    fetchTx(!!cachedTx);
+    fetchSummary(!!cachedSummary).then(() => {
+      fetchTx(!!cachedTx);
+    });
   }, [groupId]);
 
   if (summaryLoading && !summary) {
@@ -258,9 +261,9 @@ export default function PnL({ groupId }: { groupId: string }) {
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <TrendingDown className="w-6 h-6 mb-2 opacity-30" />
               <p className="text-sm mb-2">{t("pnl.txFailed") || "Failed to load transactions"}</p>
-              <Button variant="outline" size="sm" onClick={() => fetchTx()}>{t("sniper.refresh")}</Button>
+              <Button variant="outline" size="sm" onClick={() => { setTxError(false); fetchTx(); }}>{t("sniper.refresh")}</Button>
             </div>
-          ) : txLoading && !txData ? (
+          ) : (txLoading && !txData) ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Loader2 className="w-6 h-6 mb-2 animate-spin opacity-40" />
               <p className="text-sm">{t("pnl.loadingTx") || "Loading transactions..."}</p>
