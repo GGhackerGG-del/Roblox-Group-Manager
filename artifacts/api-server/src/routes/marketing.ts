@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
+import fs from "fs";
+import path from "path";
 
 const router: IRouter = Router();
 
@@ -126,6 +128,24 @@ Respond in ${lang}.`,
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : "AI error" });
   }
+});
+
+router.post("/marketing/webhook-avatar-upload", (req, res): void => {
+  const { data } = req.body as { data?: string };
+  if (!data) { res.status(400).json({ error: "data required" }); return; }
+  const match = data.match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i);
+  if (!match) { res.status(400).json({ error: "Invalid image data" }); return; }
+  const ext = match[1].replace("jpeg", "jpg");
+  const buffer = Buffer.from(match[2], "base64");
+  if (buffer.length > 5 * 1024 * 1024) { res.status(400).json({ error: "File too large (max 5MB)" }); return; }
+  const filename = `${randomUUID()}.${ext}`;
+  const dir = path.join(import.meta.dirname, "..", "..", "uploads", "webhook-avatars");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, filename), buffer);
+  const host = req.get("host") || "localhost";
+  const proto = req.get("x-forwarded-proto") || req.protocol;
+  const url = `${proto}://${host}/uploads/webhook-avatars/${filename}`;
+  res.json({ url });
 });
 
 router.get("/marketing/webhooks", (req, res): void => {

@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import path from "path";
 import { pool } from "@workspace/db";
 import router from "./routes";
 
@@ -40,5 +41,6 @@ app.use(session({
 }));
 
 app.use("/api", router);
+app.use("/uploads", express.static(path.join(import.meta.dirname, "..", "uploads")));
 
 export default app;

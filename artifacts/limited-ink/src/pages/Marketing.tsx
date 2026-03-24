@@ -14,7 +14,7 @@ import {
   Megaphone, Search, TrendingUp, Bell, Calendar, Loader2, Check, X,
   Plus, Trash2, Copy, RefreshCw, Zap, Star, ChevronUp, ChevronDown,
   AlertTriangle, CheckCircle2, XCircle, Webhook, Send, BarChart2,
-  Clock, Tag, ExternalLink, Edit2, ChevronRight,
+  Clock, Tag, ExternalLink, Edit2, ChevronRight, Upload, ImageIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playClick, playSuccess, playError } from "@/hooks/useSounds";
@@ -162,6 +162,7 @@ export default function Marketing() {
   const [webhooksLoading, setWebhooksLoading] = useState(false);
   const [newWebhookForm, setNewWebhookForm] = useState({ name: "", url: "", type: "discord", events: ["sale", "new_item"], avatarUrl: "" });
   const [addingWebhook, setAddingWebhook] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
   const [showAddWebhook, setShowAddWebhook] = useState(false);
 
@@ -807,14 +808,47 @@ export default function Marketing() {
                         <label className="text-xs font-medium text-muted-foreground">{t("mkt.webhookAvatar")}</label>
                         <div className="flex items-center gap-3">
                           {newWebhookForm.avatarUrl && (
-                            <img src={newWebhookForm.avatarUrl} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-border shrink-0" onError={e => (e.currentTarget.style.display = "none")} />
+                            <img src={newWebhookForm.avatarUrl} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-border shrink-0" onError={e => (e.currentTarget.style.display = "none")} />
                           )}
-                          <Input
-                            placeholder="https://example.com/avatar.png"
-                            value={newWebhookForm.avatarUrl}
-                            onChange={e => setNewWebhookForm(p => ({ ...p, avatarUrl: e.target.value }))}
-                            className="rounded-xl font-mono text-xs flex-1"
-                          />
+                          <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/50 cursor-pointer hover:bg-secondary/40 transition-colors text-xs text-muted-foreground shrink-0">
+                            {uploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                            {t("mkt.uploadFile")}
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/gif,image/webp"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                if (file.size > 5 * 1024 * 1024) { toast({ variant: "destructive", title: t("common.error"), description: "Max 5MB" }); return; }
+                                setUploadingAvatar(true);
+                                try {
+                                  const reader = new FileReader();
+                                  const dataUrl = await new Promise<string>((resolve, reject) => {
+                                    reader.onload = () => resolve(reader.result as string);
+                                    reader.onerror = reject;
+                                    reader.readAsDataURL(file);
+                                  });
+                                  const resp = await fetch(`${BASE}/api/marketing/webhook-avatar-upload`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                                    credentials: "include",
+                                    body: JSON.stringify({ data: dataUrl }),
+                                  });
+                                  if (!resp.ok) throw new Error("Upload failed");
+                                  const { url } = await resp.json() as { url: string };
+                                  setNewWebhookForm(p => ({ ...p, avatarUrl: url }));
+                                } catch (err) {
+                                  toast({ variant: "destructive", title: t("common.error"), description: (err as Error).message });
+                                } finally { setUploadingAvatar(false); }
+                              }}
+                            />
+                          </label>
+                          {newWebhookForm.avatarUrl && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 rounded-lg shrink-0" onClick={() => setNewWebhookForm(p => ({ ...p, avatarUrl: "" }))}>
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     )}
