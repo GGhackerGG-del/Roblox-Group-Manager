@@ -22,7 +22,7 @@ function cacheGet<T>(k: string, ttl = SEARCH_CACHE_TTL): T | null {
 function cacheSet(k: string, v: unknown) { _cache.set(k, { data: v, ts: Date.now() }); }
 
 let _lastRobloxRequest = 0;
-const MIN_REQUEST_GAP = 350;
+const MIN_REQUEST_GAP = 400;
 
 async function throttledFetch(url: string, init?: RequestInit): Promise<Response> {
   const now = Date.now();
@@ -480,7 +480,21 @@ router.get("/clothing/:itemId/template", async (req, res): Promise<void> => {
       if (d) { assetName = d.name; assetTypeId = d.assetType; }
     } catch {}
 
-    const xmlResp = await throttledFetch(`${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`, { headers: robloxHeaders(cookie) });
+    async function fetchRetry(url: string, init?: RequestInit, retries = 3): Promise<Response> {
+      for (let attempt = 0; attempt < retries; attempt++) {
+        const resp = await throttledFetch(url, init);
+        if (resp.status === 429) {
+          const delay = 2000 * (attempt + 1);
+          console.log(`[Clothing] Template rate limited (attempt ${attempt + 1}), waiting ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        return resp;
+      }
+      return throttledFetch(url, init);
+    }
+
+    const xmlResp = await fetchRetry(`${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`, { headers: robloxHeaders(cookie) });
     if (!xmlResp.ok) { res.status(502).json({ error: `Asset fetch failed (${xmlResp.status})` }); return; }
 
     const ct = xmlResp.headers.get("content-type") || "";
@@ -497,12 +511,12 @@ router.get("/clothing/:itemId/template", async (req, res): Promise<void> => {
       if (m) textureId = parseInt(m[1], 10);
 
       if (textureId) {
-        const tr = await throttledFetch(`${ASSET_DELIVERY_API}/v1/asset/?id=${textureId}`, { headers: robloxHeaders(cookie) });
+        const tr = await fetchRetry(`${ASSET_DELIVERY_API}/v1/asset/?id=${textureId}`, { headers: robloxHeaders(cookie) });
         if (tr.ok) texBuf = await tr.arrayBuffer();
       }
 
       if (!texBuf) {
-        const fb = await throttledFetch(`https://assetdelivery.roblox.com/v2/asset?id=${itemId}`, { headers: robloxHeaders(cookie) });
+        const fb = await fetchRetry(`https://assetdelivery.roblox.com/v2/asset?id=${itemId}`, { headers: robloxHeaders(cookie) });
         if (fb.ok) {
           const fbd = await fb.json() as { locations?: Array<{ location: string }> };
           const loc = fbd.locations?.[0]?.location;
@@ -869,16 +883,30 @@ router.post("/clothing/bulk-download", async (req, res): Promise<void> => {
 
   const results: Array<{ id: number; name: string; b64: string | null; error?: string }> = [];
 
-  for (const itemId of itemIds) {
-    try {
-      let assetName = `Asset_${itemId}`;
-      try {
-        const dMap = await fetchItemDetails([itemId], cookie);
-        const d = dMap.get(itemId);
-        if (d) assetName = d.name;
-      } catch {}
+  let nameMap = new Map<number, string>();
+  try {
+    const dMap = await fetchItemDetails(itemIds, cookie);
+    for (const [id, d] of dMap) nameMap.set(id, d.name);
+  } catch {}
 
-      const xmlResp = await throttledFetch(`${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`, { headers: robloxHeaders(cookie) });
+  async function fetchWithRetry(url: string, init?: RequestInit, retries = 3): Promise<Response> {
+    for (let attempt = 0; attempt < retries; attempt++) {
+      const resp = await throttledFetch(url, init);
+      if (resp.status === 429) {
+        const delay = 2000 * (attempt + 1);
+        console.log(`[Clothing] Bulk download rate limited (attempt ${attempt + 1}), waiting ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      return resp;
+    }
+    return throttledFetch(url, init);
+  }
+
+  for (const itemId of itemIds) {
+    const assetName = nameMap.get(itemId) || `Asset_${itemId}`;
+    try {
+      const xmlResp = await fetchWithRetry(`${ASSET_DELIVERY_API}/v1/asset/?id=${itemId}`, { headers: robloxHeaders(cookie) });
       if (!xmlResp.ok) {
         results.push({ id: itemId, name: assetName, b64: null, error: `Fetch failed (${xmlResp.status})` });
         continue;
@@ -894,8 +922,20 @@ router.post("/clothing/bulk-download", async (req, res): Promise<void> => {
         const m = xml.match(/rbxassetid:\/\/(\d+)/i) || xml.match(/<url>https?:\/\/[^<]*\/(\d+)[^<]*<\/url>/i);
         if (m) {
           const texId = parseInt(m[1], 10);
-          const tr = await throttledFetch(`${ASSET_DELIVERY_API}/v1/asset/?id=${texId}`, { headers: robloxHeaders(cookie) });
+          const tr = await fetchWithRetry(`${ASSET_DELIVERY_API}/v1/asset/?id=${texId}`, { headers: robloxHeaders(cookie) });
           if (tr.ok) texBuf = await tr.arrayBuffer();
+        }
+      }
+
+      if (!texBuf) {
+        const fb = await fetchWithRetry(`https://assetdelivery.roblox.com/v2/asset?id=${itemId}`, { headers: robloxHeaders(cookie) });
+        if (fb.ok) {
+          const fbd = await fb.json() as { locations?: Array<{ location: string }> };
+          const loc = fbd.locations?.[0]?.location;
+          if (loc && isAllowedAssetUrl(loc)) {
+            const ir = await fetch(loc);
+            if (ir.ok) texBuf = await ir.arrayBuffer();
+          }
         }
       }
 
@@ -905,9 +945,9 @@ router.post("/clothing/bulk-download", async (req, res): Promise<void> => {
         results.push({ id: itemId, name: assetName, b64: null, error: "Could not extract texture" });
       }
     } catch {
-      results.push({ id: itemId, name: `Asset_${itemId}`, b64: null, error: "Download failed" });
+      results.push({ id: itemId, name: assetName, b64: null, error: "Download failed" });
     }
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 800));
   }
 
   res.json({ results });
