@@ -12,9 +12,16 @@ import {
   Wallet, Clock, BarChart3, Coins, PiggyBank,
   Image as ImageIcon
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+const shimmer = {
+  animate: {
+    opacity: [1, 0.5, 1],
+    transition: { duration: 1.2, repeat: Infinity, ease: "easeInOut" },
+  },
+};
 
 interface SummaryData {
   balance: number;
@@ -185,7 +192,7 @@ export default function PnL({ groupId }: { groupId: string }) {
             <span className="text-xs text-muted-foreground font-medium">{t("pnl.stats") || "Stats"}</span>
             <RefreshBtn loading={summaryLoading} onClick={() => { playClick(); fetchSummary(true); }} />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <motion.div animate={summaryLoading ? shimmer.animate : {}} className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card className="bg-gradient-to-br from-green-500/5 to-green-500/0 border-green-500/20">
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -226,9 +233,9 @@ export default function PnL({ groupId }: { groupId: string }) {
                 <p className="text-xl font-bold">{s.netRevenue.toLocaleString()} <span className="text-sm text-muted-foreground">R$</span></p>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <motion.div animate={summaryLoading ? shimmer.animate : {}} className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
                 <p className="text-xs text-muted-foreground mb-1">{t("pnl.weekRevenue") || "Week Revenue"}</p>
@@ -257,11 +264,12 @@ export default function PnL({ groupId }: { groupId: string }) {
                 <p className="text-[10px] text-muted-foreground">{t("pnl.monthLabel") || "month"}: ${s.netMonthUSD} / {s.netMonthRUB.toLocaleString()} ₽</p>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
         </>
       ) : null}
 
-      <Card>
+      <motion.div animate={topLoading && topItems ? shimmer.animate : undefined}>
+        <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -339,9 +347,11 @@ export default function PnL({ groupId }: { groupId: string }) {
             );
           })()}
         </CardContent>
-      </Card>
+        </Card>
+      </motion.div>
 
-      <Card>
+      <motion.div animate={recentLoading && recent ? shimmer.animate : undefined}>
+        <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -388,7 +398,8 @@ export default function PnL({ groupId }: { groupId: string }) {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      </motion.div>
     </motion.div>
   );
 }
