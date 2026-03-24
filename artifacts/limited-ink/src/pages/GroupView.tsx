@@ -162,7 +162,7 @@ function CatalogSearchTab({ groupId }: { groupId: number }) {
       const resp = await fetch(`${BASE}/api/clothing/bulk-download`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json", ...makeHeaders() },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ itemIds: Array.from(selected) }),
       });
       if (!resp.ok) {
