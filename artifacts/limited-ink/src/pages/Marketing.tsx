@@ -47,6 +47,7 @@ interface WatchlistItem { id: string; name: string; type: string; addedAt: numbe
 interface WebhookConfig {
   id: string; name: string; url: string; type: "discord" | "telegram";
   events: string[]; enabled: boolean; addedAt: number; lastTriggered?: number;
+  avatarUrl?: string;
 }
 interface Promotion {
   id: string; title: string; description: string; discountPercent: number;
@@ -159,7 +160,7 @@ export default function Marketing() {
 
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [webhooksLoading, setWebhooksLoading] = useState(false);
-  const [newWebhookForm, setNewWebhookForm] = useState({ name: "", url: "", type: "discord", events: ["sale", "new_item"] });
+  const [newWebhookForm, setNewWebhookForm] = useState({ name: "", url: "", type: "discord", events: ["sale", "new_item"], avatarUrl: "" });
   const [addingWebhook, setAddingWebhook] = useState(false);
   const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
   const [showAddWebhook, setShowAddWebhook] = useState(false);
@@ -248,7 +249,7 @@ export default function Marketing() {
         body: JSON.stringify(newWebhookForm),
       });
       setWebhooks(p => [...p, webhook]);
-      setNewWebhookForm({ name: "", url: "", type: "discord", events: ["sale", "new_item"] });
+      setNewWebhookForm({ name: "", url: "", type: "discord", events: ["sale", "new_item"], avatarUrl: "" });
       setShowAddWebhook(false);
       playSuccess();
       toast({ title: t("mkt.webhookAdded") });
@@ -801,6 +802,22 @@ export default function Marketing() {
                         className="rounded-xl font-mono text-xs"
                       />
                     </div>
+                    {newWebhookForm.type === "discord" && (
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">{t("mkt.webhookAvatar")}</label>
+                        <div className="flex items-center gap-3">
+                          {newWebhookForm.avatarUrl && (
+                            <img src={newWebhookForm.avatarUrl} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-border shrink-0" onError={e => (e.currentTarget.style.display = "none")} />
+                          )}
+                          <Input
+                            placeholder="https://example.com/avatar.png"
+                            value={newWebhookForm.avatarUrl}
+                            onChange={e => setNewWebhookForm(p => ({ ...p, avatarUrl: e.target.value }))}
+                            className="rounded-xl font-mono text-xs flex-1"
+                          />
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">{t("mkt.events")}</label>
                       <div className="flex flex-wrap gap-2">
@@ -846,9 +863,13 @@ export default function Marketing() {
                   <CardContent className="pt-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-lg ${wh.type === "discord" ? "bg-indigo-500/10" : "bg-sky-500/10"}`}>
-                          {wh.type === "discord" ? "💬" : "✈️"}
-                        </div>
+                        {wh.type === "discord" && wh.avatarUrl ? (
+                          <img src={wh.avatarUrl} alt="avatar" className="w-9 h-9 rounded-lg object-cover shrink-0" onError={e => (e.currentTarget.style.display = "none")} />
+                        ) : (
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-lg ${wh.type === "discord" ? "bg-indigo-500/10" : "bg-sky-500/10"}`}>
+                            {wh.type === "discord" ? "💬" : "✈️"}
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="font-semibold text-sm">{wh.name}</p>

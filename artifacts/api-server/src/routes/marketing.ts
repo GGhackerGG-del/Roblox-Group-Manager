@@ -133,8 +133,8 @@ router.get("/marketing/webhooks", (req, res): void => {
 });
 
 router.post("/marketing/webhooks", (req, res): void => {
-  const { name, url, type, events } = req.body as {
-    name?: string; url?: string; type?: string; events?: string[];
+  const { name, url, type, events, avatarUrl } = req.body as {
+    name?: string; url?: string; type?: string; events?: string[]; avatarUrl?: string;
   };
   if (!name || !url || !type) { res.status(400).json({ error: "name, url, type required" }); return; }
   if (!req.session.webhooks) req.session.webhooks = [];
@@ -146,6 +146,7 @@ router.post("/marketing/webhooks", (req, res): void => {
     events: events || ["sale", "new_item"],
     enabled: true,
     addedAt: Date.now(),
+    avatarUrl: avatarUrl || "",
   };
   req.session.webhooks.push(webhook);
   req.session.save(() => res.json({ webhook }));
@@ -153,10 +154,10 @@ router.post("/marketing/webhooks", (req, res): void => {
 
 router.patch("/marketing/webhooks/:id", (req, res): void => {
   const { id } = req.params;
-  const { enabled, events, name } = req.body as { enabled?: boolean; events?: string[]; name?: string };
+  const { enabled, events, name, avatarUrl } = req.body as { enabled?: boolean; events?: string[]; name?: string; avatarUrl?: string };
   if (!req.session.webhooks) { res.status(404).json({ error: "Not found" }); return; }
   req.session.webhooks = req.session.webhooks.map(w =>
-    w.id === id ? { ...w, ...(enabled !== undefined ? { enabled } : {}), ...(events ? { events } : {}), ...(name ? { name } : {}) } : w
+    w.id === id ? { ...w, ...(enabled !== undefined ? { enabled } : {}), ...(events ? { events } : {}), ...(name ? { name } : {}), ...(avatarUrl !== undefined ? { avatarUrl } : {}) } : w
   );
   req.session.save(() => res.json({ ok: true }));
 });
@@ -174,7 +175,7 @@ router.post("/marketing/webhooks/:id/test", async (req, res): Promise<void> => {
     if (webhook.type === "discord") {
       const payload = {
         username: "Limited.Ink",
-        avatar_url: "https://www.roblox.com/favicon.ico",
+        avatar_url: webhook.avatarUrl || "https://www.roblox.com/favicon.ico",
         embeds: [{
           title: "🔔 Test Notification",
           description: `Webhook successfully connected!\nGroup: ${profile?.name || "Unknown"}\nTriggered at: ${new Date().toLocaleString()}`,
@@ -242,6 +243,7 @@ router.post("/marketing/webhooks/fire", async (req, res): Promise<void> => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             username: "Limited.Ink",
+            avatar_url: wh.avatarUrl || undefined,
             embeds: [{ title: title || event, description, color: color || 0x5865F2, timestamp: new Date().toISOString() }],
           }),
           signal: AbortSignal.timeout(5000),

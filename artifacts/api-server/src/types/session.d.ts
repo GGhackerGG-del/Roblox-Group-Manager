@@ -41,6 +41,7 @@ declare module "express-session" {
       enabled: boolean;
       addedAt: number;
       lastTriggered?: number;
+      avatarUrl?: string;
     }>;
     promotions?: Array<{
       id: string;
