@@ -339,6 +339,53 @@ router.post("/community/group-chats/:id/members", async (req, res): Promise<void
   res.json({ ok: true });
 });
 
+router.delete("/community/group-chats/:id/members/:memberId", async (req, res): Promise<void> => {
+  const me = await getMyUser(req);
+  if (!me) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const chatId = parseInt(req.params.id);
+  const memberId = parseInt(req.params.memberId);
+  const myM = await db.query.groupChatMembers.findFirst({
+    where: and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, me.id)),
+  });
+  if (!myM) { res.status(403).json({ error: "Not a member" }); return; }
+  const target = await db.query.groupChatMembers.findFirst({
+    where: and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, memberId)),
+  });
+  if (!target) { res.status(404).json({ error: "Member not found" }); return; }
+  if (memberId === me.id) {
+    if (myM.role === "admin") {
+      const otherAdmins = await db.query.groupChatMembers.findMany({
+        where: and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.role, "admin")),
+      });
+      if (otherAdmins.length <= 1) { res.status(400).json({ error: "Cannot leave: you are the only admin" }); return; }
+    }
+    await db.delete(groupChatMembers).where(and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, me.id)));
+    res.json({ ok: true, left: true });
+    return;
+  }
+  if (!["admin", "moderator"].includes(myM.role)) { res.status(403).json({ error: "Only admin/moderator can remove members" }); return; }
+  if (target.role === "admin") { res.status(403).json({ error: "Cannot remove an admin" }); return; }
+  if (target.role === "moderator" && myM.role !== "admin") { res.status(403).json({ error: "Only admin can remove a moderator" }); return; }
+  await db.delete(groupChatMembers).where(and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, memberId)));
+  res.json({ ok: true });
+});
+
+router.patch("/community/group-chats/:id/members/:memberId/role", async (req, res): Promise<void> => {
+  const me = await getMyUser(req);
+  if (!me) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const chatId = parseInt(req.params.id);
+  const memberId = parseInt(req.params.memberId);
+  const { role } = req.body as { role?: string };
+  if (!role || !["admin", "moderator", "member"].includes(role)) { res.status(400).json({ error: "Invalid role" }); return; }
+  const myM = await db.query.groupChatMembers.findFirst({
+    where: and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, me.id)),
+  });
+  if (!myM || myM.role !== "admin") { res.status(403).json({ error: "Only admin can change roles" }); return; }
+  if (memberId === me.id) { res.status(400).json({ error: "Cannot change your own role" }); return; }
+  await db.update(groupChatMembers).set({ role }).where(and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, memberId)));
+  res.json({ ok: true });
+});
+
 // ── Roblox Group Chat (auto-created) ──────────────────────────────────────────
 
 router.post("/community/roblox-group-chat", async (req, res): Promise<void> => {

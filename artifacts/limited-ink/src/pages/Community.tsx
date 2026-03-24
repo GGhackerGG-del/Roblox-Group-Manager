@@ -21,6 +21,7 @@ import {
   Briefcase, UserCog, ShieldCheck, Store, Download, ThumbsUp as Endorse,
   Columns, ListTodo, Tag, Package, ChevronDown, Hash, Settings2,
   Phone, PhoneOff, Mic, MicOff, Volume2, Paperclip, FileText,
+  LogOut, MoreVertical, Shield,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -1182,6 +1183,8 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [showAddMember, setShowAddMember] = useState(false);
   const [addMemberInput, setAddMemberInput] = useState("");
   const [robloxGroupChatCreated, setRobloxGroupChatCreated] = useState(false);
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+  const [memberActionId, setMemberActionId] = useState<number | null>(null);
 
   const [callActive, setCallActive] = useState(false);
   const [callMuted, setCallMuted] = useState(false);
@@ -1483,6 +1486,52 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
   };
 
+  const myMembership = chatMembers.find((m: any) => m.userId === myUser?.id);
+  const myRole = myMembership?.role || "member";
+  const isAdmin = myRole === "admin";
+  const isModerator = myRole === "moderator";
+
+  const removeMember = async (userId: number) => {
+    if (!active || active.kind !== "group") return;
+    try {
+      const res = await apiFetch<{ ok: boolean; left?: boolean }>(`/api/community/group-chats/${active.chat.id}/members/${userId}`, { method: "DELETE" });
+      if (res.left) {
+        setActive(null);
+        setShowMembersPanel(false);
+        fetchAll();
+        toast({ title: t("com.leftChat") });
+        return;
+      }
+      const { members } = await apiFetch<{ members: any[] }>(`/api/community/group-chats/${active.chat.id}/members`);
+      setChatMembers(members);
+      setMemberActionId(null);
+      toast({ title: t("com.memberRemoved") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
+  };
+
+  const changeMemberRole = async (userId: number, role: string) => {
+    if (!active || active.kind !== "group") return;
+    try {
+      await apiFetch(`/api/community/group-chats/${active.chat.id}/members/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) });
+      const { members } = await apiFetch<{ members: any[] }>(`/api/community/group-chats/${active.chat.id}/members`);
+      setChatMembers(members);
+      setMemberActionId(null);
+      toast({ title: t("com.roleChanged") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
+  };
+
+  const getRoleIcon = (role: string) => {
+    if (role === "admin") return <Crown className="w-3 h-3 text-yellow-500" />;
+    if (role === "moderator") return <Shield className="w-3 h-3 text-blue-500" />;
+    return null;
+  };
+
+  const getRoleLabel = (role: string) => {
+    if (role === "admin") return t("com.roleAdmin");
+    if (role === "moderator") return t("com.roleModerator");
+    return t("com.roleMember");
+  };
+
   const timeAgoShort = (date: string) => {
     const d = Date.now() - new Date(date).getTime();
     const m = Math.floor(d / 60000);
@@ -1765,6 +1814,12 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   {callConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : callActive ? <PhoneOff className="w-4 h-4 text-red-500" /> : <Phone className="w-4 h-4" />}
                 </Button>
                 <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
+                <Button size="sm" variant="ghost" className={`rounded-xl gap-1 h-8 text-xs ${showMembersPanel ? "bg-secondary" : ""}`} onClick={() => setShowMembersPanel(p => !p)}><Users className="w-3.5 h-3.5" /></Button>
+                {!isAdmin && (
+                  <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10" onClick={() => myUser && removeMember(myUser.id)} title={t("com.leaveChat")}>
+                    <LogOut className="w-3.5 h-3.5" />
+                  </Button>
+                )}
               </div>
               <AnimatePresence>
                 {(callActive || callConnecting) && (
@@ -1792,6 +1847,55 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   <Button size="sm" className="rounded-xl h-8" onClick={addMemberToChat}><Check className="w-3.5 h-3.5" /></Button>
                 </div>
               )}
+              <AnimatePresence>
+                {showMembersPanel && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-b border-border overflow-hidden">
+                    <div className="px-4 py-3 max-h-[220px] overflow-y-auto space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">{t("com.members")} ({chatMembers.length})</p>
+                      {chatMembers
+                        .sort((a: any, b: any) => { const order: Record<string, number> = { admin: 0, moderator: 1, member: 2 }; return (order[a.role] ?? 2) - (order[b.role] ?? 2); })
+                        .map((m: any) => {
+                        const u = m.user;
+                        const isMe = u?.id === myUser?.id;
+                        return (
+                          <div key={m.id} className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-secondary/40 transition-colors group/member">
+                            <Avatar className="w-6 h-6 border border-border shrink-0">
+                              <AvatarImage src={u?.avatarUrl || robloxHeadshot(u?.robloxUserId || 0)} />
+                              <AvatarFallback className="text-[9px]">{u?.displayName?.charAt(0) || "?"}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1">
+                                <p className="text-xs font-medium truncate">{u?.displayName || "?"}{isMe && <span className="text-muted-foreground ml-1">({t("com.you")})</span>}</p>
+                                {getRoleIcon(m.role)}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground">{getRoleLabel(m.role)}</p>
+                            </div>
+                            {!isMe && (isAdmin || isModerator) && m.role !== "admin" && (
+                              <div className="flex items-center gap-0.5 opacity-0 group-hover/member:opacity-100 transition-opacity">
+                                {isAdmin && (
+                                  <Select value={m.role} onValueChange={(val) => changeMemberRole(m.userId, val)}>
+                                    <SelectTrigger className="h-6 w-auto text-[10px] border-0 bg-transparent px-1.5 gap-0.5">
+                                      <UserCog className="w-3 h-3" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="admin" className="text-xs">{t("com.roleAdmin")}</SelectItem>
+                                      <SelectItem value="moderator" className="text-xs">{t("com.roleModerator")}</SelectItem>
+                                      <SelectItem value="member" className="text-xs">{t("com.roleMember")}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                                <button onClick={() => removeMember(m.userId)} className="p-1 rounded-full hover:bg-red-500/10 text-red-500" title={t("com.kickMember")}>
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {loadingMsgs ? (
                   <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
