@@ -16,7 +16,6 @@ import {
   CheckCircle2, XCircle, AlertCircle, Info, RefreshCw, User
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import RobloxCharacterViewer from "@/components/RobloxCharacterViewer";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 function getAuthHeaders(): Record<string, string> {
@@ -636,112 +635,6 @@ function ChecklistTab() {
   );
 }
 
-// ── Preview on Avatar Tab ─────────────────────────────────────────────────────
-function AvatarPreviewTab() {
-  const { t } = useLanguage();
-  const { toast } = useToast();
-  const [username, setUsername] = useState("");
-  const [clothingType, setClothingType] = useState("shirt");
-  const [avatarData, setAvatarData] = useState<any>(null);
-  const [clothingFile, setClothingFile] = useState<File | null>(null);
-  const [clothingUrl, setClothingUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [skinColor, setSkinColor] = useState("#d4a574");
-
-  const fetchAvatar = async () => {
-    if (!username.trim()) return;
-    setLoading(true); setAvatarData(null);
-    try {
-      const d = await api<any>(`/api/quality/roblox-avatar?username=${encodeURIComponent(username.trim())}`);
-      setAvatarData(d);
-      toast({ title: t("test.avatarLoaded").replace("{name}", d.displayName) });
-    } catch (e) {
-      toast({ variant: "destructive", title: t("common.error"), description: (e as Error).message });
-    } finally { setLoading(false); }
-  };
-
-  const handleClothingFile = (f: File) => {
-    setClothingFile(f);
-    const reader = new FileReader();
-    reader.onload = e => setClothingUrl(e.target?.result as string);
-    reader.readAsDataURL(f);
-  };
-
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">{t("test.robloxNickname")}</Label>
-            <div className="flex gap-2">
-              <Input value={username} onChange={e => setUsername(e.target.value)} placeholder={t("test.enterUsername")} className="rounded-xl" onKeyDown={e => e.key === "Enter" && fetchAvatar()} />
-              <Button className="rounded-xl gap-1.5 shrink-0" onClick={fetchAvatar} disabled={loading || !username.trim()}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <User className="w-4 h-4" />}
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">{t("test.clothingType")}</Label>
-            <Select value={clothingType} onValueChange={v => setClothingType(v)}>
-              <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>{Object.entries(CLOTHING_SPECS).filter(([k]) => k !== "custom").map(([k, v]) => <SelectItem key={k} value={k}>{v.icon} {t(v.labelKey)}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-
-          <DropZone onFile={handleClothingFile} file={clothingFile} label={t("test.dropFile")} />
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">{t("test.skinColor") || "Skin Color"}</Label>
-            <div className="flex items-center gap-2">
-              {["#d4a574", "#c68642", "#8d5524", "#f5d0a9", "#e0ac69", "#503335", "#f1c27d"].map(c => (
-                <button key={c} onClick={() => setSkinColor(c)}
-                  className={`w-7 h-7 rounded-full border-2 transition-all ${skinColor === c ? "border-black scale-110 ring-2 ring-black/20" : "border-border/50 hover:border-black/30"}`}
-                  style={{ backgroundColor: c }} />
-              ))}
-            </div>
-          </div>
-
-          {avatarData && (
-            <Card className="rounded-2xl border-border/50">
-              <CardContent className="p-3 flex items-center gap-3">
-                <img src={avatarData.imageUrl} alt="avatar" className="w-12 h-12 rounded-xl object-cover" crossOrigin="anonymous" />
-                <div><p className="text-sm font-bold">{avatarData.displayName}</p><p className="text-xs text-muted-foreground">ID: {avatarData.userId}</p></div>
-                <Badge className="ml-auto text-[10px] bg-green-500/15 text-green-700 border-green-400/30">{t("test.loaded")}</Badge>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-border/50 overflow-hidden relative" style={{ minHeight: 420 }}>
-            <RobloxCharacterViewer
-              clothingUrl={clothingUrl}
-              clothingType={clothingType as any}
-              skinColor={skinColor}
-            />
-            {!clothingUrl && (
-              <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
-                <p className="text-xs text-white/50 bg-black/40 backdrop-blur-sm inline-block px-3 py-1 rounded-lg">{t("test.loadClothingHint")}</p>
-              </div>
-            )}
-            <div className="absolute top-3 right-3 pointer-events-none">
-              <p className="text-[10px] text-white/40 bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-md">🖱️ {t("test.dragToRotate") || "Drag to rotate"}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <Card className="rounded-2xl border-border/30 bg-secondary/20">
-        <CardContent className="pt-4 text-xs text-muted-foreground">
-          <p className="font-bold text-foreground mb-1">{t("test.aboutPreview")}</p>
-          <p>{t("test.aboutPreviewText")}</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Testing() {
   const { t } = useLanguage();
@@ -757,14 +650,12 @@ export default function Testing() {
           <TabsTrigger value="validator" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Upload className="w-3.5 h-3.5" /> {t("test.validator")}</TabsTrigger>
           <TabsTrigger value="risk" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> {t("test.modCheck")}</TabsTrigger>
           <TabsTrigger value="checklist" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><ClipboardCheck className="w-3.5 h-3.5" /> {t("test.checklist")}</TabsTrigger>
-          <TabsTrigger value="avatar" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" /> {t("test.preview")}</TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
           <TabsContent value="validator" className="mt-0"><ValidatorTab /></TabsContent>
           <TabsContent value="risk" className="mt-0"><RiskScannerTab /></TabsContent>
           <TabsContent value="checklist" className="mt-0"><ChecklistTab /></TabsContent>
-          <TabsContent value="avatar" className="mt-0"><AvatarPreviewTab /></TabsContent>
         </div>
       </Tabs>
     </div>
