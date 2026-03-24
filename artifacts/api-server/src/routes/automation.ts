@@ -402,19 +402,36 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
     }
     if (!resp.ok) {
       const raw = await resp.text().catch(() => "");
-      let errMsg = "Failed to send payout.";
+      console.error(`[Payout] Roblox API error: status=${resp.status} body=${raw.slice(0, 500)}`);
+      const payoutErrors: Record<number, string> = {
+        1: "Group is invalid or does not exist",
+        12: "Insufficient Robux in group funds",
+        23: "Insufficient permissions to make payouts",
+        24: "Payout amount is too small",
+        25: "Too many payout recipients",
+        29: "Recipient must be a group member",
+      };
+      let errMsg = "";
       try {
         const err = JSON.parse(raw) as { errors?: Array<{ message: string; code?: number }>; message?: string };
-        const robloxMsg = err.errors?.[0]?.message || err.message || "";
-        if (robloxMsg) errMsg = robloxMsg;
+        const robloxErr = err.errors?.[0];
+        if (robloxErr) {
+          const friendlyMsg = robloxErr.code !== undefined ? payoutErrors[robloxErr.code] : undefined;
+          errMsg = friendlyMsg || robloxErr.message || "";
+        }
+        if (!errMsg) errMsg = err.message || "";
       } catch {}
-      console.error(`[Payout] Roblox API error: status=${resp.status} body=${raw.slice(0, 500)}`);
+      if (!errMsg) {
+        if (resp.status === 429) errMsg = "Rate limited by Roblox. Try again in a few seconds.";
+        else if (resp.status === 401) errMsg = "Roblox session expired. Please re-login.";
+        else errMsg = `Roblox API error (HTTP ${resp.status})`;
+      }
       res.status(resp.status).json({ error: errMsg }); return;
     }
     res.json({ success: true, message: `Выплата отправлена ${payouts.length} участникам` });
   } catch (err) {
     console.error(`[Payout] Exception:`, err);
-    res.status(502).json({ error: "Failed to send payout." });
+    res.status(502).json({ error: err instanceof Error ? err.message : "Failed to send payout." });
   }
 });
 
