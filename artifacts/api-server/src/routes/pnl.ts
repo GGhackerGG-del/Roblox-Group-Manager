@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { globalRobloxFetch } from "../lib/robloxThrottle.js";
 
 const router: IRouter = Router();
 
@@ -6,14 +7,14 @@ const ROBLOX_ECONOMY_API = "https://economy.roblox.com";
 const ROBLOX_THUMBNAILS_API = "https://thumbnails.roblox.com";
 
 async function fetchRoblox(url: string, cookie: string): Promise<Response> {
-  return fetch(url, {
+  return globalRobloxFetch(url, {
     redirect: "follow",
     headers: {
       Cookie: `.ROBLOSECURITY=${cookie}`,
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       Accept: "application/json",
     },
-  });
+  }, "low");
 }
 
 async function fetchRobloxWithCsrf(url: string, cookie: string, method = "GET"): Promise<Response> {
@@ -22,12 +23,12 @@ async function fetchRobloxWithCsrf(url: string, cookie: string, method = "GET"):
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     Accept: "application/json",
   };
-  let resp = await fetch(url, { method, headers, redirect: "follow" });
+  let resp = await globalRobloxFetch(url, { method, headers, redirect: "follow" }, "low");
   if (resp.status === 403) {
     const csrf = resp.headers.get("x-csrf-token");
     if (csrf) {
       headers["X-CSRF-TOKEN"] = csrf;
-      resp = await fetch(url, { method, headers, redirect: "follow" });
+      resp = await globalRobloxFetch(url, { method, headers, redirect: "follow" }, "low");
     }
   }
   return resp;
@@ -195,7 +196,7 @@ async function fetchThumbnails(assetIds: number[]) {
   for (let i = 0; i < uniqueIds.length; i += 100) {
     const batch = uniqueIds.slice(i, i + 100);
     try {
-      const resp = await fetch(`${ROBLOX_THUMBNAILS_API}/v1/assets?assetIds=${batch.join(",")}&size=150x150&format=Png&isCircular=false`);
+      const resp = await globalRobloxFetch(`${ROBLOX_THUMBNAILS_API}/v1/assets?assetIds=${batch.join(",")}&size=150x150&format=Png&isCircular=false`, undefined, "low");
       if (resp.ok) {
         const td = await resp.json() as { data: Array<{ targetId: number; imageUrl: string }> };
         for (const item of td.data || []) thumbMap[item.targetId] = item.imageUrl || null;

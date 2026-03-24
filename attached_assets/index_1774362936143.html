@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roblox Group Manager Pro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./styles/main.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link rel="stylesheet" href="./styles/main.css">
+</head>
+<body>
+    <!-- Контейнер приложения -->
+    <div id="app" class="app-container">
+        <!-- Боковая панель -->
+        <div id="sidebar" class="sidebar animate__animated animate__slideInLeft">
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <i class="fas fa-chart-network"></i>
+                </div>
+                <h1 class="logo-text">Group Manager</h1>
+            </div>
+            
+            <nav class="nav-menu">
+                <!-- Динамически заполняется JavaScript -->
+            </nav>
+            
+            <div class="user-info" id="userInfo">
+                <!-- Информация о пользователе -->
+            </div>
+        </div>
+        
+        <!-- Основной контент -->
+        <div class="main-content">
+            <!-- Динамически меняется -->
+        </div>
+        
+        <!-- Уведомления -->
+        <div id="notifications" class="notifications-container"></div>
+        
+        <!-- Модальные окна -->
+        <div id="modalContainer"></div>
+    </div>
+    
+    <!-- Скрипты -->
+    <script src="./components/Settings.js"></script>
+    <script src="./renderer.js"></script>
+    <script src="./components/Login.js"></script>
+    <script src="./components/Dashboard.js"></script>
+    <script src="./components/Groups.js"></script>
+    <script src="./components/Stats.js"></script>
+    <script src="./components/ClothingEditor.js"></script>
+    <script src="./components/Uploader.js"></script>
+</body>
+</html>

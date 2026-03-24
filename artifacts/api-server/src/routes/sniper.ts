@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { globalRobloxFetch } from "../lib/robloxThrottle.js";
 
 const router: IRouter = Router();
 
@@ -94,7 +95,7 @@ async function addThumbnails(items: LimitedItem[]): Promise<void> {
     const batch = needThumb.slice(i, i + 100);
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const r = await fetch(`${THUMBNAILS_API}/v1/assets?assetIds=${batch.map(b => b.id).join(",")}&size=420x420&format=Png&isCircular=false`);
+        const r = await globalRobloxFetch(`${THUMBNAILS_API}/v1/assets?assetIds=${batch.map(b => b.id).join(",")}&size=420x420&format=Png&isCircular=false`, undefined, "low");
         if (r.ok) {
           const d = await r.json() as { data: Array<{ targetId: number; imageUrl: string; state: string }> };
           for (const t of d.data) {
@@ -167,21 +168,21 @@ async function addCatalogPrices(items: LimitedItem[], cookie?: string): Promise<
         };
         if (csrf) hdrs["X-CSRF-TOKEN"] = csrf;
 
-        let resp = await fetch(`${CATALOG_API}/v1/catalog/items/details`, {
+        let resp = await globalRobloxFetch(`${CATALOG_API}/v1/catalog/items/details`, {
           method: "POST",
           headers: hdrs,
           body: JSON.stringify({ items: batch.map(i => ({ itemType: "Asset", id: i.id })) }),
-        });
+        }, "low");
 
         if (resp.status === 403) {
           const newCsrf = resp.headers.get("x-csrf-token");
           if (newCsrf) {
             hdrs["X-CSRF-TOKEN"] = newCsrf;
-            resp = await fetch(`${CATALOG_API}/v1/catalog/items/details`, {
+            resp = await globalRobloxFetch(`${CATALOG_API}/v1/catalog/items/details`, {
               method: "POST",
               headers: hdrs,
               body: JSON.stringify({ items: batch.map(i => ({ itemType: "Asset", id: i.id })) }),
-            });
+            }, "low");
           }
         }
 
