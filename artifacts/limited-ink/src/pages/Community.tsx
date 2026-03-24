@@ -1227,15 +1227,15 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 
   useEffect(() => {
     if (!robloxGroupChatCreated && groupsData?.groups?.length && myUser) {
-      const ownerGroup = groupsData.groups.find((g: any) => g.role === "owner" || g.role === "Owner");
+      const ownerGroup = groupsData.groups[0];
       if (ownerGroup) {
         setRobloxGroupChatCreated(true);
         apiFetch<{ chat: any }>("/api/community/roblox-group-chat", {
           method: "POST",
-          body: JSON.stringify({ groupId: ownerGroup.group?.id || ownerGroup.id, groupName: ownerGroup.group?.name || ownerGroup.name }),
+          body: JSON.stringify({ groupId: ownerGroup.id, groupName: ownerGroup.name }),
         }).then((data) => {
           fetchAll();
-          if (data?.chat && !active) {
+          if (data?.chat) {
             openGroup(data.chat);
           }
         }).catch(() => {});
