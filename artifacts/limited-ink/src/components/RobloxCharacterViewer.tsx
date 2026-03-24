@@ -7,172 +7,151 @@ interface Props {
   skinColor?: string;
 }
 
-const TEMPLATE_W = 585;
-const TEMPLATE_H = 559;
-const PX_PER_STUD_X = TEMPLATE_W / 14;
-const PX_PER_STUD_Y = TEMPLATE_H / 4;
+const TW = 585;
+const TH = 559;
+const SPX = TW / 14;
+const SPY = TH / 4;
 
-function studToPixel(studs: number, axis: "x" | "y") {
-  return Math.round(studs * (axis === "x" ? PX_PER_STUD_X : PX_PER_STUD_Y));
+function sp(studs: number, axis: "x" | "y") {
+  return Math.round(studs * (axis === "x" ? SPX : SPY));
 }
 
-interface FaceRegion { x: number; y: number; w: number; h: number }
-interface BodyPartRegions { right: FaceRegion; left: FaceRegion; top: FaceRegion; bottom: FaceRegion; front: FaceRegion; back: FaceRegion }
+interface Rect { x: number; y: number; w: number; h: number }
+interface CrossFaces { left: Rect; front: Rect; right: Rect; back: Rect; top: Rect; bottom: Rect }
 
-function crossUnwrap(startX: number, partW: number, partH: number, partD: number): BodyPartRegions {
-  const dX = studToPixel(partD, "x");
-  const wX = studToPixel(partW, "x");
-  const dY = studToPixel(partD, "y");
-  const hY = studToPixel(partH, "y");
+function crossLayout(sx: number, pw: number, ph: number, pd: number): CrossFaces {
+  const dx = sp(pd, "x"), wx = sp(pw, "x"), dy = sp(pd, "y"), hy = sp(ph, "y");
   return {
-    left:   { x: startX,                  y: dY,       w: dX, h: hY },
-    front:  { x: startX + dX,             y: dY,       w: wX, h: hY },
-    right:  { x: startX + dX + wX,        y: dY,       w: dX, h: hY },
-    back:   { x: startX + dX + wX + dX,   y: dY,       w: wX, h: hY },
-    top:    { x: startX + dX,             y: 0,        w: wX, h: dY },
-    bottom: { x: startX + dX,             y: dY + hY,  w: wX, h: dY },
+    left:   { x: sx,                    y: dy,       w: dx, h: hy },
+    front:  { x: sx + dx,               y: dy,       w: wx, h: hy },
+    right:  { x: sx + dx + wx,          y: dy,       w: dx, h: hy },
+    back:   { x: sx + dx + wx + dx,     y: dy,       w: wx, h: hy },
+    top:    { x: sx + dx,               y: 0,        w: wx, h: dy },
+    bottom: { x: sx + dx,               y: dy + hy,  w: wx, h: dy },
   };
 }
 
-const SHIRT_REGIONS = {
-  rightArm: crossUnwrap(0, 1, 2, 1),
-  torso:    crossUnwrap(studToPixel(4, "x"), 2, 2, 1),
-  leftArm:  crossUnwrap(studToPixel(10, "x"), 1, 2, 1),
+const SHIRT = {
+  rightArm: crossLayout(0, 1, 2, 1),
+  torso:    crossLayout(sp(4, "x"), 2, 2, 1),
+  leftArm:  crossLayout(sp(10, "x"), 1, 2, 1),
+};
+const PANTS = {
+  rightLeg: crossLayout(0, 1, 2, 1),
+  torso:    crossLayout(sp(4, "x"), 2, 2, 1),
+  leftLeg:  crossLayout(sp(10, "x"), 1, 2, 1),
 };
 
-const PANTS_REGIONS = {
-  rightLeg: crossUnwrap(0, 1, 2, 1),
-  torso:    crossUnwrap(studToPixel(4, "x"), 2, 2, 1),
-  leftLeg:  crossUnwrap(studToPixel(10, "x"), 1, 2, 1),
-};
-
-function extractFaceTexture(source: HTMLCanvasElement, region: FaceRegion, res = 128): THREE.CanvasTexture {
+function extractTex(src: HTMLCanvasElement, r: Rect, res = 128): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = res; c.height = res;
   const ctx = c.getContext("2d")!;
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(source, region.x, region.y, region.w, region.h, 0, 0, res, res);
-  const tex = new THREE.CanvasTexture(c);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(src, r.x, r.y, r.w, r.h, 0, 0, res, res);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.generateMipmaps = true;
+  return t;
 }
 
-function makeFaceMaterials(templateCanvas: HTMLCanvasElement, regions: BodyPartRegions): THREE.MeshStandardMaterial[] {
-  const order: (keyof BodyPartRegions)[] = ["right", "left", "top", "bottom", "front", "back"];
-  return order.map((face) => {
-    const tex = extractFaceTexture(templateCanvas, regions[face]);
-    return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, metalness: 0 });
+function faceMats(src: HTMLCanvasElement, faces: CrossFaces): THREE.MeshStandardMaterial[] {
+  const order: (keyof CrossFaces)[] = ["right", "left", "top", "bottom", "front", "back"];
+  return order.map(f => {
+    const tex = extractTex(src, faces[f]);
+    return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.05 });
   });
 }
 
-function makeTshirtFrontMaterial(source: HTMLCanvasElement): THREE.MeshStandardMaterial {
+function tshirtFrontMat(src: HTMLCanvasElement): THREE.MeshStandardMaterial {
   const c = document.createElement("canvas");
-  c.width = 128; c.height = 128;
+  c.width = 256; c.height = 256;
   const ctx = c.getContext("2d")!;
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(source, 0, 0, source.width, source.height, 0, 0, 128, 128);
-  const tex = new THREE.CanvasTexture(c);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, metalness: 0 });
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.85, metalness: 0.05 });
 }
 
-function skinMat(color: THREE.Color): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0 });
+function skinMat(c: THREE.Color): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({ color: c, roughness: 0.65, metalness: 0.02 });
+}
+function skinArr(c: THREE.Color): THREE.MeshStandardMaterial[] {
+  return Array.from({ length: 6 }, () => skinMat(c));
 }
 
-function makeSkinMaterials(color: THREE.Color): THREE.MeshStandardMaterial[] {
-  return Array.from({ length: 6 }, () => skinMat(color));
-}
-
-function disposeGroup(group: THREE.Group) {
-  group.traverse((obj) => {
+function disposeGroup(g: THREE.Group) {
+  g.traverse(obj => {
     if (obj instanceof THREE.Mesh) {
-      if (Array.isArray(obj.material)) {
-        obj.material.forEach((m: THREE.MeshStandardMaterial) => {
-          m.map?.dispose();
-          m.dispose();
-        });
-      } else {
-        (obj.material as THREE.MeshStandardMaterial).map?.dispose();
-        obj.material.dispose();
-      }
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((m: THREE.MeshStandardMaterial) => { m.map?.dispose(); m.dispose(); });
       obj.geometry.dispose();
     }
   });
 }
 
-function createR6Character(
-  templateCanvas: HTMLCanvasElement | null,
-  clothingType: string,
-  skinColor: THREE.Color
+function createR6(
+  tpl: HTMLCanvasElement | null,
+  type: string,
+  skin: THREE.Color
 ): THREE.Group {
-  const group = new THREE.Group();
-  const isShirt = clothingType === "shirt";
-  const isTshirt = clothingType === "tshirt";
-  const isPants = clothingType === "pants";
+  const g = new THREE.Group();
+  const isShirt = type === "shirt";
+  const isTshirt = type === "tshirt";
+  const isPants = type === "pants";
 
-  const headGeo = new THREE.BoxGeometry(2, 1.2, 1.2);
-  const head = new THREE.Mesh(headGeo, makeSkinMaterials(skinColor));
-  head.position.set(0, 2.6, 0);
-  group.add(head);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.3, 1.3), skinArr(skin));
+  head.position.set(0, 2.65, 0);
+  head.castShadow = true;
+  g.add(head);
 
-  const torsoGeo = new THREE.BoxGeometry(2, 2, 1);
   let torsoMats: THREE.MeshStandardMaterial[];
-  if (templateCanvas && isShirt) {
-    torsoMats = makeFaceMaterials(templateCanvas, SHIRT_REGIONS.torso);
-  } else if (templateCanvas && isTshirt) {
-    torsoMats = makeSkinMaterials(skinColor);
-    torsoMats[4] = makeTshirtFrontMaterial(templateCanvas);
-  } else if (templateCanvas && isPants) {
-    torsoMats = makeFaceMaterials(templateCanvas, PANTS_REGIONS.torso);
-  } else {
-    torsoMats = makeSkinMaterials(skinColor);
-  }
-  const torso = new THREE.Mesh(torsoGeo, torsoMats);
+  if (tpl && isShirt) torsoMats = faceMats(tpl, SHIRT.torso);
+  else if (tpl && isTshirt) { torsoMats = skinArr(skin); torsoMats[4] = tshirtFrontMat(tpl); }
+  else if (tpl && isPants) torsoMats = faceMats(tpl, PANTS.torso);
+  else torsoMats = skinArr(skin);
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 1), torsoMats);
   torso.position.set(0, 1, 0);
-  group.add(torso);
+  torso.castShadow = true;
+  g.add(torso);
 
   const armGeo = new THREE.BoxGeometry(1, 2, 1);
+  const rArmMats = (tpl && isShirt) ? faceMats(tpl, SHIRT.rightArm) : skinArr(skin);
+  const rArm = new THREE.Mesh(armGeo, rArmMats);
+  rArm.position.set(1.5, 1, 0);
+  rArm.castShadow = true;
+  g.add(rArm);
 
-  const rArmMats = (templateCanvas && isShirt)
-    ? makeFaceMaterials(templateCanvas, SHIRT_REGIONS.rightArm)
-    : makeSkinMaterials(skinColor);
-  const rightArm = new THREE.Mesh(armGeo, rArmMats);
-  rightArm.position.set(1.5, 1, 0);
-  group.add(rightArm);
-
-  const lArmMats = (templateCanvas && isShirt)
-    ? makeFaceMaterials(templateCanvas, SHIRT_REGIONS.leftArm)
-    : makeSkinMaterials(skinColor);
-  const leftArm = new THREE.Mesh(armGeo, lArmMats);
-  leftArm.position.set(-1.5, 1, 0);
-  group.add(leftArm);
+  const lArmMats = (tpl && isShirt) ? faceMats(tpl, SHIRT.leftArm) : skinArr(skin);
+  const lArm = new THREE.Mesh(armGeo, lArmMats);
+  lArm.position.set(-1.5, 1, 0);
+  lArm.castShadow = true;
+  g.add(lArm);
 
   const legGeo = new THREE.BoxGeometry(1, 2, 1);
-  const defaultLegColor = new THREE.Color(0x1a1a2e);
+  const defLeg = new THREE.Color(0x1a1a2e);
+  const rLegMats = (tpl && isPants) ? faceMats(tpl, PANTS.rightLeg) : skinArr(defLeg);
+  const rLeg = new THREE.Mesh(legGeo, rLegMats);
+  rLeg.position.set(0.5, -1, 0);
+  rLeg.castShadow = true;
+  g.add(rLeg);
 
-  const rLegMats = (templateCanvas && isPants)
-    ? makeFaceMaterials(templateCanvas, PANTS_REGIONS.rightLeg)
-    : makeSkinMaterials(defaultLegColor);
-  const rightLeg = new THREE.Mesh(legGeo, rLegMats);
-  rightLeg.position.set(0.5, -1, 0);
-  group.add(rightLeg);
+  const lLegMats = (tpl && isPants) ? faceMats(tpl, PANTS.leftLeg) : skinArr(defLeg);
+  const lLeg = new THREE.Mesh(legGeo, lLegMats);
+  lLeg.position.set(-0.5, -1, 0);
+  lLeg.castShadow = true;
+  g.add(lLeg);
 
-  const lLegMats = (templateCanvas && isPants)
-    ? makeFaceMaterials(templateCanvas, PANTS_REGIONS.leftLeg)
-    : makeSkinMaterials(defaultLegColor);
-  const leftLeg = new THREE.Mesh(legGeo, lLegMats);
-  leftLeg.position.set(-0.5, -1, 0);
-  group.add(leftLeg);
-
-  return group;
+  return g;
 }
 
-function loadTemplateToCanvas(url: string, forceSize?: { w: number; h: number }): Promise<HTMLCanvasElement> {
+function loadImageToCanvas(url: string, forceSize?: { w: number; h: number }): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -181,8 +160,7 @@ function loadTemplateToCanvas(url: string, forceSize?: { w: number; h: number })
       const h = forceSize?.h ?? img.naturalHeight;
       const c = document.createElement("canvas");
       c.width = w; c.height = h;
-      const ctx = c.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, w, h);
+      c.getContext("2d")!.drawImage(img, 0, 0, w, h);
       resolve(c);
     };
     img.onerror = reject;
@@ -192,43 +170,81 @@ function loadTemplateToCanvas(url: string, forceSize?: { w: number; h: number })
 
 export default function RobloxCharacterViewer({ clothingUrl, clothingType, skinColor = "#d4a574" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<{
+  const stateRef = useRef<{
     renderer: THREE.WebGLRenderer;
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     character: THREE.Group | null;
-    animationId: number;
-    resizeHandler: (() => void) | null;
+    platform: THREE.Group;
+    animId: number;
   } | null>(null);
-  const mouseRef = useRef({ isDown: false, prevX: 0, prevY: 0, rotX: 0, rotY: 0.3 });
-  const versionRef = useRef(0);
+  const dragRef = useRef({ down: false, px: 0, py: 0, rx: 0, ry: 0.15 });
+  const verRef = useRef(0);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-    const w = container.clientWidth || 400;
-    const h = container.clientHeight || 420;
+    const w = el.clientWidth || 400;
+    const h = el.clientHeight || 420;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x000000, 0);
+    renderer.setClearColor(0x141414, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    container.appendChild(renderer.domElement);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
-    camera.position.set(0, 1.5, 10);
-    camera.lookAt(0, 1, 0);
+    scene.fog = new THREE.Fog(0x141414, 10, 22);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    dirLight.position.set(3, 5, 5);
-    scene.add(dirLight);
-    const backLight = new THREE.DirectionalLight(0xffffff, 0.4);
-    backLight.position.set(-3, 2, -3);
-    scene.add(backLight);
+    const camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 100);
+    camera.position.set(0, 2, 8);
+    camera.lookAt(0, 0.5, 0);
+
+    const ambLight = new THREE.AmbientLight(0xffffff, 1.2);
+    scene.add(ambLight);
+
+    const spot1 = new THREE.SpotLight(0xffffff, 12, 20, Math.PI / 5, 0.4, 1);
+    spot1.position.set(3, 5, 4);
+    spot1.castShadow = true;
+    spot1.shadow.mapSize.set(1024, 1024);
+    spot1.shadow.bias = -0.001;
+    scene.add(spot1);
+
+    const spot2 = new THREE.SpotLight(0xc8d8ff, 6, 18, Math.PI / 4, 0.5, 1);
+    spot2.position.set(-3, 4, -3);
+    scene.add(spot2);
+
+    const rimLight = new THREE.PointLight(0x8899ff, 3, 12);
+    rimLight.position.set(-2, 1, -4);
+    scene.add(rimLight);
+
+    const platform = new THREE.Group();
+
+    const discGeo = new THREE.CylinderGeometry(2.8, 3.0, 0.15, 64);
+    const discMat = new THREE.MeshStandardMaterial({ color: 0x1e1e1e, roughness: 0.5, metalness: 0.3 });
+    const disc = new THREE.Mesh(discGeo, discMat);
+    disc.receiveShadow = true;
+    disc.position.y = -2.08;
+    platform.add(disc);
+
+    const ringGeo = new THREE.TorusGeometry(2.9, 0.03, 8, 64);
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.3, metalness: 0.6 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = -2.0;
+    platform.add(ring);
+
+    const grid = new THREE.GridHelper(30, 60, 0x222222, 0x1a1a1a);
+    grid.position.y = -2.15;
+    platform.add(grid);
+
+    scene.add(platform);
 
     const onResize = () => {
       if (!containerRef.current) return;
@@ -240,50 +256,47 @@ export default function RobloxCharacterViewer({ clothingUrl, clothingType, skinC
     };
     window.addEventListener("resize", onResize);
 
-    sceneRef.current = { renderer, scene, camera, character: null, animationId: 0, resizeHandler: onResize };
+    stateRef.current = { renderer, scene, camera, character: null, platform, animId: 0 };
 
     const animate = () => {
-      if (!sceneRef.current) return;
-      sceneRef.current.animationId = requestAnimationFrame(animate);
+      if (!stateRef.current) return;
+      stateRef.current.animId = requestAnimationFrame(animate);
       renderer.render(scene, camera);
     };
     animate();
 
     return () => {
       window.removeEventListener("resize", onResize);
-      if (sceneRef.current) {
-        cancelAnimationFrame(sceneRef.current.animationId);
-        if (sceneRef.current.character) {
-          sceneRef.current.scene.remove(sceneRef.current.character);
-          disposeGroup(sceneRef.current.character);
+      if (stateRef.current) {
+        cancelAnimationFrame(stateRef.current.animId);
+        if (stateRef.current.character) {
+          stateRef.current.scene.remove(stateRef.current.character);
+          disposeGroup(stateRef.current.character);
         }
-        sceneRef.current.renderer.dispose();
+        stateRef.current.renderer.dispose();
         renderer.domElement.parentElement?.removeChild(renderer.domElement);
-        sceneRef.current = null;
+        stateRef.current = null;
       }
     };
   }, []);
 
   useEffect(() => {
-    const ver = ++versionRef.current;
+    const ver = ++verRef.current;
 
     (async () => {
-      const s = sceneRef.current;
+      const s = stateRef.current;
       if (!s) return;
 
-      let templateCanvas: HTMLCanvasElement | null = null;
+      let tpl: HTMLCanvasElement | null = null;
       if (clothingUrl) {
         try {
-          const forceSize = (clothingType === "shirt" || clothingType === "pants")
-            ? { w: TEMPLATE_W, h: TEMPLATE_H }
-            : undefined;
-          templateCanvas = await loadTemplateToCanvas(clothingUrl, forceSize);
-        } catch {
-          templateCanvas = null;
-        }
+          const force = (clothingType === "shirt" || clothingType === "pants")
+            ? { w: TW, h: TH } : undefined;
+          tpl = await loadImageToCanvas(clothingUrl, force);
+        } catch { tpl = null; }
       }
 
-      if (versionRef.current !== ver || !sceneRef.current) return;
+      if (verRef.current !== ver || !stateRef.current) return;
 
       if (s.character) {
         s.scene.remove(s.character);
@@ -292,60 +305,58 @@ export default function RobloxCharacterViewer({ clothingUrl, clothingType, skinC
       }
 
       const color = new THREE.Color(skinColor);
-      const character = createR6Character(templateCanvas, clothingType, color);
-      s.scene.add(character);
-      s.character = character;
+      const ch = createR6(tpl, clothingType, color);
+      s.scene.add(ch);
+      s.character = ch;
 
-      const m = mouseRef.current;
-      character.rotation.y = m.rotX;
-      character.rotation.x = m.rotY;
+      const d = dragRef.current;
+      ch.rotation.y = d.rx;
+      ch.rotation.x = d.ry;
     })();
   }, [clothingUrl, clothingType, skinColor]);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-    const onPointerDown = (e: PointerEvent) => {
-      mouseRef.current.isDown = true;
-      mouseRef.current.prevX = e.clientX;
-      mouseRef.current.prevY = e.clientY;
+    const onDown = (e: PointerEvent) => {
+      dragRef.current.down = true;
+      dragRef.current.px = e.clientX;
+      dragRef.current.py = e.clientY;
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     };
-
-    const onPointerMove = (e: PointerEvent) => {
-      if (!mouseRef.current.isDown || !sceneRef.current?.character) return;
-      const dx = e.clientX - mouseRef.current.prevX;
-      const dy = e.clientY - mouseRef.current.prevY;
-      mouseRef.current.prevX = e.clientX;
-      mouseRef.current.prevY = e.clientY;
-      mouseRef.current.rotX += dx * 0.01;
-      mouseRef.current.rotY += dy * 0.005;
-      mouseRef.current.rotY = Math.max(-0.5, Math.min(0.5, mouseRef.current.rotY));
-      sceneRef.current.character.rotation.y = mouseRef.current.rotX;
-      sceneRef.current.character.rotation.x = mouseRef.current.rotY;
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current.down || !stateRef.current?.character) return;
+      const dx = e.clientX - dragRef.current.px;
+      const dy = e.clientY - dragRef.current.py;
+      dragRef.current.px = e.clientX;
+      dragRef.current.py = e.clientY;
+      dragRef.current.rx += dx * 0.008;
+      dragRef.current.ry += dy * 0.004;
+      dragRef.current.ry = Math.max(-0.4, Math.min(0.4, dragRef.current.ry));
+      stateRef.current.character.rotation.y = dragRef.current.rx;
+      stateRef.current.character.rotation.x = dragRef.current.ry;
     };
+    const onUp = () => { dragRef.current.down = false; };
 
-    const onPointerUp = () => { mouseRef.current.isDown = false; };
-
-    container.addEventListener("pointerdown", onPointerDown);
-    container.addEventListener("pointermove", onPointerMove);
-    container.addEventListener("pointerup", onPointerUp);
-    container.addEventListener("pointerleave", onPointerUp);
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointerleave", onUp);
 
     return () => {
-      container.removeEventListener("pointerdown", onPointerDown);
-      container.removeEventListener("pointermove", onPointerMove);
-      container.removeEventListener("pointerup", onPointerUp);
-      container.removeEventListener("pointerleave", onPointerUp);
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointerleave", onUp);
     };
   }, []);
 
   return (
     <div
       ref={containerRef}
-      className="w-full h-full cursor-grab active:cursor-grabbing"
-      style={{ touchAction: "none" }}
+      className="w-full h-full cursor-grab active:cursor-grabbing rounded-2xl overflow-hidden"
+      style={{ touchAction: "none", minHeight: 420 }}
     />
   );
 }

@@ -714,19 +714,19 @@ function AvatarPreviewTab() {
         </div>
 
         <div className="space-y-3">
-          <div className="rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-b from-gray-50 to-gray-100 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center relative" style={{ minHeight: 420 }}>
+          <div className="rounded-2xl border border-border/50 overflow-hidden relative" style={{ minHeight: 420 }}>
             <RobloxCharacterViewer
               clothingUrl={clothingUrl}
               clothingType={clothingType as any}
               skinColor={skinColor}
             />
             {!clothingUrl && (
-              <div className="absolute bottom-4 left-0 right-0 text-center">
-                <p className="text-xs text-muted-foreground bg-background/80 backdrop-blur-sm inline-block px-3 py-1 rounded-lg">{t("test.loadClothingHint")}</p>
+              <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
+                <p className="text-xs text-white/50 bg-black/40 backdrop-blur-sm inline-block px-3 py-1 rounded-lg">{t("test.loadClothingHint")}</p>
               </div>
             )}
-            <div className="absolute top-3 right-3">
-              <p className="text-[10px] text-muted-foreground bg-background/60 backdrop-blur-sm px-2 py-0.5 rounded-md">🖱️ {t("test.dragToRotate") || "Drag to rotate"}</p>
+            <div className="absolute top-3 right-3 pointer-events-none">
+              <p className="text-[10px] text-white/40 bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-md">🖱️ {t("test.dragToRotate") || "Drag to rotate"}</p>
             </div>
           </div>
         </div>
