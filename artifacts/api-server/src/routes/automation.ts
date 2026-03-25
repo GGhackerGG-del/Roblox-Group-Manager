@@ -373,11 +373,7 @@ router.delete("/automation/shout/scheduled/:id", async (req, res): Promise<void>
 router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
   const rawCookie = req.session.robloxCookie;
   if (!rawCookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
-  let cookie = rawCookie.startsWith(".ROBLOSECURITY=") ? rawCookie.slice(".ROBLOSECURITY=".length) : rawCookie;
-  const warningRegex = /^_\|WARNING:-DO-NOT-SHARE-THIS\.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items\.\|_/;
-  const cleanCookie = cookie.replace(warningRegex, "");
-  console.log(`[Payout] Cookie: raw_len=${cookie.length}, clean_len=${cleanCookie.length}, had_warning=${cookie.length !== cleanCookie.length}`);
-  cookie = cleanCookie;
+  const cookie = rawCookie.startsWith(".ROBLOSECURITY=") ? rawCookie.slice(".ROBLOSECURITY=".length) : rawCookie;
   const { groupId } = req.params;
   const { payouts, payoutType = "FixedAmount", challengeId, verificationToken, challengeType: reqChallengeType } = req.body as {
     payouts?: Array<{ recipientId: number; amount: number }>;
@@ -391,13 +387,26 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
     const verifyResp = await fetch("https://users.roblox.com/v1/users/authenticated", {
       headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "User-Agent": UA },
     });
-    console.log(`[Payout] Cookie verify (clean): status=${verifyResp.status}`);
+    console.log(`[Payout] Cookie verify: status=${verifyResp.status}, cookie_len=${cookie.length}`);
     if (!verifyResp.ok) {
       res.status(401).json({ error: "Roblox cookie expired. Please re-login." });
       return;
     }
     const verifyData = await verifyResp.json() as { id?: number; name?: string };
     console.log(`[Payout] Verified user: id=${verifyData.id} name=${verifyData.name}`);
+
+    const groupCheck = await fetch(`${GROUPS_API}/v1/groups/${groupId}`, {
+      headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "User-Agent": UA },
+    });
+    const groupData = await groupCheck.json() as any;
+    console.log(`[Payout] Group check: status=${groupCheck.status}, owner=${groupData?.owner?.userId}, name=${groupData?.name}`);
+
+    const roleCheck = await fetch(`${GROUPS_API}/v1/groups/${groupId}/membership`, {
+      headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "User-Agent": UA },
+    });
+    const roleData = await roleCheck.json() as any;
+    console.log(`[Payout] User role in group: ${JSON.stringify(roleData)}`);
+
     const body = {
       PayoutType: payoutType,
       Recipients: payouts.map(p => ({ recipientId: p.recipientId, recipientType: "User", amount: p.amount })),
@@ -410,6 +419,8 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       "Content-Type": "application/json",
       "Accept": "application/json",
       "User-Agent": UA,
+      "Referer": "https://www.roblox.com/",
+      "Origin": "https://www.roblox.com",
     };
     if (challengeId && verificationToken) {
       const ct = reqChallengeType || "twostepverification";
@@ -424,13 +435,16 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       console.log(`[Payout] Retrying with challenge: type=${ct} id=${challengeId}`);
     }
     const payoutUrl = `${GROUPS_API}/v1/groups/${groupId}/payouts`;
-    console.log(`[Payout] Sending to ${payoutUrl}`);
+    console.log(`[Payout] Sending to ${payoutUrl}, body=${JSON.stringify(body)}`);
     let resp: Response | null = null;
     let respBody = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       resp = await fetch(payoutUrl, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
       respBody = await resp.text();
-      console.log(`[Payout] Attempt ${attempt + 1}: status=${resp.status} body=${respBody.slice(0, 300)}`);
+      const allHeaders = Object.fromEntries(resp.headers.entries());
+      console.log(`[Payout] Attempt ${attempt + 1}: status=${resp.status}`);
+      console.log(`[Payout] Response body: ${respBody.slice(0, 500)}`);
+      console.log(`[Payout] Response headers: ${JSON.stringify(allHeaders)}`);
 
       if (resp.status === 403) {
         const rblxChallengeId = resp.headers.get("rblx-challenge-id");
@@ -461,17 +475,15 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
         const newCsrf = resp.headers.get("x-csrf-token");
         if (newCsrf) {
           payoutHeaders["X-CSRF-TOKEN"] = newCsrf;
-          console.log(`[Payout] Got CSRF from payout 403, retrying...`);
+          console.log(`[Payout] Got fresh CSRF from 403, retrying...`);
           continue;
         }
       }
       if (resp.status === 401) {
-        console.log(`[Payout] 401 on attempt ${attempt + 1}, set-cookie=${resp.headers.get("set-cookie")}`);
         const postCheck = await fetch("https://users.roblox.com/v1/users/authenticated", {
           headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "User-Agent": UA },
         });
-        console.log(`[Payout] Post-401 cookie check: status=${postCheck.status}`);
-        break;
+        console.log(`[Payout] Post-401 verify: status=${postCheck.status} (cookie ${postCheck.ok ? "ALIVE" : "DEAD"})`);
       }
       break;
     }
