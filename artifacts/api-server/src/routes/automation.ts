@@ -396,11 +396,9 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       PayoutType: payoutType,
       Recipients: payouts.map(p => ({ recipientId: p.recipientId, recipientType: "User", amount: p.amount })),
     };
-    let csrf = await getSafeCsrf(cookie);
-    console.log(`[Payout] Got CSRF: ${csrf ? "yes" : "no"}`);
     const payoutHeaders: Record<string, string> = {
       "Cookie": `.ROBLOSECURITY=${cookie}`,
-      "X-CSRF-TOKEN": csrf || "",
+      "X-CSRF-TOKEN": "",
       "Content-Type": "application/json",
       "Accept": "application/json",
       "User-Agent": UA,
@@ -419,14 +417,15 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       })).toString("base64");
       console.log(`[Payout] Retrying with challenge: type=${ct} id=${challengeId}`);
     }
-    console.log(`[Payout] Sending to ${GROUPS_API}/v1/groups/${groupId}/payouts, body=${JSON.stringify(body)}`);
+    const payoutUrl = `${GROUPS_API}/v1/groups/${groupId}/payouts`;
+    console.log(`[Payout] Sending to ${payoutUrl}, body=${JSON.stringify(body)}`);
+    console.log(`[Payout] Cookie length=${cookie.length}, starts with WARNING=${cookie.startsWith("_|WARNING")}`);
     let resp: Response | null = null;
     let respBody = "";
     for (let attempt = 0; attempt < 3; attempt++) {
-      resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
+      resp = await fetch(payoutUrl, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
       respBody = await resp.text();
       console.log(`[Payout] Attempt ${attempt + 1}: status=${resp.status} body=${respBody.slice(0, 300)}`);
-      console.log(`[Payout] Challenge headers: id=${resp.headers.get("rblx-challenge-id")} type=${resp.headers.get("rblx-challenge-type")}`);
 
       if (resp.status === 403) {
         const rblxChallengeId = resp.headers.get("rblx-challenge-id");
@@ -456,18 +455,14 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
 
         const newCsrf = resp.headers.get("x-csrf-token");
         if (newCsrf) {
-          csrf = newCsrf;
           payoutHeaders["X-CSRF-TOKEN"] = newCsrf;
-          console.log(`[Payout] Got new CSRF from 403, retrying...`);
+          console.log(`[Payout] Got CSRF from payout 403, retrying...`);
           continue;
         }
       }
       if (resp.status === 401) {
-        const freshCsrf = await getSafeCsrf(cookie);
-        if (freshCsrf && attempt < 2) {
-          csrf = freshCsrf;
-          payoutHeaders["X-CSRF-TOKEN"] = freshCsrf;
-          console.log(`[Payout] Re-fetched CSRF after 401, retrying...`);
+        console.log(`[Payout] 401 on attempt ${attempt + 1}, all response headers: ${JSON.stringify(Object.fromEntries(resp.headers.entries()))}`);
+        if (attempt < 2) {
           await new Promise(r => setTimeout(r, 1000));
           continue;
         }
