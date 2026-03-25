@@ -1,11 +1,52 @@
-import { app, BrowserWindow, shell, dialog } from "electron";
+import { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage } from "electron";
 import path from "path";
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
 
 function getDbPath(): string {
   const userDataPath = app.getPath("userData");
   return path.join(userDataPath, "limited-ink.db");
+}
+
+function getTrayIconPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "icon.png");
+  }
+  return path.join(__dirname, "..", "build", "icon.png");
+}
+
+function createTray(): void {
+  const iconPath = getTrayIconPath();
+  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  tray = new Tray(icon);
+  tray.setToolTip("Limited.Ink");
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Открыть Limited.Ink",
+      click: () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Выход",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  tray.on("double-click", () => {
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
 }
 
 function createWindow(serverPort: number): void {
@@ -38,6 +79,13 @@ function createWindow(serverPort: number): void {
     return { action: "deny" };
   });
 
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow?.hide();
+    }
+  });
+
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -61,10 +109,14 @@ app.whenReady().then(async () => {
     const port = await startServer(sqlite);
     console.log(`[Limited.Ink] Server running on http://localhost:${port}`);
 
+    createTray();
     createWindow(port);
 
     app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      } else {
         createWindow(port);
       }
     });
@@ -79,12 +131,13 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
+  if (process.platform === "darwin") {
+    return;
   }
 });
 
 app.on("before-quit", () => {
+  isQuitting = true;
   try {
     const { stopServer } = require("./server/start.js");
     stopServer();
