@@ -14,7 +14,7 @@ function getTrayIconPath(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "icon.png");
   }
-  return path.join(__dirname, "..", "build", "icon.png");
+  return path.join(__dirname, "..", "resources", "icon.png");
 }
 
 function createTray(): void {
