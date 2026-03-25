@@ -68,11 +68,18 @@ async function proxyToRemote(
       : (response.headers.raw?.()?.["set-cookie"] || []);
 
     if (setCookieHeaders && setCookieHeaders.length > 0) {
+      const isAuthRoute = remotePath.includes("/roblox/auth") || remotePath.includes("/license/");
       for (const sc of setCookieHeaders) {
         const match = sc.match(/^(connect\.sid=[^;]+)/);
         if (match) {
-          persistCookie(match[1]);
-          console.log("[Proxy] Remote session cookie captured & persisted");
+          if (isAuthRoute || !remoteSessionCookie) {
+            persistCookie(match[1]);
+            console.log("[Proxy] Remote session cookie captured & persisted from", remotePath);
+          } else {
+            if (match[1] !== remoteSessionCookie) {
+              console.warn("[Proxy] Ignoring new session cookie from non-auth route:", remotePath, "- keeping existing session");
+            }
+          }
         }
       }
     }
