@@ -138,7 +138,7 @@ router.get("/social/users/:userId", async (req, res): Promise<void> => {
     const groupsResp = await fetch(`${ROBLOX_GROUPS_API}/v1/users/${user.robloxUserId}/groups/roles`);
     if (groupsResp.ok) {
       const gd = await groupsResp.json() as { data: Array<{ group: { id: number; name: string; memberCount: number }; role: { rank: number } }> };
-      const owned = gd.data.filter(g => g.role.rank === 255).slice(0, 6);
+      const owned = gd.data.filter(g => g.role.rank >= 254).slice(0, 6);
       const ids = owned.map(g => g.group.id).join(",");
       const thumbMap: Record<number, string> = {};
       if (ids) {

@@ -166,7 +166,7 @@ router.get("/community/group-chats", async (req, res): Promise<void> => {
     const rolesResp = await fetch(`https://groups.roblox.com/v1/users/${robloxUserId}/groups/roles`);
     if (rolesResp.ok) {
       const rolesData = await rolesResp.json() as { data: Array<{ group: { id: number; name: string }; role: { rank: number } }> };
-      const ownedGroups = rolesData.data.filter(g => g.role.rank === 255);
+      const ownedGroups = rolesData.data.filter(g => g.role.rank >= 254);
       for (const g of ownedGroups) {
         const tag = `[roblox-group:${g.group.id}]`;
         const existing = await db.query.groupChats.findFirst({ where: sql`${groupChats.name} LIKE ${tag + '%'}` });

@@ -251,7 +251,7 @@ router.get("/roblox/groups", async (req, res): Promise<void> => {
     }>
   };
 
-  const ownerGroups = groupsData.data.filter(g => g.role.rank === 255);
+  const ownerGroups = groupsData.data.filter(g => g.role.rank >= 254);
 
   if (ownerGroups.length === 0) {
     res.json({ groups: [] });
@@ -349,7 +349,7 @@ router.get("/roblox/groups/:groupId/stats", async (req, res): Promise<void> => {
   const ownerCheckData = await ownerCheckResp.json() as {
     data: Array<{ group: { id: number }; role: { rank: number } }>;
   };
-  const isOwner = ownerCheckData.data.some(g => g.group.id === groupId && g.role.rank === 255);
+  const isOwner = ownerCheckData.data.some(g => g.group.id === groupId && g.role.rank >= 254);
   if (!isOwner) {
     res.status(403).json({ error: "You do not have access to this group." });
     return;
