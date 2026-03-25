@@ -33,22 +33,22 @@ async function itemConfigFetch(url: string, init?: RequestInit): Promise<Respons
 async function getRobloxCsrf(cookie: string): Promise<string> {
   const hdrs: Record<string, string> = {
     "Cookie": `.ROBLOSECURITY=${cookie}`,
-    "Content-Length": "0",
+    "Content-Type": "application/json",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Referer": "https://www.roblox.com/",
     "Origin": "https://www.roblox.com",
   };
 
   const endpoints = [
-    { url: "https://auth.roblox.com/v2/logout", method: "POST" },
-    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST" },
-    { url: "https://auth.roblox.com/v2/metadata", method: "POST" },
+    { url: "https://auth.roblox.com/v2/metadata", method: "GET" },
+    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST", body: JSON.stringify({ items: [] }) },
+    { url: "https://presence.roblox.com/v1/presence/users", method: "POST", body: JSON.stringify({ userIds: [] }) },
   ];
 
   for (let attempt = 0; attempt < 3; attempt++) {
     for (const ep of endpoints) {
       try {
-        const r = await fetch(ep.url, { method: ep.method, headers: hdrs });
+        const r = await fetch(ep.url, { method: ep.method, headers: hdrs, body: (ep as any).body });
         const token = r.headers.get("x-csrf-token");
         if (token) {
           console.log(`[Clothing] CSRF obtained from ${ep.url} (attempt ${attempt + 1})`);

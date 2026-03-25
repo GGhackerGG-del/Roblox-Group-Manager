@@ -21,22 +21,22 @@ function rHeaders(cookie: string, extra: Record<string, string> = {}): Record<st
 async function getSafeCsrf(cookie: string): Promise<string> {
   const hdrs: Record<string, string> = {
     "Cookie": `.ROBLOSECURITY=${cookie}`,
-    "Content-Length": "0",
+    "Content-Type": "application/json",
     "User-Agent": UA,
     "Referer": "https://www.roblox.com/",
     "Origin": "https://www.roblox.com",
   };
 
   const endpoints = [
-    { url: "https://auth.roblox.com/v2/logout", method: "POST" },
-    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST" },
-    { url: "https://auth.roblox.com/v2/metadata", method: "POST" },
+    { url: "https://auth.roblox.com/v2/metadata", method: "GET" },
+    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST", body: JSON.stringify({ items: [] }) },
+    { url: "https://presence.roblox.com/v1/presence/users", method: "POST", body: JSON.stringify({ userIds: [] }) },
   ];
 
   for (let attempt = 0; attempt < 3; attempt++) {
     for (const ep of endpoints) {
       try {
-        const r = await fetch(ep.url, { method: ep.method, headers: hdrs });
+        const r = await fetch(ep.url, { method: ep.method, headers: hdrs, body: ep.body });
         const token = r.headers.get("x-csrf-token");
         if (token) {
           console.log(`[Automation] CSRF obtained from ${ep.url} (attempt ${attempt + 1})`);
@@ -45,7 +45,7 @@ async function getSafeCsrf(cookie: string): Promise<string> {
       } catch {}
     }
     if (attempt < 2) {
-      await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+      await new Promise(r => setTimeout(r, (attempt + 1) * 1000));
     }
   }
   console.error("[Automation] Failed to get CSRF after all attempts");
@@ -396,9 +396,11 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       PayoutType: payoutType,
       Recipients: payouts.map(p => ({ recipientId: p.recipientId, recipientType: "User", amount: p.amount })),
     };
+    let csrf = await getSafeCsrf(cookie);
+    console.log(`[Payout] Got CSRF: ${csrf ? "yes" : "no"}`);
     const payoutHeaders: Record<string, string> = {
       "Cookie": `.ROBLOSECURITY=${cookie}`,
-      "X-CSRF-TOKEN": "",
+      "X-CSRF-TOKEN": csrf || "",
       "Content-Type": "application/json",
       "Accept": "application/json",
       "User-Agent": UA,
@@ -461,8 +463,13 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
         }
       }
       if (resp.status === 401) {
-        console.log(`[Payout] 401 on attempt ${attempt + 1}, all response headers: ${JSON.stringify(Object.fromEntries(resp.headers.entries()))}`);
+        console.log(`[Payout] 401 on attempt ${attempt + 1}`);
         if (attempt < 2) {
+          const freshCsrf = await getSafeCsrf(cookie);
+          if (freshCsrf) {
+            payoutHeaders["X-CSRF-TOKEN"] = freshCsrf;
+            console.log(`[Payout] Re-fetched CSRF after 401, retrying...`);
+          }
           await new Promise(r => setTimeout(r, 1000));
           continue;
         }

@@ -133,28 +133,28 @@ const CATALOG_PRICE_CACHE_TTL = 10 * 60_000;
 async function getRobloxCsrf(cookie: string): Promise<string> {
   const hdrs: Record<string, string> = {
     "Cookie": `.ROBLOSECURITY=${cookie}`,
-    "Content-Length": "0",
+    "Content-Type": "application/json",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Referer": "https://www.roblox.com/",
     "Origin": "https://www.roblox.com",
   };
 
   const endpoints = [
-    { url: "https://auth.roblox.com/v2/logout", method: "POST" },
-    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST" },
-    { url: "https://auth.roblox.com/v2/metadata", method: "POST" },
+    { url: "https://auth.roblox.com/v2/metadata", method: "GET" as const },
+    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST" as const, body: JSON.stringify({ items: [] }) },
+    { url: "https://presence.roblox.com/v1/presence/users", method: "POST" as const, body: JSON.stringify({ userIds: [] }) },
   ];
 
   for (let attempt = 0; attempt < 3; attempt++) {
     for (const ep of endpoints) {
       try {
-        const r = await fetch(ep.url, { method: ep.method, headers: hdrs });
+        const r = await fetch(ep.url, { method: ep.method, headers: hdrs, body: (ep as any).body });
         const token = r.headers.get("x-csrf-token");
         if (token) return token;
       } catch {}
     }
     if (attempt < 2) {
-      await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+      await new Promise(r => setTimeout(r, (attempt + 1) * 1000));
     }
   }
   return "";
