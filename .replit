@@ -10,7 +10,7 @@ id = "artifacts/limited-ink"
 id = "artifacts/mockup-sandbox"
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "vm"
 run = ["node", "artifacts/api-server/dist/index.cjs"]
 
 [deployment.postBuild]
