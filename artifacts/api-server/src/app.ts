@@ -18,6 +18,8 @@ const PgStore = connectPgSimple(session);
 
 const app: Express = express();
 
+app.set("trust proxy", 1);
+
 app.use(cors({
   origin: true,
   credentials: true,
@@ -34,11 +36,11 @@ app.use(session({
   }),
   secret: SESSION_SECRET,
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true,
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,
+    sameSite: "none" as const,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
