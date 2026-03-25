@@ -1,0 +1,29 @@
+kind = "api"
+previewPath = "/api"
+title = "API Server"
+version = "1.0.0"
+id = "3B4_FFSkEVBkAeYMFRJ2e"
+
+[[services]]
+localPort = 3000
+name = "API Server"
+paths = ["/"]
+
+[services.env]
+PORT = "3000"
+
+[services.development]
+run = "pnpm --filter @workspace/api-server run dev"
+
+[services.production]
+build = "pnpm --filter @workspace/api-server run build"
+
+[services.production.run]
+args = ["node", "test-server.cjs"]
+
+[services.production.run.env]
+PORT = "3000"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/"
