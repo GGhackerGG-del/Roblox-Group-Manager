@@ -375,11 +375,12 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
   if (!rawCookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
   const cookie = rawCookie.startsWith(".ROBLOSECURITY=") ? rawCookie.slice(".ROBLOSECURITY=".length) : rawCookie;
   const { groupId } = req.params;
-  const { payouts, payoutType = "FixedAmount", challengeId, verificationToken } = req.body as {
+  const { payouts, payoutType = "FixedAmount", challengeId, verificationToken, challengeType: reqChallengeType } = req.body as {
     payouts?: Array<{ recipientId: number; amount: number }>;
     payoutType?: "FixedAmount" | "Percentage";
     challengeId?: string;
     verificationToken?: string;
+    challengeType?: string;
   };
   if (!payouts?.length) { res.status(400).json({ error: "payouts array required." }); return; }
   try {
@@ -407,25 +408,57 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       "Origin": "https://www.roblox.com",
     };
     if (challengeId && verificationToken) {
+      const ct = reqChallengeType || "twostepverification";
       payoutHeaders["rblx-challenge-id"] = challengeId;
-      payoutHeaders["rblx-challenge-type"] = "twostepverification";
+      payoutHeaders["rblx-challenge-type"] = ct;
       payoutHeaders["rblx-challenge-metadata"] = Buffer.from(JSON.stringify({
         verificationToken,
         rememberDevice: false,
+        actionType: "Generic",
         challengeId,
       })).toString("base64");
+      console.log(`[Payout] Retrying with challenge: type=${ct} id=${challengeId}`);
     }
     console.log(`[Payout] Sending to ${GROUPS_API}/v1/groups/${groupId}/payouts, body=${JSON.stringify(body)}`);
     let resp: Response | null = null;
+    let respBody = "";
     for (let attempt = 0; attempt < 3; attempt++) {
       resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
-      console.log(`[Payout] Attempt ${attempt + 1}: status=${resp.status}`);
+      respBody = await resp.text();
+      console.log(`[Payout] Attempt ${attempt + 1}: status=${resp.status} body=${respBody.slice(0, 300)}`);
+      console.log(`[Payout] Challenge headers: id=${resp.headers.get("rblx-challenge-id")} type=${resp.headers.get("rblx-challenge-type")}`);
+
       if (resp.status === 403) {
+        const rblxChallengeId = resp.headers.get("rblx-challenge-id");
+        const rblxChallengeType = resp.headers.get("rblx-challenge-type");
+        const metaRaw = resp.headers.get("rblx-challenge-metadata");
+        let metadata: any = {};
+        if (metaRaw) { try { metadata = JSON.parse(Buffer.from(metaRaw, "base64").toString()); } catch {} }
+
+        if (rblxChallengeId && (rblxChallengeType === "twostepverification" || rblxChallengeType === "reauthentication")) {
+          console.log(`[Payout] Challenge: type=${rblxChallengeType} id=${rblxChallengeId} meta=${JSON.stringify(metadata)}`);
+          res.status(403).json({
+            error: "2FA required",
+            requires2FA: true,
+            challengeId: rblxChallengeId,
+            challengeType: rblxChallengeType,
+            userId: metadata.userId || req.session.robloxUserId,
+            mediaType: metadata.mediaType || "Authenticator",
+          });
+          return;
+        }
+
+        if (rblxChallengeId) {
+          console.log(`[Payout] Unknown challenge: type=${rblxChallengeType} id=${rblxChallengeId} meta=${JSON.stringify(metadata)}`);
+          res.status(403).json({ error: `Roblox security challenge required (${rblxChallengeType || "unknown"}). Try making a payout on the Roblox website first, then retry here.` });
+          return;
+        }
+
         const newCsrf = resp.headers.get("x-csrf-token");
         if (newCsrf) {
           csrf = newCsrf;
           payoutHeaders["X-CSRF-TOKEN"] = newCsrf;
-          console.log(`[Payout] Got new CSRF from 403 response, retrying...`);
+          console.log(`[Payout] Got new CSRF from 403, retrying...`);
           continue;
         }
       }
@@ -442,26 +475,8 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       break;
     }
     if (!resp) { res.status(500).json({ error: "Failed to send payout" }); return; }
-    if (resp.status === 403) {
-      const rblxChallengeId = resp.headers.get("rblx-challenge-id");
-      const rblxChallengeType = resp.headers.get("rblx-challenge-type");
-      if (rblxChallengeId && rblxChallengeType === "twostepverification") {
-        const metaRaw = resp.headers.get("rblx-challenge-metadata");
-        let metadata: any = {};
-        if (metaRaw) { try { metadata = JSON.parse(Buffer.from(metaRaw, "base64").toString()); } catch {} }
-        res.status(403).json({
-          error: "2FA required",
-          requires2FA: true,
-          challengeId: rblxChallengeId,
-          userId: metadata.userId,
-          mediaType: metadata.mediaType || "Email",
-        });
-        return;
-      }
-    }
     if (!resp.ok) {
-      const raw = await resp.text().catch(() => "");
-      console.error(`[Payout] Roblox API error: status=${resp.status} body=${raw.slice(0, 500)}`);
+      console.error(`[Payout] Roblox API error: status=${resp.status} body=${respBody.slice(0, 500)}`);
       const payoutErrors: Record<number, string> = {
         1: "Group is invalid or does not exist",
         12: "Insufficient Robux in group funds",
@@ -472,7 +487,7 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       };
       let errMsg = "";
       try {
-        const err = JSON.parse(raw) as { errors?: Array<{ message: string; code?: number }>; message?: string };
+        const err = JSON.parse(respBody) as { errors?: Array<{ message: string; code?: number }>; message?: string };
         const robloxErr = err.errors?.[0];
         if (robloxErr) {
           const friendlyMsg = robloxErr.code !== undefined ? payoutErrors[robloxErr.code] : undefined;
@@ -495,9 +510,12 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
 });
 
 router.post("/automation/payout/:groupId/verify-2fa", async (req, res): Promise<void> => {
-  const cookie = req.session.robloxCookie;
-  if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
-  const { challengeId, code, mediaType = "Authenticator" } = req.body as { challengeId?: string; code?: string; mediaType?: string };
+  const rawCookie = req.session.robloxCookie;
+  if (!rawCookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
+  const cookie = rawCookie.startsWith(".ROBLOSECURITY=") ? rawCookie.slice(".ROBLOSECURITY=".length) : rawCookie;
+  const { challengeId, code, mediaType = "Authenticator", challengeType } = req.body as {
+    challengeId?: string; code?: string; mediaType?: string; challengeType?: string;
+  };
   if (!challengeId || !code) { res.status(400).json({ error: "challengeId and code required." }); return; }
   try {
     const meResp = await fetch(`${USERS_API}/v1/users/authenticated`, {
@@ -511,16 +529,40 @@ router.post("/automation/payout/:groupId/verify-2fa", async (req, res): Promise<
       headers: { "Content-Type": "application/json", Cookie: `.ROBLOSECURITY=${cookie}`, "User-Agent": UA },
       body: JSON.stringify({ challengeId, actionType: "Generic", code }),
     });
+    console.log(`[Payout 2FA] Verify status=${verifyResp.status}`);
     if (!verifyResp.ok) {
       const err = await verifyResp.json().catch(() => ({})) as any;
+      console.error(`[Payout 2FA] Verify error:`, JSON.stringify(err));
       res.status(verifyResp.status).json({ error: err.errors?.[0]?.message || "Invalid 2FA code." }); return;
     }
     const verifyData = await verifyResp.json() as { verificationToken?: string };
     if (!verifyData.verificationToken) {
       res.status(400).json({ error: "No verification token received." }); return;
     }
-    res.json({ verificationToken: verifyData.verificationToken });
-  } catch {
+
+    const continueResp = await fetch("https://apis.roblox.com/challenge/v1/continue", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `.ROBLOSECURITY=${cookie}`,
+        "User-Agent": UA,
+      },
+      body: JSON.stringify({
+        challengeId,
+        challengeMetadata: JSON.stringify({
+          verificationToken: verifyData.verificationToken,
+          rememberDevice: false,
+          actionType: "Generic",
+          challengeId,
+        }),
+        challengeType: challengeType || "twostepverification",
+      }),
+    });
+    console.log(`[Payout 2FA] Continue status=${continueResp.status}`);
+
+    res.json({ verificationToken: verifyData.verificationToken, challengeType: challengeType || "twostepverification" });
+  } catch (err) {
+    console.error(`[Payout 2FA] Exception:`, err);
     res.status(502).json({ error: "Failed to verify 2FA code." });
   }
 });

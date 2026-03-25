@@ -124,7 +124,7 @@ export default function Automation() {
   const [payoutAmount, setPayoutAmount] = useState("100");
   const payoutSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sendingPayout, setSendingPayout] = useState(false);
-  const [twoFA, setTwoFA] = useState<{ open: boolean; challengeId: string; mediaType: string; code: string; verifying: boolean }>({ open: false, challengeId: "", mediaType: "Authenticator", code: "", verifying: false });
+  const [twoFA, setTwoFA] = useState<{ open: boolean; challengeId: string; challengeType: string; mediaType: string; code: string; verifying: boolean }>({ open: false, challengeId: "", challengeType: "twostepverification", mediaType: "Authenticator", code: "", verifying: false });
 
   const [activityMembers, setActivityMembers] = useState<Member[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -349,7 +349,7 @@ export default function Automation() {
     finally { setPayoutSearchLoading(false); }
   }, [groupId]);
 
-  const sendPayout = async (challengeId?: string, verificationToken?: string) => {
+  const sendPayout = async (challengeId?: string, verificationToken?: string, challengeType?: string) => {
     if (!payoutEntries.length) return;
     setSendingPayout(true);
     try {
@@ -357,6 +357,7 @@ export default function Automation() {
       if (challengeId && verificationToken) {
         reqBody.challengeId = challengeId;
         reqBody.verificationToken = verificationToken;
+        reqBody.challengeType = challengeType || "twostepverification";
       }
       const resp = await fetch(`${BASE}/api/automation/payout/${groupId}`, {
         method: "POST",
@@ -367,7 +368,7 @@ export default function Automation() {
       const data = await resp.json();
       if (!resp.ok) {
         if (data.requires2FA) {
-          setTwoFA({ open: true, challengeId: data.challengeId, mediaType: data.mediaType || "Authenticator", code: "", verifying: false });
+          setTwoFA({ open: true, challengeId: data.challengeId, challengeType: data.challengeType || "twostepverification", mediaType: data.mediaType || "Authenticator", code: "", verifying: false });
           return;
         }
         throw new Error(data.error || "Failed to send payout");
@@ -375,7 +376,7 @@ export default function Automation() {
       playSuccess();
       toast({ title: "✅", description: data.message });
       setPayoutEntries([]);
-      setTwoFA({ open: false, challengeId: "", mediaType: "Authenticator", code: "", verifying: false });
+      setTwoFA({ open: false, challengeId: "", challengeType: "twostepverification", mediaType: "Authenticator", code: "", verifying: false });
     } catch (e: unknown) {
       playError();
       toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
@@ -390,12 +391,12 @@ export default function Automation() {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         credentials: "include",
-        body: JSON.stringify({ challengeId: twoFA.challengeId, code: twoFA.code, mediaType: twoFA.mediaType }),
+        body: JSON.stringify({ challengeId: twoFA.challengeId, code: twoFA.code, mediaType: twoFA.mediaType, challengeType: twoFA.challengeType }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Invalid 2FA code");
       setTwoFA(p => ({ ...p, open: false }));
-      await sendPayout(twoFA.challengeId, data.verificationToken);
+      await sendPayout(twoFA.challengeId, data.verificationToken, data.challengeType || twoFA.challengeType);
     } catch (e: unknown) {
       playError();
       toast({ title: t("common.error"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
