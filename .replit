@@ -13,6 +13,10 @@ id = "artifacts/mockup-sandbox"
 deploymentTarget = "vm"
 run = ["node", "artifacts/api-server/dist/index.cjs"]
 
+[[ports]]
+localPort = 3000
+externalPort = 80
+
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
