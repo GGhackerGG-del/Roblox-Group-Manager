@@ -231,7 +231,9 @@ router.get("/roblox/groups", async (req, res): Promise<void> => {
 
   const userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
   if (!userResp.ok) {
-    req.session.destroy(() => {});
+    delete req.session.robloxCookie;
+    delete req.session.robloxProfile;
+    delete (req.session as any).robloxUserId;
     res.status(401).json({ error: "Roblox session expired. Please sign in again." });
     return;
   }
@@ -335,7 +337,9 @@ router.get("/roblox/groups/:groupId/stats", async (req, res): Promise<void> => {
 
   const meResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
   if (!meResp.ok) {
-    req.session.destroy(() => {});
+    delete req.session.robloxCookie;
+    delete req.session.robloxProfile;
+    delete (req.session as any).robloxUserId;
     res.status(401).json({ error: "Roblox session expired. Please sign in again." });
     return;
   }
