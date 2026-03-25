@@ -71,20 +71,10 @@ export function createApp(sqlite: Database.Database): express.Express {
     frontendPath = path.join(__dirname, "..", "frontend");
   }
 
-  app.post("/api/license/verify", (req, res) => proxyToRemote("/api/license/verify", req, res));
-  app.post("/api/license/status", (req, res) => proxyToRemote("/api/license/status", req, res));
-  app.get("/api/license/status", (req, res) => proxyToRemote("/api/license/status", req, res));
-
-  const routesBundle = require(path.join(__dirname, "..", "server", "_routes-entry.js"));
-  const router = routesBundle.default || routesBundle;
-  app.use("/api", router);
-
-  try {
-    require(path.join(__dirname, "..", "server", "_bot-entry.js"));
-    console.log("[Desktop] Telegram bot loaded");
-  } catch (err) {
-    console.warn("[Desktop] Telegram bot not available:", (err as Error).message);
-  }
+  app.use("/api", (req, res) => {
+    const remotePath = `/api${req.url}`;
+    proxyToRemote(remotePath, req, res);
+  });
 
   const uploadsPath = path.join(__dirname, "..", "uploads");
   app.use("/uploads", express.static(uploadsPath));
