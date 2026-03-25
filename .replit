@@ -1,16 +1,8 @@
 modules = ["nodejs-24", "postgresql-16"]
 
-[[artifacts]]
-id = "artifacts/api-server"
-
-[[artifacts]]
-id = "artifacts/limited-ink"
-
-[[artifacts]]
-id = "artifacts/mockup-sandbox"
-
 [deployment]
 deploymentTarget = "autoscale"
+run = ["node", "artifacts/api-server/dist/index.cjs"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
