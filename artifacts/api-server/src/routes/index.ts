@@ -34,9 +34,12 @@ router.use(featuredGroupsRouter);
 router.use(qualityRouter);
 
 router.delete("/roblox/session", (req, res): void => {
-  req.session.destroy((err) => {
+  delete req.session.robloxCookie;
+  delete req.session.robloxUserId;
+  delete req.session.robloxProfile;
+  req.session.save((err) => {
     if (err) {
-      res.status(500).json({ error: "Failed to end session." });
+      res.status(500).json({ error: "Failed to clear Roblox session." });
       return;
     }
     res.json({ status: "ok" });
