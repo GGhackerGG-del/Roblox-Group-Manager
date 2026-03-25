@@ -174,6 +174,7 @@ async function fetchItemDetailsEconomyFallback(ids: number[], cookie: string, ma
 
 async function fetchThumbnails(ids: number[]): Promise<Record<number, string | null>> {
   const map: Record<number, string | null> = {};
+  let retryCount = 0;
   for (let i = 0; i < ids.length; i += 100) {
     const batch = ids.slice(i, i + 100);
     try {
@@ -184,11 +185,18 @@ async function fetchThumbnails(ids: number[]): Promise<Record<number, string | n
           if (t.state === "Completed" && t.imageUrl) map[t.targetId] = t.imageUrl;
         });
       } else if (r.status === 429) {
-        console.log(`[Clothing] Thumbnails rate limited on batch ${i / 100 + 1}, skipping remaining...`);
-        break;
+        retryCount++;
+        if (retryCount > 3) { console.log(`[Clothing] Thumbnails rate limited, skipping remaining`); break; }
+        console.log(`[Clothing] Thumbnails rate limited on batch ${i / 100 + 1}, retry ${retryCount}...`);
+        await new Promise(r => setTimeout(r, 3000 * retryCount));
+        i -= 100;
+        continue;
       }
     } catch (e) {
       console.error("[Clothing] Thumbnail fetch error:", e);
+    }
+    if (i + 100 < ids.length) {
+      await new Promise(r => setTimeout(r, 500));
     }
   }
   return map;
@@ -419,9 +427,8 @@ router.get("/clothing/group/:groupId/items", async (req, res): Promise<void> => 
         }
       }
 
-      const THUMB_LIMIT = 100;
-      const thumbIds = rawItems.slice(0, THUMB_LIMIT).map(i => i.id);
-      const thumbMap = rawItems.length > 500 ? {} : await fetchThumbnails(thumbIds);
+      const thumbIds = rawItems.map(i => i.id);
+      const thumbMap = await fetchThumbnails(thumbIds);
 
       allItems = rawItems.map(d => ({
         id: d.id,
