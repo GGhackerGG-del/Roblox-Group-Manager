@@ -5,8 +5,8 @@ import { getDeviceFingerprint } from "@/lib/fingerprint";
 import { encryptToken, decryptToken, clearToken } from "@/lib/encrypted-storage";
 import { toast } from "@/hooks/use-toast";
 
-const PROFILE_SESSION_KEY = "limitedink_profile";
-const DEVICE_FP_SESSION_KEY = "limitedink_device_fp";
+const PROFILE_STORAGE_KEY = "limitedink_profile";
+const DEVICE_FP_STORAGE_KEY = "limitedink_device_fp";
 
 interface AuthContextType {
   licenseToken: string | null;
@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function init() {
       try {
         const fingerprint = await getDeviceFingerprint();
-        sessionStorage.setItem(DEVICE_FP_SESSION_KEY, fingerprint);
+        localStorage.setItem(DEVICE_FP_STORAGE_KEY, fingerprint);
 
         const storedToken = await decryptToken(fingerprint);
         let activeToken: string | null = null;
@@ -55,21 +55,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Try to restore profile from sessionStorage first (fast path)
-        const storedProfileRaw = sessionStorage.getItem(PROFILE_SESSION_KEY);
+        const storedProfileRaw = localStorage.getItem(PROFILE_STORAGE_KEY);
         if (storedProfileRaw) {
           try {
             const storedProfile = JSON.parse(storedProfileRaw) as RobloxProfile;
             if (mounted) setProfile(storedProfile);
           } catch {
-            sessionStorage.removeItem(PROFILE_SESSION_KEY);
+            localStorage.removeItem(PROFILE_STORAGE_KEY);
           }
         }
 
-        // If no profile in sessionStorage but we have a valid license, check if the
-        // server still has a Roblox session (persists across page refreshes via PostgreSQL).
-        // This avoids asking users to re-enter their Roblox cookie on every page load.
-        if (!sessionStorage.getItem(PROFILE_SESSION_KEY) && activeToken && mounted) {
+        if (!localStorage.getItem(PROFILE_STORAGE_KEY) && activeToken && mounted) {
           try {
             const resp = await fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/roblox/me`, {
               credentials: "include",
@@ -81,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (resp.ok) {
               const prof = await resp.json() as RobloxProfile;
               if (mounted) {
-                sessionStorage.setItem(PROFILE_SESSION_KEY, JSON.stringify(prof));
+                localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(prof));
                 setProfile(prof);
               }
             }
@@ -102,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginLicense = useCallback(async (token: string) => {
     const fingerprint = await getDeviceFingerprint();
-    sessionStorage.setItem(DEVICE_FP_SESSION_KEY, fingerprint);
+    localStorage.setItem(DEVICE_FP_STORAGE_KEY, fingerprint);
     await encryptToken(token, fingerprint);
     setAuthCredentials(token, fingerprint);
     setLicenseToken(token);
@@ -115,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loginRoblox = useCallback((prof: RobloxProfile) => {
-    sessionStorage.setItem(PROFILE_SESSION_KEY, JSON.stringify(prof));
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(prof));
     setProfile(prof);
   }, []);
 
@@ -125,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) headers["Authorization"] = `Bearer ${token}`;
     if (fp) headers["X-Device-Fingerprint"] = fp;
     fetch("/api/roblox/session", { method: "DELETE", credentials: "include", headers }).catch(() => {});
-    sessionStorage.removeItem(PROFILE_SESSION_KEY);
+    localStorage.removeItem(PROFILE_STORAGE_KEY);
     setProfile(null);
     toast({ title: "Disconnected", description: "Roblox session ended." });
   }, []);
@@ -137,11 +133,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (fp) headers["X-Device-Fingerprint"] = fp;
     clearToken();
     setAuthCredentials(null, null);
-    sessionStorage.removeItem(DEVICE_FP_SESSION_KEY);
+    localStorage.removeItem(DEVICE_FP_STORAGE_KEY);
     setLicenseToken(null);
     setLicenseDetails(null);
     fetch("/api/roblox/session", { method: "DELETE", credentials: "include", headers }).catch(() => {});
-    sessionStorage.removeItem(PROFILE_SESSION_KEY);
+    localStorage.removeItem(PROFILE_STORAGE_KEY);
     setProfile(null);
     toast({ title: "License revoked", description: "You have been fully signed out." });
   }, []);

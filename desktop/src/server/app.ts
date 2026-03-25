@@ -8,6 +8,24 @@ import { SQLiteSessionStore } from "../db/session-store.js";
 const REMOTE_API = process.env.REMOTE_API_URL || "https://Limited-ink.replit.app";
 
 let remoteSessionCookie: string | null = null;
+let _sqliteDb: Database.Database | null = null;
+
+function initCookieTable(db: Database.Database) {
+  _sqliteDb = db;
+  db.exec(`CREATE TABLE IF NOT EXISTS kv_store (key TEXT PRIMARY KEY, value TEXT)`);
+  const row = db.prepare(`SELECT value FROM kv_store WHERE key = 'remote_session_cookie'`).get() as { value: string } | undefined;
+  if (row?.value) {
+    remoteSessionCookie = row.value;
+    console.log("[Proxy] Restored remote session cookie from disk");
+  }
+}
+
+function persistCookie(cookie: string) {
+  remoteSessionCookie = cookie;
+  if (_sqliteDb) {
+    _sqliteDb.prepare(`INSERT OR REPLACE INTO kv_store (key, value) VALUES ('remote_session_cookie', ?)`).run(cookie);
+  }
+}
 
 async function proxyToRemote(
   remotePath: string,
@@ -53,8 +71,8 @@ async function proxyToRemote(
       for (const sc of setCookieHeaders) {
         const match = sc.match(/^(connect\.sid=[^;]+)/);
         if (match) {
-          remoteSessionCookie = match[1];
-          console.log("[Proxy] Remote session cookie captured");
+          persistCookie(match[1]);
+          console.log("[Proxy] Remote session cookie captured & persisted");
         }
       }
     }
@@ -76,6 +94,7 @@ async function proxyToRemote(
 }
 
 export function createApp(sqlite: Database.Database): express.Express {
+  initCookieTable(sqlite);
   const app = express();
 
   app.use(cors({
