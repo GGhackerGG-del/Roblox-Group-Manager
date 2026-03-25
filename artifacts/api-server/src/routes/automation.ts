@@ -19,18 +19,37 @@ function rHeaders(cookie: string, extra: Record<string, string> = {}): Record<st
 }
 
 async function getSafeCsrf(cookie: string): Promise<string> {
-  try {
-    const resp = await fetch("https://catalog.roblox.com/v1/catalog/items/details", {
-      method: "POST",
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "Content-Type": "application/json",
-        "User-Agent": UA,
-      },
-      body: JSON.stringify({ items: [] }),
-    });
-    return resp.headers.get("x-csrf-token") || "";
-  } catch { return ""; }
+  const hdrs: Record<string, string> = {
+    "Cookie": `.ROBLOSECURITY=${cookie}`,
+    "Content-Length": "0",
+    "User-Agent": UA,
+    "Referer": "https://www.roblox.com/",
+    "Origin": "https://www.roblox.com",
+  };
+
+  const endpoints = [
+    { url: "https://auth.roblox.com/v2/logout", method: "POST" },
+    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST" },
+    { url: "https://auth.roblox.com/v2/metadata", method: "POST" },
+  ];
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const ep of endpoints) {
+      try {
+        const r = await fetch(ep.url, { method: ep.method, headers: hdrs });
+        const token = r.headers.get("x-csrf-token");
+        if (token) {
+          console.log(`[Automation] CSRF obtained from ${ep.url} (attempt ${attempt + 1})`);
+          return token;
+        }
+      } catch {}
+    }
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+    }
+  }
+  console.error("[Automation] Failed to get CSRF after all attempts");
+  return "";
 }
 
 async function fetchWithCsrfRetry(url: string, cookie: string, opts: RequestInit): Promise<Response> {

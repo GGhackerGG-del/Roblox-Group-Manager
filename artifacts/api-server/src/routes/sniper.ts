@@ -131,30 +131,33 @@ let catalogPriceCacheTime = 0;
 const CATALOG_PRICE_CACHE_TTL = 10 * 60_000;
 
 async function getRobloxCsrf(cookie: string): Promise<string> {
-  try {
-    const r = await fetch("https://friends.roblox.com/v1/my/friends/count", {
-      method: "GET",
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://www.roblox.com/",
-      },
-    });
-    const token = r.headers.get("x-csrf-token");
-    if (token) return token;
-    const r2 = await fetch("https://auth.roblox.com/v2/metadata", {
-      method: "POST",
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "Content-Length": "0",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://www.roblox.com/",
-      },
-    });
-    return r2.headers.get("x-csrf-token") || "";
-  } catch {
-    return "";
+  const hdrs: Record<string, string> = {
+    "Cookie": `.ROBLOSECURITY=${cookie}`,
+    "Content-Length": "0",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Referer": "https://www.roblox.com/",
+    "Origin": "https://www.roblox.com",
+  };
+
+  const endpoints = [
+    { url: "https://auth.roblox.com/v2/logout", method: "POST" },
+    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST" },
+    { url: "https://auth.roblox.com/v2/metadata", method: "POST" },
+  ];
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const ep of endpoints) {
+      try {
+        const r = await fetch(ep.url, { method: ep.method, headers: hdrs });
+        const token = r.headers.get("x-csrf-token");
+        if (token) return token;
+      } catch {}
+    }
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+    }
   }
+  return "";
 }
 
 async function addCatalogPrices(items: LimitedItem[], cookie?: string): Promise<void> {
