@@ -199,7 +199,18 @@ export default function Marketing() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...seoForm, language: lang }),
       });
-      setSeoResult(r);
+      if (r) {
+        setSeoResult({
+          score: r.score ?? 0,
+          titleScore: r.titleScore ?? 0,
+          descriptionScore: r.descriptionScore ?? 0,
+          issues: Array.isArray(r.issues) ? r.issues : [],
+          suggestions: Array.isArray(r.suggestions) ? r.suggestions : [],
+          optimizedTitle: r.optimizedTitle ?? "",
+          optimizedDescription: r.optimizedDescription ?? "",
+          keywords: Array.isArray(r.keywords) ? r.keywords : [],
+        });
+      }
       playSuccess();
     } catch (e) { handleError(e); }
     finally { setSeoLoading(false); }
