@@ -2,7 +2,8 @@ modules = ["nodejs-24", "postgresql-16"]
 
 [deployment]
 deploymentTarget = "vm"
-run = ["node", "test-server.cjs"]
+build = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
+run = ["node", "artifacts/api-server/dist/index.cjs"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
@@ -48,3 +49,11 @@ ADMIN_SECRET = "de3e2c0c4208ae10698dc85cfaccb60e"
 
 [nix]
 channel = "stable-25_05"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
