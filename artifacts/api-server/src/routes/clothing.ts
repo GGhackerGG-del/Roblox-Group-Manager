@@ -31,23 +31,40 @@ async function itemConfigFetch(url: string, init?: RequestInit): Promise<Respons
 }
 
 async function getRobloxCsrf(cookie: string): Promise<string> {
-  try {
-    const hdrs: Record<string, string> = {
-      "Cookie": `.ROBLOSECURITY=${cookie}`,
-      "Content-Length": "0",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Referer": "https://www.roblox.com/",
-      "Origin": "https://www.roblox.com",
-    };
-    const r1 = await fetch("https://friends.roblox.com/v1/my/friends/count", { method: "GET", headers: hdrs });
-    const token = r1.headers.get("x-csrf-token");
-    if (token) return token;
-    const r2 = await fetch("https://auth.roblox.com/v2/metadata", { method: "POST", headers: hdrs });
-    return r2.headers.get("x-csrf-token") || "";
-  } catch (err) {
-    console.error("[Clothing] CSRF error:", err);
-    return "";
+  const hdrs: Record<string, string> = {
+    "Cookie": `.ROBLOSECURITY=${cookie}`,
+    "Content-Length": "0",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://www.roblox.com/",
+    "Origin": "https://www.roblox.com",
+  };
+
+  const endpoints = [
+    { url: "https://auth.roblox.com/v2/logout", method: "POST" },
+    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST" },
+    { url: "https://auth.roblox.com/v2/metadata", method: "POST" },
+  ];
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const ep of endpoints) {
+      try {
+        const r = await fetch(ep.url, { method: ep.method, headers: hdrs });
+        const token = r.headers.get("x-csrf-token");
+        if (token) {
+          console.log(`[Clothing] CSRF obtained from ${ep.url} (attempt ${attempt + 1})`);
+          return token;
+        }
+      } catch (e) {
+        console.error(`[Clothing] CSRF fetch error (${ep.url}):`, e);
+      }
+    }
+    if (attempt < 2) {
+      console.log(`[Clothing] CSRF not found, retrying in ${(attempt + 1) * 2}s...`);
+      await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+    }
   }
+  console.error("[Clothing] Failed to get CSRF after all attempts");
+  return "";
 }
 
 function robloxHeaders(cookie: string, extra: Record<string, string> = {}): Record<string, string> {
@@ -824,7 +841,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
   const isPants = clothingType === "Pants" || clothingType === "pants";
   const assetTypeName = isPants ? "Pants" : "Shirt";
 
-  const csrf = await getRobloxCsrf(cookie);
+  let csrf = await getRobloxCsrf(cookie);
   if (!csrf) { res.status(400).json({ error: "Failed to get CSRF. Session may have expired." }); return; }
 
   const imgBuf = Buffer.from(imageBase64, "base64");
@@ -859,23 +876,44 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     parts.push(Buffer.from(`--${boundary}--\r\n`));
     const fullBody = Buffer.concat(parts);
 
-    const uploadResp = await fetch(UPLOAD_API, {
-      method: "POST",
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "X-CSRF-TOKEN": csrf,
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Origin": "https://create.roblox.com",
-        "Referer": "https://create.roblox.com/",
-      },
-      body: fullBody,
-    });
+    let uploadResp: Response | null = null;
+    let text = "";
+    for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
+      uploadResp = await fetch(UPLOAD_API, {
+        method: "POST",
+        headers: {
+          "Cookie": `.ROBLOSECURITY=${cookie}`,
+          "X-CSRF-TOKEN": csrf,
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Origin": "https://create.roblox.com",
+          "Referer": "https://create.roblox.com/",
+        },
+        body: fullBody,
+      });
 
-    const text = await uploadResp.text();
-    console.log(`[Clothing] Upload response status=${uploadResp.status} body=${text.slice(0, 500)}`);
+      text = await uploadResp.text();
+      console.log(`[Clothing] Upload response attempt=${uploadAttempt + 1} status=${uploadResp.status} body=${text.slice(0, 500)}`);
 
-    if (uploadResp.status === 403 || uploadResp.status === 401) {
+      if (uploadResp.status === 403) {
+        const newCsrf = uploadResp.headers.get("x-csrf-token");
+        if (newCsrf && uploadAttempt < 2) {
+          console.log(`[Clothing] Got new CSRF from 403 response, retrying...`);
+          csrf = newCsrf;
+          continue;
+        }
+        res.status(401).json({ error: "Authentication failed. Check your Roblox cookie." });
+        return;
+      }
+      break;
+    }
+
+    if (!uploadResp) {
+      res.status(500).json({ error: "Upload failed" });
+      return;
+    }
+
+    if (uploadResp.status === 401) {
       res.status(401).json({ error: "Authentication failed. Check your Roblox cookie." });
       return;
     }
