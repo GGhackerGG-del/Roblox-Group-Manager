@@ -70,6 +70,7 @@ function formatDate(ts: number): string {
 }
 
 function ScoreBadge({ score }: { score: number }) {
+  const { t } = useLanguage();
   const color = score >= 80 ? "text-green-600 bg-green-500/10 border-green-500/20"
     : score >= 60 ? "text-amber-600 bg-amber-500/10 border-amber-500/20"
       : "text-red-600 bg-red-500/10 border-red-500/20";
