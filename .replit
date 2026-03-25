@@ -17,10 +17,6 @@ run = ["node", "test-server.cjs"]
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
-[[ports]]
-localPort = 3000
-externalPort = 80
-
 [workflows]
 runButton = "Project"
 
