@@ -371,13 +371,9 @@ router.delete("/automation/shout/scheduled/:id", async (req, res): Promise<void>
 });
 
 router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
-  let cookie = req.session.robloxCookie;
-  if (!cookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
-  if (cookie.startsWith(".ROBLOSECURITY=")) cookie = cookie.slice(".ROBLOSECURITY=".length);
-  if (cookie.startsWith("_|WARNING:")) {
-    const idx = cookie.indexOf("|_");
-    if (idx !== -1 && idx < 200) cookie = cookie.slice(idx + 2);
-  }
+  const rawCookie = req.session.robloxCookie;
+  if (!rawCookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
+  const cookie = rawCookie.startsWith(".ROBLOSECURITY=") ? rawCookie.slice(".ROBLOSECURITY=".length) : rawCookie;
   const { groupId } = req.params;
   const { payouts, payoutType = "FixedAmount", challengeId, verificationToken } = req.body as {
     payouts?: Array<{ recipientId: number; amount: number }>;
@@ -399,24 +395,16 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       PayoutType: payoutType,
       Recipients: payouts.map(p => ({ recipientId: p.recipientId, recipientType: "User", amount: p.amount })),
     };
-    const csrf = await getSafeCsrf(cookie);
+    let csrf = await getSafeCsrf(cookie);
     console.log(`[Payout] Got CSRF: ${csrf ? "yes" : "no"}`);
     const payoutHeaders: Record<string, string> = {
-      "Cookie": `.ROBLOSECURITY=${cookie};`,
+      "Cookie": `.ROBLOSECURITY=${cookie}`,
       "X-CSRF-TOKEN": csrf || "",
       "Content-Type": "application/json",
-      "Accept": "application/json, text/plain, */*",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Accept-Encoding": "gzip, deflate, br",
+      "Accept": "application/json",
       "User-Agent": UA,
-      "Referer": "https://www.roblox.com/groups/" + groupId,
+      "Referer": "https://www.roblox.com/",
       "Origin": "https://www.roblox.com",
-      "Sec-Fetch-Dest": "empty",
-      "Sec-Fetch-Mode": "cors",
-      "Sec-Fetch-Site": "same-site",
-      "Sec-Ch-Ua": '"Chromium";v="120", "Google Chrome";v="120", "Not=A?Brand";v="8"',
-      "Sec-Ch-Ua-Mobile": "?0",
-      "Sec-Ch-Ua-Platform": '"Windows"',
     };
     if (challengeId && verificationToken) {
       payoutHeaders["rblx-challenge-id"] = challengeId;
@@ -428,16 +416,32 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       })).toString("base64");
     }
     console.log(`[Payout] Sending to ${GROUPS_API}/v1/groups/${groupId}/payouts, body=${JSON.stringify(body)}`);
-    let resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
-    console.log(`[Payout] Response: status=${resp.status}`);
-    if (resp.status === 403) {
-      const newCsrf = resp.headers.get("x-csrf-token");
-      if (newCsrf) {
-        payoutHeaders["X-CSRF-TOKEN"] = newCsrf;
-        resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
-        console.log(`[Payout] CSRF retry: status=${resp.status}`);
+    let resp: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/payouts`, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
+      console.log(`[Payout] Attempt ${attempt + 1}: status=${resp.status}`);
+      if (resp.status === 403) {
+        const newCsrf = resp.headers.get("x-csrf-token");
+        if (newCsrf) {
+          csrf = newCsrf;
+          payoutHeaders["X-CSRF-TOKEN"] = newCsrf;
+          console.log(`[Payout] Got new CSRF from 403 response, retrying...`);
+          continue;
+        }
       }
+      if (resp.status === 401) {
+        const freshCsrf = await getSafeCsrf(cookie);
+        if (freshCsrf && attempt < 2) {
+          csrf = freshCsrf;
+          payoutHeaders["X-CSRF-TOKEN"] = freshCsrf;
+          console.log(`[Payout] Re-fetched CSRF after 401, retrying...`);
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+      }
+      break;
     }
+    if (!resp) { res.status(500).json({ error: "Failed to send payout" }); return; }
     if (resp.status === 403) {
       const rblxChallengeId = resp.headers.get("rblx-challenge-id");
       const rblxChallengeType = resp.headers.get("rblx-challenge-type");
