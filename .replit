@@ -1,14 +1,5 @@
 modules = ["nodejs-24", "postgresql-16"]
 
-[[artifacts]]
-id = "artifacts/api-server"
-
-[[artifacts]]
-id = "artifacts/limited-ink"
-
-[[artifacts]]
-id = "artifacts/mockup-sandbox"
-
 [deployment]
 deploymentTarget = "vm"
 run = ["node", "test-server.cjs"]
