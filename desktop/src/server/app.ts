@@ -7,16 +7,18 @@ import { SQLiteSessionStore } from "../db/session-store.js";
 
 const REMOTE_API = process.env.REMOTE_API_URL || "https://Limited-ink.replit.app";
 
+let remoteSessionCookie: string | null = null;
+
 async function proxyToRemote(
   remotePath: string,
   req: express.Request,
   res: express.Response
 ): Promise<void> {
   try {
-    const fetch = (globalThis as any).fetch || (await import("node-fetch")).default;
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const fetchFn = (globalThis as any).fetch || (await import("node-fetch")).default;
+
+    const headers: Record<string, string> = {};
+
     if (req.headers.authorization) {
       headers["Authorization"] = req.headers.authorization as string;
     }
@@ -24,16 +26,51 @@ async function proxyToRemote(
       headers["X-Device-Fingerprint"] = req.headers["x-device-fingerprint"] as string;
     }
 
-    const response = await fetch(`${REMOTE_API}${remotePath}`, {
+    const hasBody = req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE";
+    if (hasBody && req.body != null) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    if (remoteSessionCookie) {
+      headers["Cookie"] = remoteSessionCookie;
+    }
+
+    const url = `${REMOTE_API}${remotePath}`;
+    console.log(`[Proxy] ${req.method} ${url}`);
+
+    const response = await fetchFn(url, {
       method: req.method,
       headers,
-      body: req.method !== "GET" ? JSON.stringify(req.body) : undefined,
+      body: hasBody && req.body != null ? JSON.stringify(req.body) : undefined,
+      redirect: "manual",
     });
 
-    const data = await response.json();
-    res.status(response.status).json(data);
+    const setCookieHeaders = response.headers.getSetCookie
+      ? response.headers.getSetCookie()
+      : (response.headers.raw?.()?.["set-cookie"] || []);
+
+    if (setCookieHeaders && setCookieHeaders.length > 0) {
+      for (const sc of setCookieHeaders) {
+        const match = sc.match(/^(connect\.sid=[^;]+)/);
+        if (match) {
+          remoteSessionCookie = match[1];
+          console.log("[Proxy] Remote session cookie captured");
+        }
+      }
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    const status = response.status;
+
+    if (contentType.includes("application/json")) {
+      const data = await response.json();
+      res.status(status).json(data);
+    } else {
+      const text = await response.text();
+      res.status(status).type(contentType.split(";")[0] || "text/plain").send(text);
+    }
   } catch (err: any) {
-    console.error("[License Proxy] Error:", err.message);
+    console.error("[Proxy] Error:", err.message);
     res.status(502).json({ error: "Cannot connect to license server. Check internet connection." });
   }
 }
