@@ -373,7 +373,11 @@ router.delete("/automation/shout/scheduled/:id", async (req, res): Promise<void>
 router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
   const rawCookie = req.session.robloxCookie;
   if (!rawCookie) { res.status(401).json({ error: "No active Roblox session." }); return; }
-  const cookie = rawCookie.startsWith(".ROBLOSECURITY=") ? rawCookie.slice(".ROBLOSECURITY=".length) : rawCookie;
+  let cookie = rawCookie.startsWith(".ROBLOSECURITY=") ? rawCookie.slice(".ROBLOSECURITY=".length) : rawCookie;
+  const warningRegex = /^_\|WARNING:-DO-NOT-SHARE-THIS\.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items\.\|_/;
+  const cleanCookie = cookie.replace(warningRegex, "");
+  console.log(`[Payout] Cookie: raw_len=${cookie.length}, clean_len=${cleanCookie.length}, had_warning=${cookie.length !== cleanCookie.length}`);
+  cookie = cleanCookie;
   const { groupId } = req.params;
   const { payouts, payoutType = "FixedAmount", challengeId, verificationToken, challengeType: reqChallengeType } = req.body as {
     payouts?: Array<{ recipientId: number; amount: number }>;
@@ -387,25 +391,25 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
     const verifyResp = await fetch("https://users.roblox.com/v1/users/authenticated", {
       headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "User-Agent": UA },
     });
-    console.log(`[Payout] Cookie verify: status=${verifyResp.status}`);
+    console.log(`[Payout] Cookie verify (clean): status=${verifyResp.status}`);
     if (!verifyResp.ok) {
       res.status(401).json({ error: "Roblox cookie expired. Please re-login." });
       return;
     }
+    const verifyData = await verifyResp.json() as { id?: number; name?: string };
+    console.log(`[Payout] Verified user: id=${verifyData.id} name=${verifyData.name}`);
     const body = {
       PayoutType: payoutType,
       Recipients: payouts.map(p => ({ recipientId: p.recipientId, recipientType: "User", amount: p.amount })),
     };
     let csrf = await getSafeCsrf(cookie);
-    console.log(`[Payout] Got CSRF: ${csrf ? "yes" : "no"}`);
+    console.log(`[Payout] Got CSRF: ${csrf ? `yes (len=${csrf.length})` : "no"}`);
     const payoutHeaders: Record<string, string> = {
       "Cookie": `.ROBLOSECURITY=${cookie}`,
       "X-CSRF-TOKEN": csrf || "",
       "Content-Type": "application/json",
       "Accept": "application/json",
       "User-Agent": UA,
-      "Referer": "https://www.roblox.com/",
-      "Origin": "https://www.roblox.com",
     };
     if (challengeId && verificationToken) {
       const ct = reqChallengeType || "twostepverification";
@@ -420,8 +424,7 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       console.log(`[Payout] Retrying with challenge: type=${ct} id=${challengeId}`);
     }
     const payoutUrl = `${GROUPS_API}/v1/groups/${groupId}/payouts`;
-    console.log(`[Payout] Sending to ${payoutUrl}, body=${JSON.stringify(body)}`);
-    console.log(`[Payout] Cookie length=${cookie.length}, starts with WARNING=${cookie.startsWith("_|WARNING")}`);
+    console.log(`[Payout] Sending to ${payoutUrl}`);
     let resp: Response | null = null;
     let respBody = "";
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -463,16 +466,12 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
         }
       }
       if (resp.status === 401) {
-        console.log(`[Payout] 401 on attempt ${attempt + 1}`);
-        if (attempt < 2) {
-          const freshCsrf = await getSafeCsrf(cookie);
-          if (freshCsrf) {
-            payoutHeaders["X-CSRF-TOKEN"] = freshCsrf;
-            console.log(`[Payout] Re-fetched CSRF after 401, retrying...`);
-          }
-          await new Promise(r => setTimeout(r, 1000));
-          continue;
-        }
+        console.log(`[Payout] 401 on attempt ${attempt + 1}, set-cookie=${resp.headers.get("set-cookie")}`);
+        const postCheck = await fetch("https://users.roblox.com/v1/users/authenticated", {
+          headers: { "Cookie": `.ROBLOSECURITY=${cookie}`, "User-Agent": UA },
+        });
+        console.log(`[Payout] Post-401 cookie check: status=${postCheck.status}`);
+        break;
       }
       break;
     }
