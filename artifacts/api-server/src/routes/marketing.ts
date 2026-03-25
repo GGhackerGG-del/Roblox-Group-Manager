@@ -1,11 +1,6 @@
 import { Router, type IRouter } from "express";
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname_safe = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 const router: IRouter = Router();
 
@@ -138,17 +133,9 @@ router.post("/marketing/webhook-avatar-upload", (req, res): void => {
   if (!data) { res.status(400).json({ error: "data required" }); return; }
   const match = data.match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i);
   if (!match) { res.status(400).json({ error: "Invalid image data" }); return; }
-  const ext = match[1].replace("jpeg", "jpg");
   const buffer = Buffer.from(match[2], "base64");
-  if (buffer.length > 5 * 1024 * 1024) { res.status(400).json({ error: "File too large (max 5MB)" }); return; }
-  const filename = `${randomUUID()}.${ext}`;
-  const dir = path.join(__dirname_safe, "..", "..", "uploads", "webhook-avatars");
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, filename), buffer);
-  const host = req.get("host") || "localhost";
-  const proto = req.get("x-forwarded-proto") || req.protocol;
-  const url = `${proto}://${host}/uploads/webhook-avatars/${filename}`;
-  res.json({ url });
+  if (buffer.length > 2 * 1024 * 1024) { res.status(400).json({ error: "File too large (max 2MB)" }); return; }
+  res.json({ url: data });
 });
 
 router.get("/marketing/webhooks", (req, res): void => {
@@ -198,7 +185,7 @@ router.post("/marketing/webhooks/:id/test", async (req, res): Promise<void> => {
     if (webhook.type === "discord") {
       const payload = {
         username: "Limited.Ink",
-        avatar_url: webhook.avatarUrl || "https://www.roblox.com/favicon.ico",
+        avatar_url: (webhook.avatarUrl && !webhook.avatarUrl.startsWith("data:")) ? webhook.avatarUrl : "https://www.roblox.com/favicon.ico",
         embeds: [{
           title: "🔔 Test Notification",
           description: `Webhook successfully connected!\nGroup: ${profile?.name || "Unknown"}\nTriggered at: ${new Date().toLocaleString()}`,
@@ -266,7 +253,7 @@ router.post("/marketing/webhooks/fire", async (req, res): Promise<void> => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             username: "Limited.Ink",
-            avatar_url: wh.avatarUrl || undefined,
+            avatar_url: (wh.avatarUrl && !wh.avatarUrl.startsWith("data:")) ? wh.avatarUrl : undefined,
             embeds: [{ title: title || event, description, color: color || 0x5865F2, timestamp: new Date().toISOString() }],
           }),
           signal: AbortSignal.timeout(5000),
