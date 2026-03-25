@@ -11,7 +11,7 @@ id = "artifacts/mockup-sandbox"
 
 [deployment]
 deploymentTarget = "vm"
-run = ["node", "artifacts/api-server/dist/index.cjs"]
+run = ["node", "test-server.cjs"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
