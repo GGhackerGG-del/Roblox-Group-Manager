@@ -10,7 +10,7 @@ id = "artifacts/limited-ink"
 id = "artifacts/mockup-sandbox"
 
 [deployment]
-deploymentTarget = "vm"
+deploymentTarget = "autoscale"
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
