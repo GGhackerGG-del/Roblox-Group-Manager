@@ -62,14 +62,15 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `POST /api/forum/subscriptions` — Subscribe to a Roblox group
 - `DELETE /api/forum/subscriptions/:subId` — Unsubscribe
 - `GET /api/forum/subscriptions/check/:groupId` — Check if subscribed to a group
-- `WebSocket /ws/signaling` — Voice call signaling server (register, call-offer, call-answer, call-reject, call-end, ice-candidate). 1:1 DM calls only.
+- `WebSocket /ws/signaling` — Voice/video call signaling server (register, call-offer, call-answer, call-reject, call-end, ice-candidate, renegotiate-offer, renegotiate-answer, track-state). 1:1 DM calls only. Server enforces sender identity (currentUserId) on all relayed messages.
 
-### Voice Calls (WebRTC)
-- `artifacts/api-server/src/signaling.ts` — WebSocket signaling server for peer-to-peer voice calls
-- `artifacts/limited-ink/src/hooks/useVoiceCall.ts` — React hook managing WebSocket signaling + RTCPeerConnection lifecycle
-- Only DM (1:1) calls supported; group chat call button removed
+### Voice/Video Calls (WebRTC) — Discord-style
+- `artifacts/api-server/src/signaling.ts` — WebSocket signaling server for peer-to-peer calls. Server-side identity enforcement prevents spoofing.
+- `artifacts/limited-ink/src/hooks/useVoiceCall.ts` — React hook managing WebSocket signaling + RTCPeerConnection lifecycle. Supports audio, video, and screen sharing tracks with mid-call renegotiation.
+- `artifacts/limited-ink/src/components/CallOverlay.tsx` — Discord-style full-screen call overlay: incoming call modal with pulsing ring animation, active call panel with video tiles, screen share view, control bar (mute, deafen, video, screen share, end call).
+- Features: video calls (camera toggle), screen sharing (getDisplayMedia), deafen (mute remote audio), proper media cleanup on call end
+- Call peer metadata stored in hook state (not derived from active chat) so overlay works correctly even if user switches chats
 - Auto-reconnect with unmount guard; 30s call timeout for unanswered calls
-- Incoming call notification overlay with accept/reject in ChatTab
 - Call duration logged as chat message on end (`[call:outgoing:MM:SS]` or `[call:missed:]`)
 
 ### Components

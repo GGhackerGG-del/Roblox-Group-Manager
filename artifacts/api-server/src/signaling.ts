@@ -32,12 +32,14 @@ export function setupSignaling(server: HttpServer) {
         }
 
         case "call-offer": {
+          if (currentUserId === null) break;
           const target = users.get(msg.targetUserId);
           if (target && target.ws.readyState === WebSocket.OPEN) {
+            const senderInfo = users.get(currentUserId);
             target.ws.send(JSON.stringify({
               type: "incoming-call",
-              callerId: msg.callerId,
-              callerName: msg.callerName,
+              callerId: currentUserId,
+              callerName: senderInfo?.displayName || "User",
               callerAvatar: msg.callerAvatar,
               offer: msg.offer,
             }));
@@ -48,11 +50,12 @@ export function setupSignaling(server: HttpServer) {
         }
 
         case "call-answer": {
+          if (currentUserId === null) break;
           const caller = users.get(msg.callerId);
           if (caller && caller.ws.readyState === WebSocket.OPEN) {
             caller.ws.send(JSON.stringify({
               type: "call-accepted",
-              answererId: msg.answererId,
+              answererId: currentUserId,
               answer: msg.answer,
             }));
           }
@@ -60,34 +63,77 @@ export function setupSignaling(server: HttpServer) {
         }
 
         case "call-reject": {
+          if (currentUserId === null) break;
           const caller = users.get(msg.callerId);
           if (caller && caller.ws.readyState === WebSocket.OPEN) {
             caller.ws.send(JSON.stringify({
               type: "call-rejected",
-              rejecterId: msg.rejecterId,
+              rejecterId: currentUserId,
             }));
           }
           break;
         }
 
         case "call-end": {
+          if (currentUserId === null) break;
           const peer = users.get(msg.targetUserId);
           if (peer && peer.ws.readyState === WebSocket.OPEN) {
             peer.ws.send(JSON.stringify({
               type: "call-ended",
-              userId: msg.userId,
+              userId: currentUserId,
             }));
           }
           break;
         }
 
         case "ice-candidate": {
+          if (currentUserId === null) break;
           const peer = users.get(msg.targetUserId);
           if (peer && peer.ws.readyState === WebSocket.OPEN) {
             peer.ws.send(JSON.stringify({
               type: "ice-candidate",
               candidate: msg.candidate,
-              fromUserId: msg.fromUserId,
+              fromUserId: currentUserId,
+            }));
+          }
+          break;
+        }
+
+        case "renegotiate-offer": {
+          if (currentUserId === null) break;
+          const peer = users.get(msg.targetUserId);
+          if (peer && peer.ws.readyState === WebSocket.OPEN) {
+            peer.ws.send(JSON.stringify({
+              type: "renegotiate-offer",
+              offer: msg.offer,
+              fromUserId: currentUserId,
+            }));
+          }
+          break;
+        }
+
+        case "renegotiate-answer": {
+          if (currentUserId === null) break;
+          const peer = users.get(msg.targetUserId);
+          if (peer && peer.ws.readyState === WebSocket.OPEN) {
+            peer.ws.send(JSON.stringify({
+              type: "renegotiate-answer",
+              answer: msg.answer,
+              fromUserId: currentUserId,
+            }));
+          }
+          break;
+        }
+
+        case "track-state": {
+          if (currentUserId === null) break;
+          const peer = users.get(msg.targetUserId);
+          if (peer && peer.ws.readyState === WebSocket.OPEN) {
+            peer.ws.send(JSON.stringify({
+              type: "track-state",
+              track: msg.track,
+              enabled: msg.enabled,
+              fromUserId: currentUserId,
             }));
           }
           break;

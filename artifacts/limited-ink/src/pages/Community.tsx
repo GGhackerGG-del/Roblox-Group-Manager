@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AccessoriesTab, { UserEquippedAccessories } from "@/components/AccessoriesTab";
+import CallOverlay from "@/components/CallOverlay";
 import { Sparkles, Gamepad2 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -1346,7 +1347,11 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const handleStartCall = async () => {
     if (active?.kind !== "dm") return;
     try {
-      await voiceCall.startCall(active.user.id);
+      await voiceCall.startCall(
+        active.user.id,
+        active.user.displayName,
+        active.user.avatarUrl || robloxHeadshot(active.user.robloxUserId),
+      );
     } catch {
       toast({ variant: "destructive", title: t("com.noMicAccess"), description: t("com.micPermissionDenied") });
     }
@@ -1646,40 +1651,33 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 
   return (
     <div className="space-y-3 relative">
-      <AnimatePresence>
-        {voiceCall.incomingCall && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="absolute top-0 left-1/2 -translate-x-1/2 z-50 w-80 bg-black text-white rounded-2xl shadow-2xl overflow-hidden border border-white/10"
-          >
-            <div className="p-5 flex flex-col items-center gap-3">
-              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/20">
-                <img src={voiceCall.incomingCall.callerAvatar} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="text-center">
-                <p className="font-bold text-sm">{voiceCall.incomingCall.callerName}</p>
-                <p className="text-xs text-white/60">{t("com.incomingCall")}</p>
-              </div>
-              <div className="flex gap-4 mt-2">
-                <button
-                  onClick={voiceCall.rejectCall}
-                  className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors"
-                >
-                  <PhoneOff className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={voiceCall.acceptCall}
-                  className="w-12 h-12 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors animate-pulse"
-                >
-                  <Phone className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <CallOverlay
+        callActive={voiceCall.callActive}
+        callConnecting={voiceCall.callConnecting}
+        callMuted={voiceCall.callMuted}
+        callDeafened={voiceCall.callDeafened}
+        callTimer={voiceCall.callTimer}
+        videoEnabled={voiceCall.videoEnabled}
+        screenSharing={voiceCall.screenSharing}
+        remoteVideoEnabled={voiceCall.remoteVideoEnabled}
+        remoteScreenSharing={voiceCall.remoteScreenSharing}
+        remoteStreamActive={voiceCall.remoteStreamActive}
+        incomingCall={voiceCall.incomingCall}
+        peerName={voiceCall.callPeer?.name || ""}
+        peerAvatar={voiceCall.callPeer?.avatar || ""}
+        myName={myUser?.displayName || ""}
+        myAvatar={myUser?.avatarUrl || robloxHeadshot(myUser?.robloxUserId || 0)}
+        onAccept={voiceCall.acceptCall}
+        onReject={voiceCall.rejectCall}
+        onEndCall={handleEndCall}
+        onToggleMute={voiceCall.toggleMute}
+        onToggleDeafen={voiceCall.toggleDeafen}
+        onToggleVideo={voiceCall.toggleVideo}
+        onToggleScreenShare={voiceCall.toggleScreenShare}
+        localVideoRef={voiceCall.localVideoRef}
+        remoteVideoRef={voiceCall.remoteVideoRef}
+        screenVideoRef={voiceCall.screenVideoRef}
+      />
       <div className="flex gap-4 h-[620px]">
         {/* Sidebar */}
         <div className="w-72 shrink-0 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -1843,26 +1841,6 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   {voiceCall.callConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : voiceCall.callActive ? <PhoneOff className="w-4 h-4 text-red-500" /> : <Phone className="w-4 h-4" />}
                 </Button>
               </div>
-              <AnimatePresence>
-                {(voiceCall.callActive || voiceCall.callConnecting) && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-b border-border overflow-hidden">
-                    <div className="px-4 py-3 bg-black text-white flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium">{voiceCall.callConnecting ? t("com.calling") : `${t("com.callWith")} ${active.user.displayName}`}</p>
-                        {voiceCall.callActive && <p className="text-[10px] text-white/60 font-mono">{formatCallTime(voiceCall.callTimer)}</p>}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={voiceCall.toggleMute} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${voiceCall.callMuted ? "bg-red-500/80" : "bg-white/20 hover:bg-white/30"}`}>
-                          {voiceCall.callMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                        </button>
-                        <button onClick={handleEndCall} className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors">
-                          <PhoneOff className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
               <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 overflow-y-auto p-4 space-y-3">
                 {loadingMsgs ? (
                   <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
