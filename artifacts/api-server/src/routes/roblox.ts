@@ -97,6 +97,15 @@ router.post("/roblox/auth", async (req, res): Promise<void> => {
   res.json(req.session.robloxProfile);
 });
 
+router.get("/roblox/session-cookie", async (req, res): Promise<void> => {
+  const cookie = req.session.robloxCookie;
+  if (!cookie) {
+    res.status(401).json({ error: "No active Roblox session." });
+    return;
+  }
+  res.json({ cookie });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ME — lightweight session check / profile restore
 // Returns the current Roblox profile if a server-side session exists.
