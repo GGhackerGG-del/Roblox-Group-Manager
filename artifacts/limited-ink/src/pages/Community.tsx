@@ -11,7 +11,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Heart, MessageCircle, UserPlus, Users, Send, Image as ImageIcon,
@@ -2687,31 +2686,6 @@ function SubscriptionsTab({ myUser }: { myUser: PlatformUser | null }) {
 
 // ── My Profile Banner ─────────────────────────────────────────────────────────
 
-function MyProfileBanner({ myUser, onEdit }: { myUser: PlatformUser; onEdit: () => void }) {
-  return (
-    <Card className="rounded-2xl border border-border shadow-sm overflow-hidden">
-      <div className="h-14 bg-gradient-to-r from-zinc-800 to-zinc-700" />
-      <CardContent className="px-5 pb-5">
-        <div className="flex items-end justify-between -mt-7">
-          <Avatar className="w-14 h-14 border-4 border-background shadow-md">
-            <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
-            <AvatarFallback className="text-xl font-bold">{myUser.displayName.charAt(0)}</AvatarFallback>
-          </Avatar>
-          <Button size="sm" variant="outline" onClick={onEdit} className="rounded-xl gap-1.5 text-xs h-8 mb-0.5">
-            <Pencil className="w-3.5 h-3.5" /> Edit Profile
-          </Button>
-        </div>
-        <div className="mt-3">
-          <p className="font-bold text-lg leading-tight">{myUser.displayName}</p>
-          <p className="text-sm text-muted-foreground">@{myUser.robloxUsername}</p>
-          {myUser.bio && <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2">{myUser.bio}</p>}
-          {!myUser.bio && <p className="text-sm text-muted-foreground/50 mt-1.5 italic">No bio yet — click Edit to add one</p>}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 // ── Main Community Page ───────────────────────────────────────────────────────
 
 // ── TeamsTab ───────────────────────────────────────────────────────────────────
@@ -3916,63 +3890,85 @@ export default function Community() {
     );
   }
 
+  const navItems = [
+    { id: "feed", icon: Globe, label: t("community.feed") },
+    { id: "chat", icon: MessageSquare, label: t("community.chat") },
+    { id: "friends", icon: Users, label: t("community.friends") },
+    { id: "discover", icon: Search, label: t("community.discover") },
+    { id: "forum", icon: MessageCircleQuestion, label: t("community.forum") || "Forum" },
+    { id: "marketplace", icon: Store, label: t("com.marketplace") },
+  ];
+
   return (
-    <div className="p-6 lg:p-10 w-full max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{t("community.title")}</h1>
-        <p className="text-muted-foreground mt-1 text-sm">{t("community.desc")}</p>
+    <div className="flex w-full max-w-[1200px] mx-auto min-h-[calc(100vh-80px)]">
+      <div className="w-56 shrink-0 border-r border-border/50 py-4 pr-2 pl-4 flex flex-col gap-1">
+        {myUser && (
+          <button
+            onClick={() => setEditingBio(true)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary/60 transition-colors mb-3"
+          >
+            <Avatar className="w-9 h-9 border border-border/50">
+              <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
+              <AvatarFallback className="text-sm font-bold">{myUser.displayName.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-semibold truncate leading-tight">{myUser.displayName}</p>
+              <p className="text-[11px] text-muted-foreground truncate">@{myUser.robloxUsername}</p>
+            </div>
+          </button>
+        )}
+
+        <div className="h-px bg-border/50 mx-2 mb-1" />
+
+        <nav role="tablist" aria-orientation="vertical" className="flex flex-col gap-1">
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`panel-${item.id}`}
+                onClick={() => handleTabChange(item.id)}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all w-full text-left ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                }`}
+              >
+                <Icon className="w-[18px] h-[18px] shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {myUser && (
+          <>
+            <div className="h-px bg-border/50 mx-2 my-2" />
+            <div className="px-3 mt-auto">
+              {myUser.bio ? (
+                <p className="text-[11px] text-muted-foreground/70 line-clamp-3 leading-relaxed">{myUser.bio}</p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground/40 italic">{t("profile.bio.placeholder")}</p>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Profile banner for current user */}
-      {myUser && (
-        <MyProfileBanner myUser={myUser} onEdit={() => setEditingBio(true)} />
-      )}
-
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="rounded-xl bg-secondary/50 border border-border p-1 h-auto gap-1 flex-wrap">
-          <TabsTrigger value="feed" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Globe className="w-3.5 h-3.5" /> {t("community.feed")}
-          </TabsTrigger>
-          <TabsTrigger value="forum" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <MessageCircleQuestion className="w-3.5 h-3.5" /> {t("community.forum") || "Forum"}
-          </TabsTrigger>
-          <TabsTrigger value="discover" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Search className="w-3.5 h-3.5" /> {t("community.discover")}
-          </TabsTrigger>
-          <TabsTrigger value="friends" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5" /> {t("community.friends")}
-          </TabsTrigger>
-          <TabsTrigger value="chat" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <MessageSquare className="w-3.5 h-3.5" /> {t("community.chat")}
-          </TabsTrigger>
-          <TabsTrigger value="marketplace" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-4 py-2 flex items-center gap-1.5">
-            <Store className="w-3.5 h-3.5" /> {t("com.marketplace")}
-          </TabsTrigger>
-        </TabsList>
-
-        <div className="mt-6">
-          <TabsContent value="feed" className="mt-0">
-            <FeedTab myUser={myUser} onUserClick={setProfileModalUserId} />
-          </TabsContent>
-          <TabsContent value="forum" className="mt-0">
-            <ForumTab myUser={myUser} onUserClick={setProfileModalUserId} />
-          </TabsContent>
-          <TabsContent value="discover" className="mt-0">
-            <DiscoverTab myUser={myUser} onUserClick={setProfileModalUserId} onChat={handleChatUser} />
-          </TabsContent>
-          <TabsContent value="friends" className="mt-0">
-            <FriendsTab myUser={myUser} onChat={handleChatUser} onUserClick={setProfileModalUserId} />
-          </TabsContent>
-          <TabsContent value="chat" className="mt-0">
-            <ChatTab myUser={myUser} initialChatUser={chatInitUser} onClearInitial={() => setChatInitUser(null)} />
-          </TabsContent>
-          <TabsContent value="marketplace" className="mt-0">
-            <MarketplaceTab myUser={myUser} onChatUser={handleChatUser} />
-          </TabsContent>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div id={`panel-${activeTab}`} role="tabpanel" className="p-5 h-full overflow-y-auto">
+          {activeTab === "feed" && <FeedTab myUser={myUser} onUserClick={setProfileModalUserId} />}
+          {activeTab === "forum" && <ForumTab myUser={myUser} onUserClick={setProfileModalUserId} />}
+          {activeTab === "discover" && <DiscoverTab myUser={myUser} onUserClick={setProfileModalUserId} onChat={handleChatUser} />}
+          {activeTab === "friends" && <FriendsTab myUser={myUser} onChat={handleChatUser} onUserClick={setProfileModalUserId} />}
+          {activeTab === "chat" && <ChatTab myUser={myUser} initialChatUser={chatInitUser} onClearInitial={() => setChatInitUser(null)} />}
+          {activeTab === "marketplace" && <MarketplaceTab myUser={myUser} onChatUser={handleChatUser} />}
         </div>
-      </Tabs>
+      </div>
 
-      {/* Profile Modal */}
       <AnimatePresence>
         {profileModalUserId !== null && (
           <UserProfileModal
@@ -3984,7 +3980,6 @@ export default function Community() {
         )}
       </AnimatePresence>
 
-      {/* Bio Edit Modal */}
       <AnimatePresence>
         {editingBio && (
           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setEditingBio(false)}>
@@ -3992,7 +3987,7 @@ export default function Community() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="bg-background rounded-3xl border border-border shadow-2xl w-full max-w-md p-6 space-y-4"
+              className="bg-background rounded-2xl border border-border shadow-2xl w-full max-w-md p-6 space-y-4"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
