@@ -2,6 +2,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { build as esbuild } from "esbuild";
 import { rm, readFile } from "fs/promises";
+import { execSync } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +39,10 @@ const allowlist = [
 ];
 
 async function buildAll() {
+  console.log("building frontend...");
+  const workspaceRoot = path.resolve(__dirname, "..", "..");
+  execSync("pnpm --filter limited-ink run build", { cwd: workspaceRoot, stdio: "inherit" });
+
   const distDir = path.resolve(__dirname, "dist");
   await rm(distDir, { recursive: true, force: true });
 
