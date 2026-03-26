@@ -1,4 +1,12 @@
 import { useRef, useState, useCallback, useEffect } from "react";
+import {
+  startOutgoingRing, stopOutgoingRing,
+  startIncomingRing, stopIncomingRing,
+  playCallConnected, playCallEnded,
+  playMute, playUnmute,
+  playDeafen, playUndeafen,
+  stopAllSounds,
+} from "@/lib/callSounds";
 
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
@@ -76,7 +84,11 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const cleanupCall = useCallback(() => {
+  const cleanupCall = useCallback((playEndSound = true) => {
+    stopAllSounds();
+    if (playEndSound && (stateRef.current.callActive || stateRef.current.callConnecting)) {
+      playCallEnded();
+    }
     pcRef.current?.close();
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach(t => t.stop());
@@ -245,6 +257,8 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
         return;
       }
 
+      startOutgoingRing();
+
       callTimeoutRef.current = setTimeout(() => {
         if (stateRef.current.callConnecting && !stateRef.current.callActive) {
           cleanupCall();
@@ -258,6 +272,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
   const acceptCall = useCallback(async () => {
     const incoming = stateRef.current.incomingCall;
     if (!incoming) return;
+    stopIncomingRing();
     callTargetRef.current = incoming.callerId;
 
     try {
@@ -279,6 +294,8 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
         return;
       }
 
+      playCallConnected();
+
       setState(s => ({
         ...s,
         callActive: true,
@@ -298,6 +315,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
   const rejectCall = useCallback(() => {
     const incoming = stateRef.current.incomingCall;
     if (!incoming) return;
+    stopIncomingRing();
     sendWs({ type: "call-reject", callerId: incoming.callerId, rejecterId: myUserId });
     setState(s => ({ ...s, incomingCall: null }));
   }, [myUserId, sendWs]);
@@ -313,15 +331,19 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
 
   const toggleMute = useCallback(() => {
     if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
-      setState(s => ({ ...s, callMuted: !s.callMuted }));
+      const willMute = !stateRef.current.callMuted;
+      localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !willMute; });
+      willMute ? playMute() : playUnmute();
+      setState(s => ({ ...s, callMuted: willMute }));
     }
   }, []);
 
   const toggleDeafen = useCallback(() => {
     if (remoteAudioRef.current) {
-      remoteAudioRef.current.muted = !remoteAudioRef.current.muted;
-      setState(s => ({ ...s, callDeafened: !s.callDeafened }));
+      const willDeafen = !stateRef.current.callDeafened;
+      remoteAudioRef.current.muted = willDeafen;
+      willDeafen ? playDeafen() : playUndeafen();
+      setState(s => ({ ...s, callDeafened: willDeafen }));
     }
   }, []);
 
@@ -430,6 +452,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       switch (msg.type) {
         case "incoming-call":
           if (!stateRef.current.callActive && !stateRef.current.callConnecting) {
+            startIncomingRing();
             setState(s => ({
               ...s,
               incomingCall: {
@@ -445,6 +468,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
           break;
 
         case "call-accepted":
+          stopOutgoingRing();
           if (callTimeoutRef.current) {
             clearTimeout(callTimeoutRef.current);
             callTimeoutRef.current = null;
@@ -452,6 +476,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
           if (pcRef.current) {
             pcRef.current.setRemoteDescription(new RTCSessionDescription(msg.answer))
               .then(() => {
+                playCallConnected();
                 setState(s => ({ ...s, callActive: true, callConnecting: false, callTimer: 0 }));
                 callTimerRef.current = setInterval(() => {
                   setState(s => ({ ...s, callTimer: s.callTimer + 1 }));
@@ -531,10 +556,11 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     connectWs();
     return () => {
       unmountedRef.current = true;
+      stopAllSounds();
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
       wsRef.current?.close();
-      cleanupCall();
+      cleanupCall(false);
     };
   }, [connectWs, cleanupCall]);
 
