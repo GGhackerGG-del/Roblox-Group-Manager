@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage } from "electron";
+import { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage, session as electronSession } from "electron";
 import path from "path";
 
 let mainWindow: BrowserWindow | null = null;
@@ -91,6 +91,20 @@ app.whenReady().then(async () => {
     if (app.isPackaged) {
       process.env.ELECTRON_IS_PACKAGED = "true";
     }
+
+    electronSession.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      const allowed = ["media", "mediaKeySystem", "display-capture", "notifications"];
+      const url = webContents?.getURL() || "";
+      const isTrusted = url.startsWith("http://localhost:") || url.startsWith("http://127.0.0.1:");
+      callback(isTrusted && allowed.includes(permission));
+    });
+
+    electronSession.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+      const allowed = ["media", "mediaKeySystem", "display-capture", "notifications"];
+      const url = webContents?.getURL() || "";
+      const isTrusted = url.startsWith("http://localhost:") || url.startsWith("http://127.0.0.1:");
+      return isTrusted && allowed.includes(permission);
+    });
 
     const { initStore } = require("./db/index.js");
     const userDataPath = app.getPath("userData");
