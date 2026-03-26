@@ -25,6 +25,7 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `Sniper.tsx` — Limited Sniper tool with 8 tabs: Browse (search Rolimons data), Deals (undervalued/projected items), Underprice Detector (items with catalog price < RAP, requires Roblox session), Watchlist (live price check + manual buy + per-item Auto-Buy toggle), Snipe Bot (auto-monitor loop with configurable interval 30s–5min, auto-buys flagged items, alerts for non-auto items), RAP History (price/volume chart via Roblox resale-data endpoint using recharts), Trade Calculator (build Give/Receive lists, shows RAP+Value totals and profit/loss), Deal Log (localStorage history of bought/alerted/failed deals). localStorage watchlist + deal log persistence.
 
 - `PnL.tsx` — Group-level Profit & Loss dashboard: balance, pending, daily/weekly revenue, Roblox commission, net in USD/RUB, top items, recent transactions. Uses PageCacheContext for state persistence.
+- `Security.tsx` — Cookie Checker tool (bulk paste cookies, check validity, see Robux balance / Premium / friends count, copy cookies). Also: Session Monitor, Activity Logs, Auto Cookie Refresh, Proxy config. No account-switching; purely a cookie management/checking tool.
 
 ### Backend Routes
 - `POST /api/license/verify` — Activate license code, bind device fingerprint, return JWT

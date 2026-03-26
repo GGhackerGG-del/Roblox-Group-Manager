@@ -95,6 +95,75 @@ router.post("/security/validate-cookie", async (req, res): Promise<void> => {
   }
 });
 
+router.post("/security/check-cookie", async (req, res): Promise<void> => {
+  const { cookie } = req.body as { cookie?: string };
+  if (!cookie || typeof cookie !== "string" || !cookie.trim()) {
+    res.status(400).json({ error: "cookie is required" });
+    return;
+  }
+  const cleanCookie = cookie.trim().replace(/^\.ROBLOSECURITY=/, "");
+  try {
+    const userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cleanCookie);
+    if (!userResp.ok) {
+      res.json({ valid: false, error: "Invalid or expired cookie" });
+      return;
+    }
+    const userData = await userResp.json() as { id: number; name: string; displayName: string };
+
+    const [thumbRes, robuxRes, premiumRes, friendsRes] = await Promise.all([
+      fetch(`${ROBLOX_THUMBNAILS_API}/v1/users/avatar-headshot?userIds=${userData.id}&size=150x150&format=Png`).catch(() => null),
+      fetchRoblox(`https://economy.roblox.com/v1/users/${userData.id}/currency`, cleanCookie).catch(() => null),
+      fetchRoblox(`https://premiumfeatures.roblox.com/v1/users/${userData.id}/validate-membership`, cleanCookie).catch(() => null),
+      fetch(`https://friends.roblox.com/v1/users/${userData.id}/friends/count`).catch(() => null),
+    ]);
+
+    let avatarUrl: string | null = null;
+    try {
+      if (thumbRes?.ok) {
+        const d = await thumbRes.json() as { data?: Array<{ imageUrl?: string }> };
+        avatarUrl = d.data?.[0]?.imageUrl || null;
+      }
+    } catch {}
+
+    let robux: number | null = null;
+    try {
+      if (robuxRes?.ok) {
+        const d = await robuxRes.json() as { robux?: number };
+        robux = d.robux ?? null;
+      }
+    } catch {}
+
+    let isPremium: boolean = false;
+    try {
+      if (premiumRes?.ok) {
+        const text = await premiumRes.text();
+        isPremium = text.trim() === "true";
+      }
+    } catch {}
+
+    let friendCount: number | null = null;
+    try {
+      if (friendsRes?.ok) {
+        const d = await friendsRes.json() as { count?: number };
+        friendCount = d.count ?? null;
+      }
+    } catch {}
+
+    res.json({
+      valid: true,
+      userId: userData.id,
+      username: userData.name,
+      displayName: userData.displayName,
+      avatarUrl,
+      robux,
+      isPremium,
+      friendCount,
+    });
+  } catch (e) {
+    res.status(500).json({ valid: false, error: e instanceof Error ? e.message : "Check failed" });
+  }
+});
+
 router.get("/security/activity", (req, res): void => {
   const log = req.session.activityLog || [];
   res.json({ log, total: log.length });

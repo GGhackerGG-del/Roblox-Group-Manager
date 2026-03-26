@@ -4,6 +4,7 @@ import { robloxHeadshot } from "@/lib/roblox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +15,7 @@ import {
   Shield, Cookie, Users, Activity, RefreshCw, Globe, Plus, Trash2, Check,
   X, Loader2, Eye, EyeOff, AlertTriangle, Copy, CheckCircle2, XCircle,
   Clock, LogIn, Zap, ChevronRight, Lock, Unlock, Wifi, WifiOff, Info,
+  Coins, Crown, UserCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playClick, playSuccess, playError } from "@/hooks/useSounds";
@@ -53,8 +55,11 @@ interface SavedAccount {
   displayName: string;
   avatarUrl: string | null;
   addedAt: number;
-  lastUsed?: number;
-  isActive?: boolean;
+  lastChecked?: number;
+  status: "unchecked" | "valid" | "invalid" | "checking";
+  robux?: number | null;
+  isPremium?: boolean;
+  friendCount?: number | null;
 }
 
 interface ActivityEntry {
@@ -112,18 +117,21 @@ export function logAppActivity(action: string, detail?: string) {
   appendActivity({ action, detail, ts: Date.now(), source: "local" });
 }
 
+function formatRobux(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  return n.toLocaleString();
+}
+
 export default function Security() {
   const { toast } = useToast();
   const { t } = useLanguage();
   const [tab, setTab] = useState("cookies");
 
   const [accounts, setAccounts] = useState<SavedAccount[]>([]);
-  const [newCookie, setNewCookie] = useState("");
-  const [newLabel, setNewLabel] = useState("");
-  const [showCookie, setShowCookie] = useState(false);
-  const [validating, setValidating] = useState(false);
-  const [validResult, setValidResult] = useState<{ valid: boolean; username?: string; displayName?: string; avatarUrl?: string | null; userId?: number; error?: string } | null>(null);
-  const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [bulkInput, setBulkInput] = useState("");
+  const [showCookies, setShowCookies] = useState<Set<string>>(new Set());
+  const [checkingAll, setCheckingAll] = useState(false);
+  const checkingRef = useRef(false);
 
   const [sessionInfo, setSessionInfo] = useState<{
     userId: number; username: string; displayName: string; avatarUrl: string | null;
@@ -194,44 +202,166 @@ export default function Security() {
     }
   };
 
-  const validateCookie = async () => {
-    const clean = newCookie.trim().replace(/^\.ROBLOSECURITY=/, "");
-    if (!clean) return;
-    setValidating(true); setValidResult(null);
-    try {
-      const r = await apiFetch<typeof validResult>("/api/security/validate-cookie", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cookie: clean }),
-      });
-      setValidResult(r);
-      if (r?.valid) { playSuccess(); if (!newLabel) setNewLabel(r.username || ""); }
-      else playError();
-    } catch (e) {
-      setValidResult({ valid: false, error: e instanceof Error ? e.message : t("common.error") });
-    } finally { setValidating(false); }
-  };
+  const addBulkCookies = () => {
+    const lines = bulkInput
+      .split(/\n/)
+      .map(l => l.trim().replace(/^\.ROBLOSECURITY=/, ""))
+      .filter(l => l.length > 20);
+    if (lines.length === 0) return;
 
-  const saveAccount = () => {
-    if (!validResult?.valid || !newCookie.trim()) return;
-    const clean = newCookie.trim().replace(/^\.ROBLOSECURITY=/, "");
-    const acc: SavedAccount = {
-      id: Math.random().toString(36).slice(2),
-      label: newLabel || validResult.username || "Account",
-      cookie: clean,
-      userId: validResult.userId!,
-      username: validResult.username!,
-      displayName: validResult.displayName!,
-      avatarUrl: validResult.avatarUrl || null,
-      addedAt: Date.now(),
-    };
-    const updated = [acc, ...accounts.filter(a => a.userId !== acc.userId)];
+    const existingCookies = new Set(accounts.map(a => a.cookie));
+    const newAccs: SavedAccount[] = lines
+      .filter(c => !existingCookies.has(c))
+      .map(cookie => ({
+        id: Math.random().toString(36).slice(2),
+        label: `...${cookie.slice(-6)}`,
+        cookie,
+        userId: 0,
+        username: "",
+        displayName: "",
+        avatarUrl: null,
+        addedAt: Date.now(),
+        status: "unchecked" as const,
+      }));
+
+    if (newAccs.length === 0) {
+      toast({ title: t("common.error"), description: "All cookies already added", variant: "destructive" });
+      return;
+    }
+
+    const updated = [...newAccs, ...accounts];
     saveAccounts(updated);
     setAccounts(updated);
-    setNewCookie(""); setNewLabel(""); setValidResult(null);
-    logAppActivity("Account saved", acc.username);
-    toast({ title: `✅ ${t("sec.addAccount")}`, description: `@${acc.username}` });
+    setBulkInput("");
+    logAppActivity("Cookies added", `${newAccs.length} cookies`);
+    toast({ title: `${newAccs.length} cookies added` });
     playSuccess();
+  };
+
+  const checkSingleCookie = async (accId: string) => {
+    setAccounts(prev => {
+      const upd = prev.map(a => a.id === accId ? { ...a, status: "checking" as const } : a);
+      saveAccounts(upd);
+      return upd;
+    });
+
+    const acc = accounts.find(a => a.id === accId);
+    if (!acc) return;
+
+    try {
+      const r = await apiFetch<{
+        valid: boolean; userId?: number; username?: string; displayName?: string;
+        avatarUrl?: string | null; robux?: number | null; isPremium?: boolean;
+        friendCount?: number | null; error?: string;
+      }>("/api/security/check-cookie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cookie: acc.cookie }),
+      });
+
+      setAccounts(prev => {
+        const upd = prev.map(a => {
+          if (a.id !== accId) return a;
+          if (r.valid) {
+            return {
+              ...a,
+              status: "valid" as const,
+              userId: r.userId!,
+              username: r.username!,
+              displayName: r.displayName!,
+              avatarUrl: r.avatarUrl || null,
+              label: r.displayName || r.username || a.label,
+              robux: r.robux ?? null,
+              isPremium: r.isPremium || false,
+              friendCount: r.friendCount ?? null,
+              lastChecked: Date.now(),
+            };
+          }
+          return { ...a, status: "invalid" as const, lastChecked: Date.now() };
+        });
+        saveAccounts(upd);
+        return upd;
+      });
+    } catch {
+      setAccounts(prev => {
+        const upd = prev.map(a => a.id === accId ? { ...a, status: "invalid" as const, lastChecked: Date.now() } : a);
+        saveAccounts(upd);
+        return upd;
+      });
+    }
+  };
+
+  const checkAllCookies = async () => {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
+    setCheckingAll(true);
+
+    const current = loadAccounts();
+    for (let i = 0; i < current.length; i++) {
+      if (!checkingRef.current) break;
+      const acc = current[i];
+
+      setAccounts(prev => {
+        const upd = prev.map(a => a.id === acc.id ? { ...a, status: "checking" as const } : a);
+        return upd;
+      });
+
+      try {
+        const r = await apiFetch<{
+          valid: boolean; userId?: number; username?: string; displayName?: string;
+          avatarUrl?: string | null; robux?: number | null; isPremium?: boolean;
+          friendCount?: number | null;
+        }>("/api/security/check-cookie", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cookie: acc.cookie }),
+        });
+
+        setAccounts(prev => {
+          const upd = prev.map(a => {
+            if (a.id !== acc.id) return a;
+            if (r.valid) {
+              return {
+                ...a,
+                status: "valid" as const,
+                userId: r.userId!,
+                username: r.username!,
+                displayName: r.displayName!,
+                avatarUrl: r.avatarUrl || null,
+                label: r.displayName || r.username || a.label,
+                robux: r.robux ?? null,
+                isPremium: r.isPremium || false,
+                friendCount: r.friendCount ?? null,
+                lastChecked: Date.now(),
+              };
+            }
+            return { ...a, status: "invalid" as const, lastChecked: Date.now() };
+          });
+          saveAccounts(upd);
+          return upd;
+        });
+      } catch {
+        setAccounts(prev => {
+          const upd = prev.map(a => a.id === acc.id ? { ...a, status: "invalid" as const, lastChecked: Date.now() } : a);
+          saveAccounts(upd);
+          return upd;
+        });
+      }
+
+      if (i < current.length - 1) {
+        await new Promise(r => setTimeout(r, 400));
+      }
+    }
+
+    checkingRef.current = false;
+    setCheckingAll(false);
+    playSuccess();
+    toast({ title: t("sec.checkAll"), description: "Done" });
+  };
+
+  const stopChecking = () => {
+    checkingRef.current = false;
+    setCheckingAll(false);
   };
 
   const deleteAccount = (id: string) => {
@@ -241,26 +371,46 @@ export default function Security() {
     toast({ title: t("common.delete") });
   };
 
-  const switchAccount = async (acc: SavedAccount) => {
-    setSwitchingId(acc.id);
-    try {
-      const r = await apiFetch<{ id: number; name: string }>("/api/roblox/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cookie: acc.cookie }),
-      });
-      const updated = accounts.map(a => ({ ...a, isActive: a.id === acc.id, lastUsed: a.id === acc.id ? Date.now() : a.lastUsed }));
-      saveAccounts(updated);
-      setAccounts(updated);
-      logAppActivity("Account switched", acc.username);
-      toast({ title: `✅ ${t("sec.active")}`, description: `@${r.name}` });
-      playSuccess();
-      loadSessionInfo();
-    } catch (e) {
-      playError();
-      toast({ title: t("common.error"), description: e instanceof Error ? e.message : t("common.error"), variant: "destructive" });
-    } finally { setSwitchingId(null); }
+  const removeInvalid = () => {
+    const updated = accounts.filter(a => a.status !== "invalid");
+    saveAccounts(updated);
+    setAccounts(updated);
+    const removed = accounts.length - updated.length;
+    toast({ title: `${removed} invalid cookies removed` });
   };
+
+  const clearAll = () => {
+    saveAccounts([]);
+    setAccounts([]);
+    toast({ title: t("sec.clearAll") });
+  };
+
+  const copyCookie = (cookie: string) => {
+    navigator.clipboard.writeText(cookie);
+    toast({ title: t("sec.copied") });
+    playClick();
+  };
+
+  const copyAllValid = () => {
+    const valid = accounts.filter(a => a.status === "valid").map(a => a.cookie);
+    if (valid.length === 0) return;
+    navigator.clipboard.writeText(valid.join("\n"));
+    toast({ title: `${valid.length} cookies copied` });
+    playClick();
+  };
+
+  const toggleShowCookie = (id: string) => {
+    setShowCookies(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const validCount = accounts.filter(a => a.status === "valid").length;
+  const invalidCount = accounts.filter(a => a.status === "invalid").length;
+  const uncheckedCount = accounts.filter(a => a.status === "unchecked").length;
+  const totalRobux = accounts.reduce((sum, a) => sum + (a.status === "valid" && a.robux ? a.robux : 0), 0);
 
   const testProxy = async () => {
     setTestingProxy(true); setProxyTestResult(null);
@@ -321,8 +471,7 @@ export default function Security() {
   useEffect(() => { if (tab === "activity") loadServerActivity(); }, [tab]);
 
   const tabs = [
-    { id: "cookies", icon: <Cookie className="w-3.5 h-3.5" />, label: "Cookie Manager" },
-    { id: "alts", icon: <Users className="w-3.5 h-3.5" />, label: "Multi-Alt" },
+    { id: "cookies", icon: <Cookie className="w-3.5 h-3.5" />, label: t("sec.cookieChecker") },
     { id: "session", icon: <Shield className="w-3.5 h-3.5" />, label: "Session Monitor" },
     { id: "activity", icon: <Activity className="w-3.5 h-3.5" />, label: "Activity Logs" },
     { id: "refresh", icon: <RefreshCw className="w-3.5 h-3.5" />, label: "Auto Refresh" },
@@ -358,67 +507,53 @@ export default function Security() {
         </div>
 
         <TabsContent value="cookies" className="mt-4 space-y-4">
+          <div className="grid grid-cols-4 gap-3">
+            <Card className="rounded-2xl border-border/50">
+              <CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-green-600">{validCount}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t("sec.validCount")}</p>
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl border-border/50">
+              <CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-red-500">{invalidCount}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t("sec.invalidCount")}</p>
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl border-border/50">
+              <CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-gray-400">{uncheckedCount}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t("sec.unchecked")}</p>
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl border-border/50">
+              <CardContent className="pt-4 text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <Coins className="w-4 h-4 text-yellow-500" />
+                  <p className="text-2xl font-bold">{formatRobux(totalRobux)}</p>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t("sec.totalRobux")}</p>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card className="rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><Plus className="w-4 h-4 text-blue-500" /> {t("sec.addAccount")}</CardTitle>
-              <CardDescription>{t("sec.desc")}</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Plus className="w-4 h-4 text-blue-500" /> {t("sec.addCookies")}</CardTitle>
+              <CardDescription>{t("sec.cookieCheckerDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">{t("sec.cookie")} (ROBLOSECURITY)</label>
-                <div className="relative">
-                  <Input
-                    type={showCookie ? "text" : "password"}
-                    placeholder="_|WARNING:-DO-NOT-SHARE-THIS..."
-                    value={newCookie}
-                    onChange={e => { setNewCookie(e.target.value); setValidResult(null); }}
-                    className="rounded-xl pr-10 font-mono text-xs"
-                  />
-                  <button className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowCookie(p => !p)}>
-                    {showCookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">{t("sec.label")}</label>
-                <Input placeholder={t("sec.label")} value={newLabel} onChange={e => setNewLabel(e.target.value)} className="rounded-xl" />
-              </div>
-
+              <Textarea
+                placeholder={t("sec.pasteCookies")}
+                value={bulkInput}
+                onChange={e => setBulkInput(e.target.value)}
+                className="rounded-xl font-mono text-xs min-h-[100px] resize-y"
+              />
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 rounded-xl gap-1.5" onClick={validateCookie} disabled={validating || !newCookie.trim()}>
-                  {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {t("sec.verify")}
-                </Button>
-                <Button className="flex-1 rounded-xl gap-1.5" onClick={saveAccount} disabled={!validResult?.valid}>
-                  <Plus className="w-4 h-4" /> {t("common.save")}
+                <Button className="flex-1 rounded-xl gap-1.5" onClick={addBulkCookies} disabled={!bulkInput.trim()}>
+                  <Plus className="w-4 h-4" /> {t("sec.bulkAdd")}
                 </Button>
               </div>
-
-              <AnimatePresence>
-                {validResult && (
-                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                    {validResult.valid ? (
-                      <div className="flex items-center gap-3 rounded-xl border border-green-500/20 bg-green-500/5 p-3">
-                        <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
-                        <div className="flex items-center gap-3 flex-1">
-                          {validResult.avatarUrl && <img src={validResult.avatarUrl} alt="" className="w-9 h-9 rounded-full" />}
-                          <div>
-                            <p className="text-sm font-semibold">{validResult.displayName}</p>
-                            <p className="text-xs text-muted-foreground">@{validResult.username} • ID: {validResult.userId}</p>
-                          </div>
-                        </div>
-                        <Badge className="bg-green-500/20 text-green-700 border-0">{t("sec.verified")}</Badge>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
-                        <XCircle className="w-5 h-5 text-red-500 shrink-0" />
-                        <p className="text-sm text-red-600">{validResult.error || t("sec.invalid")}</p>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-700 dark:text-amber-300 flex gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <p>{t("sec.cookie")}</p>
@@ -429,115 +564,142 @@ export default function Security() {
           {accounts.length > 0 && (
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Cookie className="w-4 h-4" /> {t("sec.accounts")}
-                  <Badge variant="outline" className="ml-auto">{accounts.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {accounts.map(acc => (
-                  <div key={acc.id} className="flex items-center gap-3 rounded-xl border border-border/50 p-3">
-                    <img src={acc.avatarUrl || robloxHeadshot(acc.userId)} alt={acc.displayName} className="w-10 h-10 rounded-full object-cover shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold truncate">{acc.label}</p>
-                        {acc.isActive && <Badge className="text-[9px] bg-green-500/20 text-green-700 border-0">{t("sec.active")}</Badge>}
-                      </div>
-                      <p className="text-xs text-muted-foreground">@{acc.username} • {timeAgo(acc.addedAt)}</p>
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs rounded-lg" onClick={() => switchAccount(acc)} disabled={switchingId === acc.id}>
-                        {switchingId === acc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogIn className="w-3.5 h-3.5" />}
-                        {t("sec.connect")}
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Cookie className="w-4 h-4" /> {t("sec.accounts")}
+                    <Badge variant="outline" className="ml-1">{accounts.length}</Badge>
+                  </CardTitle>
+                  <div className="flex gap-1.5">
+                    {checkingAll ? (
+                      <Button size="sm" variant="destructive" className="rounded-xl gap-1.5 text-xs h-8" onClick={stopChecking}>
+                        <X className="w-3.5 h-3.5" /> Stop
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 rounded-lg" onClick={() => deleteAccount(acc.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-xs h-8" onClick={checkAllCookies}>
+                        <RefreshCw className="w-3.5 h-3.5" /> {accounts.some(a => a.status !== "unchecked") ? t("sec.recheckAll") : t("sec.checkAll")}
                       </Button>
-                    </div>
+                    )}
+                    <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-xs h-8" onClick={copyAllValid} disabled={validCount === 0}>
+                      <Copy className="w-3.5 h-3.5" /> {t("sec.copyAll")}
+                    </Button>
+                    {invalidCount > 0 && (
+                      <Button size="sm" variant="ghost" className="rounded-xl gap-1.5 text-xs h-8 text-red-500 hover:bg-red-500/10" onClick={removeInvalid}>
+                        <Trash2 className="w-3.5 h-3.5" /> {t("sec.removeInvalid")}
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0 text-red-500 hover:bg-red-500/10" onClick={clearAll}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2 max-h-[600px] overflow-y-auto">
+                {accounts.map((acc, idx) => (
+                  <motion.div
+                    key={acc.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(idx * 0.02, 0.3) }}
+                    className={`rounded-xl border p-3 transition-colors ${
+                      acc.status === "valid" ? "border-green-500/30 bg-green-500/5" :
+                      acc.status === "invalid" ? "border-red-500/30 bg-red-500/5" :
+                      acc.status === "checking" ? "border-blue-500/30 bg-blue-500/5" :
+                      "border-border/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {acc.status === "valid" && acc.avatarUrl ? (
+                        <img src={acc.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                      ) : acc.status === "valid" && acc.userId ? (
+                        <img src={robloxHeadshot(acc.userId)} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center ${
+                          acc.status === "checking" ? "bg-blue-500/20" :
+                          acc.status === "invalid" ? "bg-red-500/20" :
+                          "bg-secondary"
+                        }`}>
+                          {acc.status === "checking" ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> :
+                           acc.status === "invalid" ? <XCircle className="w-5 h-5 text-red-500" /> :
+                           <Cookie className="w-5 h-5 text-muted-foreground" />}
+                        </div>
+                      )}
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold truncate">
+                            {acc.status === "valid" ? acc.displayName || acc.username : acc.label}
+                          </p>
+                          {acc.status === "valid" && (
+                            <Badge className="text-[9px] bg-green-500/20 text-green-700 border-0 shrink-0">{t("sec.verified")}</Badge>
+                          )}
+                          {acc.status === "invalid" && (
+                            <Badge className="text-[9px] bg-red-500/20 text-red-700 border-0 shrink-0">{t("sec.invalid")}</Badge>
+                          )}
+                          {acc.status === "unchecked" && (
+                            <Badge variant="outline" className="text-[9px] shrink-0">{t("sec.unchecked")}</Badge>
+                          )}
+                          {acc.status === "checking" && (
+                            <Badge className="text-[9px] bg-blue-500/20 text-blue-700 border-0 shrink-0">{t("sec.checking")}</Badge>
+                          )}
+                        </div>
+
+                        {acc.status === "valid" && (
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-xs text-muted-foreground">@{acc.username}</span>
+                            <span className="text-xs text-muted-foreground">ID: {acc.userId}</span>
+                          </div>
+                        )}
+
+                        {acc.status === "valid" && (
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <div className="flex items-center gap-1">
+                              <Coins className="w-3 h-3 text-yellow-500" />
+                              <span className="text-xs font-semibold">{formatRobux(acc.robux)}</span>
+                            </div>
+                            {acc.isPremium && (
+                              <div className="flex items-center gap-1">
+                                <Crown className="w-3 h-3 text-yellow-500" />
+                                <span className="text-xs text-yellow-600">{t("sec.premium")}</span>
+                              </div>
+                            )}
+                            {acc.friendCount !== null && acc.friendCount !== undefined && (
+                              <div className="flex items-center gap-1">
+                                <UserCheck className="w-3 h-3 text-blue-500" />
+                                <span className="text-xs text-muted-foreground">{acc.friendCount} {t("sec.friends")}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="mt-1.5">
+                          <p className={`text-[10px] font-mono text-muted-foreground truncate ${showCookies.has(acc.id) ? "" : "blur-sm select-none"}`}>
+                            {showCookies.has(acc.id) ? acc.cookie : `${"•".repeat(40)}`}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1 shrink-0">
+                        {acc.status !== "checking" && (
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-lg" onClick={() => checkSingleCookie(acc.id)} title={t("sec.verify")}>
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-lg" onClick={() => toggleShowCookie(acc.id)} title={showCookies.has(acc.id) ? t("sec.hideCookie") : t("sec.showCookie")}>
+                          {showCookies.has(acc.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-lg" onClick={() => copyCookie(acc.cookie)} title={t("sec.copyCookie")}>
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-lg text-red-500 hover:bg-red-500/10" onClick={() => deleteAccount(acc.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </motion.div>
                 ))}
               </CardContent>
             </Card>
           )}
-        </TabsContent>
-
-        <TabsContent value="alts" className="mt-4 space-y-4">
-          <Card className="rounded-2xl border-border/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><Users className="w-4 h-4 text-violet-500" /> Multi-Alt Manager</CardTitle>
-              <CardDescription>{t("sec.desc")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {accounts.length === 0 ? (
-                <div className="flex flex-col items-center py-10 text-muted-foreground gap-2">
-                  <Users className="w-10 h-10 opacity-20" />
-                  <p className="text-sm">{t("sec.noAccounts")}</p>
-                  <Button size="sm" variant="outline" className="rounded-xl mt-2" onClick={() => { playClick(); setTab("cookies"); }}>
-                    <Plus className="w-3.5 h-3.5 mr-1.5" /> {t("sec.addAccount")}
-                  </Button>
-                </div>
-              ) : (
-                <div className="grid gap-3">
-                  {accounts.map((acc, i) => (
-                    <motion.div
-                      key={acc.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className={`relative flex items-center gap-4 rounded-xl border p-4 cursor-pointer transition-all ${acc.isActive ? "border-black bg-black text-white" : "border-border/50 hover:border-border"}`}
-                      onClick={() => !switchingId && switchAccount(acc)}
-                    >
-                      <img src={acc.avatarUrl || robloxHeadshot(acc.userId)} alt={acc.displayName} className={`w-12 h-12 rounded-full object-cover shrink-0 ring-2 ${acc.isActive ? "ring-white/30" : "ring-border"}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold">{acc.label}</p>
-                          {acc.isActive && <Badge className="text-[9px] bg-white/20 text-white border-0">{t("sec.active")}</Badge>}
-                        </div>
-                        <p className={`text-xs mt-0.5 ${acc.isActive ? "text-white/60" : "text-muted-foreground"}`}>
-                          @{acc.username} • ID {acc.userId}
-                        </p>
-                        {acc.lastUsed && (
-                          <p className={`text-[10px] mt-0.5 ${acc.isActive ? "text-white/40" : "text-muted-foreground/60"}`}>
-                            {timeAgo(acc.lastUsed)}
-                          </p>
-                        )}
-                      </div>
-                      <div className="shrink-0">
-                        {switchingId === acc.id ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : acc.isActive ? (
-                          <CheckCircle2 className="w-5 h-5 text-green-400" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-3 gap-3">
-            <Card className="rounded-2xl border-border/50">
-              <CardContent className="pt-4 text-center">
-                <p className="text-3xl font-bold">{accounts.length}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("sec.accounts")}</p>
-              </CardContent>
-            </Card>
-            <Card className="rounded-2xl border-border/50">
-              <CardContent className="pt-4 text-center">
-                <p className="text-3xl font-bold">{accounts.filter(a => a.isActive).length || 1}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("sec.sessions")}</p>
-              </CardContent>
-            </Card>
-            <Card className="rounded-2xl border-border/50">
-              <CardContent className="pt-4 text-center">
-                <p className="text-3xl font-bold">{accounts.filter(a => a.lastUsed && Date.now() - a.lastUsed < 86400000).length}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("sec.active")}</p>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
 
         <TabsContent value="session" className="mt-4 space-y-4">
@@ -708,21 +870,6 @@ export default function Security() {
               <Button className="w-full rounded-xl gap-1.5" variant="outline" onClick={checkSession} disabled={sessionLoading}>
                 <Zap className="w-4 h-4" /> {t("sec.verify")}
               </Button>
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("sec.expired")}:</p>
-                {[
-                  t("sec.expired"),
-                  t("sec.verify"),
-                  t("sec.accounts"),
-                  t("sec.connect"),
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
-                    {item}
-                  </div>
-                ))}
-              </div>
 
               <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-xs text-blue-700 dark:text-blue-300 flex gap-2">
                 <Info className="w-4 h-4 shrink-0 mt-0.5" />
