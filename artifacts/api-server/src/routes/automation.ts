@@ -5,33 +5,38 @@ const router: IRouter = Router();
 const GROUPS_API = "https://groups.roblox.com";
 const USERS_API = "https://users.roblox.com";
 const TWO_STEP_API = "https://twostepverification.roblox.com";
-const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 function rHeaders(cookie: string, extra: Record<string, string> = {}): Record<string, string> {
   return {
     "Cookie": `.ROBLOSECURITY=${cookie}`,
     "User-Agent": UA,
     "Accept": "application/json",
-    "Referer": "https://www.roblox.com/",
-    "Origin": "https://www.roblox.com",
     ...extra,
   };
 }
 
-async function getSafeCsrf(cookie: string): Promise<string> {
+async function getSafeCsrf(cookie: string, preferDomain?: string): Promise<string> {
   const hdrs: Record<string, string> = {
     "Cookie": `.ROBLOSECURITY=${cookie}`,
     "Content-Type": "application/json",
     "User-Agent": UA,
-    "Referer": "https://www.roblox.com/",
-    "Origin": "https://www.roblox.com",
   };
 
   const endpoints = [
+    { url: "https://groups.roblox.com/v1/groups/configuration/metadata", method: "GET" },
     { url: "https://auth.roblox.com/v2/metadata", method: "GET" },
     { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST", body: JSON.stringify({ items: [] }) },
     { url: "https://presence.roblox.com/v1/presence/users", method: "POST", body: JSON.stringify({ userIds: [] }) },
   ];
+
+  if (preferDomain) {
+    endpoints.sort((a, b) => {
+      const aMatch = a.url.includes(preferDomain) ? 0 : 1;
+      const bMatch = b.url.includes(preferDomain) ? 0 : 1;
+      return aMatch - bMatch;
+    });
+  }
 
   for (let attempt = 0; attempt < 3; attempt++) {
     for (const ep of endpoints) {
@@ -411,7 +416,7 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       PayoutType: payoutType,
       Recipients: payouts.map(p => ({ recipientId: p.recipientId, recipientType: "User", amount: p.amount })),
     };
-    let csrf = await getSafeCsrf(cookie);
+    let csrf = await getSafeCsrf(cookie, "groups.roblox.com");
     console.log(`[Payout] Got CSRF: ${csrf ? `yes (len=${csrf.length})` : "no"}`);
     const payoutHeaders: Record<string, string> = {
       "Cookie": `.ROBLOSECURITY=${cookie}`,
@@ -419,8 +424,6 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       "Content-Type": "application/json",
       "Accept": "application/json",
       "User-Agent": UA,
-      "Referer": "https://www.roblox.com/",
-      "Origin": "https://www.roblox.com",
     };
     if (challengeId && verificationToken) {
       const ct = reqChallengeType || "twostepverification";
