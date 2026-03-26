@@ -476,15 +476,6 @@ async function proxyToRemote(
     const contentType = response.headers.get("content-type") || "";
     const status = response.status;
 
-    if (status === 401 && remoteSessionCookie) {
-      const isSessionRoute = remotePath.includes("/roblox/me") || remotePath.includes("/roblox/session-cookie");
-      if (isSessionRoute) {
-        console.log("[Proxy] Got 401 on session route, clearing stored cookie");
-        remoteSessionCookie = null;
-        setStoreValue("remote_session_cookie", "");
-      }
-    }
-
     if (contentType.includes("application/json")) {
       const data = await response.json();
       res.status(status).json(data);
