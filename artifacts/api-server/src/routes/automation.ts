@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import crypto from "crypto";
 
 const router: IRouter = Router();
 
@@ -6,6 +7,46 @@ const GROUPS_API = "https://groups.roblox.com";
 const USERS_API = "https://users.roblox.com";
 const TWO_STEP_API = "https://twostepverification.roblox.com";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+function solveChefPoW(prefix: string, difficulty: number): string {
+  const targetZeros = "0".repeat(difficulty);
+  let nonce = 0;
+  while (true) {
+    const candidate = `${prefix}${nonce}`;
+    const hash = crypto.createHash("sha256").update(candidate).digest("hex");
+    if (hash.startsWith(targetZeros)) return String(nonce);
+    nonce++;
+    if (nonce > 50_000_000) return String(nonce);
+  }
+}
+
+async function solveChefChallenge(
+  challengeId: string,
+  metadata: any
+): Promise<{ redemptionToken: string; nonce: string } | null> {
+  try {
+    const { prefix, difficulty, solveUrl, redemptionToken } = metadata;
+    if (!prefix || difficulty === undefined) return null;
+    console.log(`[ChefPoW] Solving: prefix=${prefix}, difficulty=${difficulty}`);
+    const start = Date.now();
+    const nonce = solveChefPoW(prefix, difficulty);
+    console.log(`[ChefPoW] Solved in ${Date.now() - start}ms, nonce=${nonce}`);
+    if (solveUrl) {
+      const solveResp = await fetch(solveUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nonce, redemptionToken }),
+      });
+      const solveData = await solveResp.json() as any;
+      console.log(`[ChefPoW] Solve endpoint: status=${solveResp.status}`);
+      return { redemptionToken: solveData.redemptionToken || redemptionToken, nonce };
+    }
+    return { redemptionToken, nonce };
+  } catch (err: any) {
+    console.error("[ChefPoW] Error:", err.message);
+    return null;
+  }
+}
 
 function rHeaders(cookie: string, extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -455,6 +496,26 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
         const metaRaw = resp.headers.get("rblx-challenge-metadata");
         let metadata: any = {};
         if (metaRaw) { try { metadata = JSON.parse(Buffer.from(metaRaw, "base64").toString()); } catch {} }
+
+        if (rblxChallengeId && rblxChallengeType === "chef") {
+          console.log(`[Payout] Chef PoW challenge detected, solving...`);
+          const solution = await solveChefChallenge(rblxChallengeId, metadata);
+          if (solution) {
+            const solutionMeta = Buffer.from(JSON.stringify({
+              redemptionToken: solution.redemptionToken,
+              nonce: solution.nonce,
+              challengeId: rblxChallengeId,
+            })).toString("base64");
+            payoutHeaders["rblx-challenge-id"] = rblxChallengeId;
+            payoutHeaders["rblx-challenge-type"] = "chef";
+            payoutHeaders["rblx-challenge-metadata"] = solutionMeta;
+            console.log(`[Payout] Chef PoW solved, retrying...`);
+            continue;
+          } else {
+            res.status(403).json({ error: "Failed to solve Roblox security challenge." });
+            return;
+          }
+        }
 
         if (rblxChallengeId && (rblxChallengeType === "twostepverification" || rblxChallengeType === "reauthentication")) {
           console.log(`[Payout] Challenge: type=${rblxChallengeType} id=${rblxChallengeId} meta=${JSON.stringify(metadata)}`);
