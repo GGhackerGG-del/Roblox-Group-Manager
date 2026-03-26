@@ -42,5 +42,25 @@ export const minigamePlays = pgTable("minigame_plays", {
   index("minigame_plays_user_idx").on(t.userId),
 ]);
 
+export const gameChallenges = pgTable("game_challenges", {
+  id: serial("id").primaryKey(),
+  gameType: text("game_type").notNull(),
+  challengerId: integer("challenger_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  opponentId: integer("opponent_id").references(() => platformUsers.id, { onDelete: "cascade" }),
+  challengerMove: json("challenger_move"),
+  opponentMove: json("opponent_move"),
+  winnerId: integer("winner_id").references(() => platformUsers.id),
+  rewardAccessoryId: integer("reward_accessory_id").references(() => accessories.id),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+}, (t) => [
+  index("game_challenges_challenger_idx").on(t.challengerId),
+  index("game_challenges_opponent_idx").on(t.opponentId),
+  index("game_challenges_status_idx").on(t.status),
+]);
+
 export type Accessory = typeof accessories.$inferSelect;
 export type UserAccessory = typeof userAccessories.$inferSelect;
+export type GameChallenge = typeof gameChallenges.$inferSelect;
