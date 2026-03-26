@@ -25,6 +25,7 @@ import gamificationRouter from "./gamification";
 import integrationsRouter from "./integrations";
 import teamRouter from "./team";
 import qualityRouter from "./quality";
+import accessoriesRouter from "./accessories";
 
 const router: IRouter = Router();
 
@@ -68,6 +69,7 @@ router.use("/content", requireLicense);
 router.use("/gamification", requireLicense);
 router.use("/integrations", requireLicense);
 router.use("/team", requireLicense);
+router.use("/accessories", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
@@ -89,5 +91,6 @@ router.use(contentPlannerRouter);
 router.use(gamificationRouter);
 router.use(integrationsRouter);
 router.use(teamRouter);
+router.use(accessoriesRouter);
 
 export default router;

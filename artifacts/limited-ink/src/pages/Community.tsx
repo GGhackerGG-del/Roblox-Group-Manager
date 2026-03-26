@@ -24,6 +24,8 @@ import {
   LogOut, MoreVertical, Shield,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import AccessoriesTab, { UserEquippedAccessories } from "@/components/AccessoriesTab";
+import { Sparkles, Gamepad2 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -167,6 +169,7 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
   const [loading, setLoading] = useState(true);
   const [friendStatus, setFriendStatus] = useState<{ id: number; status: string; requesterId: number } | null>(null);
   const [requesting, setRequesting] = useState(false);
+  const [equippedAccessories, setEquippedAccessories] = useState<any[]>([]);
 
   useEffect(() => {
     apiFetch<UserProfile>(`/api/social/users/${userId}`)
@@ -176,6 +179,9 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
       })
       .catch(() => toast({ variant: "destructive", title: t("community.error"), description: t("community.failedLoadProfile") }))
       .finally(() => setLoading(false));
+    apiFetch<any[]>(`/api/accessories/user/${userId}`)
+      .then(setEquippedAccessories)
+      .catch(() => {});
   }, [userId]);
 
   const isMe = profile?.user.id === myUser?.id;
@@ -259,6 +265,11 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
                     )}
                   </div>
                   <p className="text-muted-foreground text-sm">@{profile.user.robloxUsername}</p>
+                  {equippedAccessories.length > 0 && (
+                    <div className="mt-1">
+                      <UserEquippedAccessories accessories={equippedAccessories} />
+                    </div>
+                  )}
                   <a
                     href={`https://www.roblox.com/users/${profile.user.robloxUserId}/profile`}
                     target="_blank"
@@ -3897,6 +3908,7 @@ export default function Community() {
     { id: "discover", icon: Search, label: t("community.discover") },
     { id: "forum", icon: MessageCircleQuestion, label: t("community.forum") || "Forum" },
     { id: "marketplace", icon: Store, label: t("com.marketplace") },
+    { id: "accessories", icon: Sparkles, label: t("acc.title") || "Accessories" },
   ];
 
   return (
@@ -3966,6 +3978,7 @@ export default function Community() {
           {activeTab === "friends" && <FriendsTab myUser={myUser} onChat={handleChatUser} onUserClick={setProfileModalUserId} />}
           {activeTab === "chat" && <ChatTab myUser={myUser} initialChatUser={chatInitUser} onClearInitial={() => setChatInitUser(null)} />}
           {activeTab === "marketplace" && <MarketplaceTab myUser={myUser} onChatUser={handleChatUser} />}
+          {activeTab === "accessories" && <AccessoriesTab />}
         </div>
       </div>
 
