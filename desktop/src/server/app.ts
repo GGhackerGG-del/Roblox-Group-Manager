@@ -3,8 +3,8 @@ import cors from "cors";
 import session from "express-session";
 import path from "path";
 import crypto from "crypto";
-import type Database from "better-sqlite3";
-import { SQLiteSessionStore } from "../db/session-store.js";
+import { MemorySessionStore } from "../db/session-store.js";
+import { getStoreValue, setStoreValue } from "../db/index.js";
 
 const REMOTE_API = process.env.REMOTE_API_URL || "https://Limited-ink.replit.app";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -66,23 +66,18 @@ async function solveChefChallenge(
 }
 
 let remoteSessionCookie: string | null = null;
-let _sqliteDb: Database.Database | null = null;
 
-function initCookieTable(db: Database.Database) {
-  _sqliteDb = db;
-  db.exec(`CREATE TABLE IF NOT EXISTS kv_store (key TEXT PRIMARY KEY, value TEXT)`);
-  const row = db.prepare(`SELECT value FROM kv_store WHERE key = 'remote_session_cookie'`).get() as { value: string } | undefined;
-  if (row?.value) {
-    remoteSessionCookie = row.value;
+function initCookieStore() {
+  const saved = getStoreValue("remote_session_cookie");
+  if (saved) {
+    remoteSessionCookie = saved;
     console.log("[Proxy] Restored remote session cookie from disk");
   }
 }
 
 function persistCookie(cookie: string) {
   remoteSessionCookie = cookie;
-  if (_sqliteDb) {
-    _sqliteDb.prepare(`INSERT OR REPLACE INTO kv_store (key, value) VALUES ('remote_session_cookie', ?)`).run(cookie);
-  }
+  setStoreValue("remote_session_cookie", cookie);
 }
 
 async function fetchRobloxCookieFromRemote(authHeaders: Record<string, string>): Promise<string | null> {
@@ -314,7 +309,7 @@ async function handleDirectPayout(
       return;
     }
 
-    res.json({ success: true, message: `Выплата отправлена ${payouts.length} участникам` });
+    res.json({ success: true, message: `Payout sent to ${payouts.length} recipients` });
   } catch (err: any) {
     console.error("[DirectPayout] Exception:", err);
     res.status(502).json({ error: err instanceof Error ? err.message : "Failed to send payout." });
@@ -501,8 +496,8 @@ async function proxyToRemote(
   }
 }
 
-export function createApp(sqlite: Database.Database): express.Express {
-  initCookieTable(sqlite);
+export function createApp(): express.Express {
+  initCookieStore();
   const app = express();
 
   app.use(cors({
@@ -513,7 +508,7 @@ export function createApp(sqlite: Database.Database): express.Express {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-  const sessionStore = new SQLiteSessionStore({ db: sqlite });
+  const sessionStore = new MemorySessionStore();
 
   app.use(session({
     store: sessionStore,

@@ -5,11 +5,6 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 
-function getDbPath(): string {
-  const userDataPath = app.getPath("userData");
-  return path.join(userDataPath, "limited-ink.db");
-}
-
 function getTrayIconPath(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "icon.png");
@@ -25,7 +20,7 @@ function createTray(): void {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "Открыть Limited.Ink",
+      label: "Open Limited.Ink",
       click: () => {
         mainWindow?.show();
         mainWindow?.focus();
@@ -33,7 +28,7 @@ function createTray(): void {
     },
     { type: "separator" },
     {
-      label: "Выход",
+      label: "Exit",
       click: () => {
         isQuitting = true;
         app.quit();
@@ -97,16 +92,13 @@ app.whenReady().then(async () => {
       process.env.ELECTRON_IS_PACKAGED = "true";
     }
 
-    const { initDatabase, getSqlite } = require("./db/index.js");
-
-    const dbPath = getDbPath();
-    console.log(`[Limited.Ink] Database path: ${dbPath}`);
-    const drizzleDb = initDatabase(dbPath);
-    (globalThis as any).__limitedInkDb = drizzleDb;
-    const sqlite = getSqlite();
+    const { initStore } = require("./db/index.js");
+    const userDataPath = app.getPath("userData");
+    console.log(`[Limited.Ink] Data path: ${userDataPath}`);
+    initStore(userDataPath);
 
     const { startServer } = require("./server/start.js");
-    const port = await startServer(sqlite);
+    const port = await startServer();
     console.log(`[Limited.Ink] Server running on http://localhost:${port}`);
 
     createTray();

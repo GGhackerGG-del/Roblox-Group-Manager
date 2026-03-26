@@ -1,4 +1,3 @@
-import type Database from "better-sqlite3";
 import type { Server } from "http";
 import net from "net";
 
@@ -20,7 +19,7 @@ async function findFreePort(): Promise<number> {
   });
 }
 
-export async function startServer(sqlite: Database.Database): Promise<number> {
+export async function startServer(): Promise<number> {
   const port = await findFreePort();
 
   process.env.PORT = String(port);
@@ -29,10 +28,9 @@ export async function startServer(sqlite: Database.Database): Promise<number> {
   process.env.ADMIN_SECRET = process.env.ADMIN_SECRET || "limited-ink-admin-" + Math.random().toString(36).slice(2);
   process.env.NODE_ENV = "production";
   process.env.DESKTOP_MODE = "true";
-  process.env.SQLITE_DB_READY = "true";
 
   const { createApp } = require("./app.js");
-  const app = createApp(sqlite);
+  const app = createApp();
 
   return new Promise((resolve, reject) => {
     server = app.listen(port, "127.0.0.1", () => {
