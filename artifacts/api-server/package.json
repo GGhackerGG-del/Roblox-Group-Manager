@@ -27,7 +27,8 @@
     "node-fetch": "^3.3.2",
     "node-telegram-bot-api": "^0.67.0",
     "openai": "^6.31.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
@@ -35,6 +36,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "catalog:",
+    "@types/ws": "^8.18.1",
     "esbuild": "^0.27.3",
     "tsx": "catalog:"
   }

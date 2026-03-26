@@ -60,6 +60,15 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `POST /api/forum/subscriptions` — Subscribe to a Roblox group
 - `DELETE /api/forum/subscriptions/:subId` — Unsubscribe
 - `GET /api/forum/subscriptions/check/:groupId` — Check if subscribed to a group
+- `WebSocket /ws/signaling` — Voice call signaling server (register, call-offer, call-answer, call-reject, call-end, ice-candidate). 1:1 DM calls only.
+
+### Voice Calls (WebRTC)
+- `artifacts/api-server/src/signaling.ts` — WebSocket signaling server for peer-to-peer voice calls
+- `artifacts/limited-ink/src/hooks/useVoiceCall.ts` — React hook managing WebSocket signaling + RTCPeerConnection lifecycle
+- Only DM (1:1) calls supported; group chat call button removed
+- Auto-reconnect with unmount guard; 30s call timeout for unanswered calls
+- Incoming call notification overlay with accept/reject in ChatTab
+- Call duration logged as chat message on end (`[call:outgoing:MM:SS]` or `[call:missed:]`)
 
 ### Components
 - `BanShield.tsx` — Pre-upload moderation check component. Analyzes clothing name/description for policy violations. Shows risk score, issues, and safe alternatives.

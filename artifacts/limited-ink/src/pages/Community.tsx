@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { getAuthCredentials, useGetRobloxGroups } from "@workspace/api-client-react";
 import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useVoiceCall } from "@/hooks/useVoiceCall";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1205,12 +1206,11 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [dmSectionOpen, setDmSectionOpen] = useState(true);
   const [gcSectionOpen, setGcSectionOpen] = useState(true);
 
-  const [callActive, setCallActive] = useState(false);
-  const [callMuted, setCallMuted] = useState(false);
-  const [callTimer, setCallTimer] = useState(0);
-  const [callConnecting, setCallConnecting] = useState(false);
-  const callStreamRef = useRef<MediaStream | null>(null);
-  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const voiceCall = useVoiceCall(
+    myUser?.id ?? null,
+    myUser?.displayName ?? "",
+    myUser?.avatarUrl || robloxHeadshot(myUser?.robloxUserId || 0),
+  );
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -1223,8 +1223,6 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 
   useEffect(() => {
     return () => {
-      callStreamRef.current?.getTracks().forEach(t => t.stop());
-      if (callTimerRef.current) clearInterval(callTimerRef.current);
       recordStreamRef.current?.getTracks().forEach(t => t.stop());
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.ondataavailable = null;
@@ -1335,34 +1333,19 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     }
   }, [messages]);
 
-  const startCall = async () => {
+  const handleStartCall = async () => {
+    if (active?.kind !== "dm") return;
     try {
-      setCallConnecting(true);
-      const micId = localStorage.getItem("limitedink_mic_id");
-      const constraints: MediaStreamConstraints = { audio: micId ? { deviceId: { exact: micId } } : true };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      callStreamRef.current = stream;
-      setCallActive(true);
-      setCallConnecting(false);
-      setCallTimer(0);
-      callTimerRef.current = setInterval(() => setCallTimer(p => p + 1), 1000);
+      await voiceCall.startCall(active.user.id);
     } catch {
-      setCallConnecting(false);
       toast({ variant: "destructive", title: t("com.noMicAccess"), description: t("com.micPermissionDenied") });
     }
   };
 
-  const endCall = async () => {
-    const duration = formatCallTime(callTimer);
-    const wasMissed = callTimer === 0;
-    callStreamRef.current?.getTracks().forEach(t => t.stop());
-    callStreamRef.current = null;
-    if (callTimerRef.current) clearInterval(callTimerRef.current);
-    callTimerRef.current = null;
-    setCallActive(false);
-    setCallMuted(false);
-    setCallTimer(0);
-    setCallConnecting(false);
+  const handleEndCall = async () => {
+    const timer = voiceCall.endCall();
+    const duration = formatCallTime(timer);
+    const wasMissed = timer === 0;
     toast({ title: t("com.callEnded") });
 
     if (active) {
@@ -1380,13 +1363,6 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
           setMessages(prev => [...prev, message]);
         }
       } catch {}
-    }
-  };
-
-  const toggleMute = () => {
-    if (callStreamRef.current) {
-      callStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
-      setCallMuted(p => !p);
     }
   };
 
@@ -1659,7 +1635,41 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 relative">
+      <AnimatePresence>
+        {voiceCall.incomingCall && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-0 left-1/2 -translate-x-1/2 z-50 w-80 bg-black text-white rounded-2xl shadow-2xl overflow-hidden border border-white/10"
+          >
+            <div className="p-5 flex flex-col items-center gap-3">
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/20">
+                <img src={voiceCall.incomingCall.callerAvatar} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="text-center">
+                <p className="font-bold text-sm">{voiceCall.incomingCall.callerName}</p>
+                <p className="text-xs text-white/60">{t("com.incomingCall")}</p>
+              </div>
+              <div className="flex gap-4 mt-2">
+                <button
+                  onClick={voiceCall.rejectCall}
+                  className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors"
+                >
+                  <PhoneOff className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={voiceCall.acceptCall}
+                  className="w-12 h-12 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors animate-pulse"
+                >
+                  <Phone className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="flex gap-4 h-[620px]">
         {/* Sidebar */}
         <div className="w-72 shrink-0 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -1819,23 +1829,23 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   <p className="font-semibold text-sm">{active.user.displayName}</p>
                   <p className="text-xs text-muted-foreground">@{active.user.robloxUsername}</p>
                 </div>
-                <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" onClick={callActive ? endCall : startCall} disabled={callConnecting} title={t("com.voiceCall")}>
-                  {callConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : callActive ? <PhoneOff className="w-4 h-4 text-red-500" /> : <Phone className="w-4 h-4" />}
+                <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" onClick={voiceCall.callActive ? handleEndCall : handleStartCall} disabled={voiceCall.callConnecting} title={t("com.voiceCall")}>
+                  {voiceCall.callConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : voiceCall.callActive ? <PhoneOff className="w-4 h-4 text-red-500" /> : <Phone className="w-4 h-4" />}
                 </Button>
               </div>
               <AnimatePresence>
-                {(callActive || callConnecting) && (
+                {(voiceCall.callActive || voiceCall.callConnecting) && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-b border-border overflow-hidden">
                     <div className="px-4 py-3 bg-black text-white flex items-center gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium">{callConnecting ? t("com.calling") : `${t("com.callWith")} ${active.user.displayName}`}</p>
-                        {callActive && <p className="text-[10px] text-white/60 font-mono">{formatCallTime(callTimer)}</p>}
+                        <p className="text-xs font-medium">{voiceCall.callConnecting ? t("com.calling") : `${t("com.callWith")} ${active.user.displayName}`}</p>
+                        {voiceCall.callActive && <p className="text-[10px] text-white/60 font-mono">{formatCallTime(voiceCall.callTimer)}</p>}
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <button onClick={toggleMute} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${callMuted ? "bg-red-500/80" : "bg-white/20 hover:bg-white/30"}`}>
-                          {callMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                        <button onClick={voiceCall.toggleMute} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${voiceCall.callMuted ? "bg-red-500/80" : "bg-white/20 hover:bg-white/30"}`}>
+                          {voiceCall.callMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
                         </button>
-                        <button onClick={endCall} className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors">
+                        <button onClick={handleEndCall} className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors">
                           <PhoneOff className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -1915,9 +1925,6 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   </div>
                   <p className="text-[10px] text-muted-foreground">{chatMembers.length} {t("com.members")} {active.chat.robloxGroupId ? `· ${t("com.workChat")}` : ""}</p>
                 </div>
-                <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" onClick={callActive ? endCall : startCall} disabled={callConnecting} title={t("com.voiceCall")}>
-                  {callConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : callActive ? <PhoneOff className="w-4 h-4 text-red-500" /> : <Phone className="w-4 h-4" />}
-                </Button>
                 <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
                 <Button size="sm" variant="ghost" className={`rounded-xl gap-1 h-8 text-xs ${showMembersPanel ? "bg-secondary" : ""}`} onClick={() => setShowMembersPanel(p => !p)}><Users className="w-3.5 h-3.5" /></Button>
                 {!isAdmin && (
@@ -1926,26 +1933,6 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   </Button>
                 )}
               </div>
-              <AnimatePresence>
-                {(callActive || callConnecting) && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-b border-border overflow-hidden">
-                    <div className="px-4 py-3 bg-black text-white flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium">{callConnecting ? t("com.calling") : `${t("com.inCall")} — ${active.chat.name}`}</p>
-                        {callActive && <p className="text-[10px] text-white/60 font-mono">{formatCallTime(callTimer)}</p>}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={toggleMute} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${callMuted ? "bg-red-500/80" : "bg-white/20 hover:bg-white/30"}`}>
-                          {callMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                        </button>
-                        <button onClick={endCall} className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors">
-                          <PhoneOff className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
               {showAddMember && (
                 <div className="flex gap-2 px-4 py-2 border-b border-border">
                   <Input placeholder={t("com.addMember")} value={addMemberInput} onChange={e => setAddMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addMemberToChat()} className="rounded-xl flex-1 text-xs h-8" />
