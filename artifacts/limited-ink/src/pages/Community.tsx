@@ -1728,7 +1728,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold truncate">{otherUser?.displayName}</p>
-                          {lastMessage && <p className="text-[10px] text-muted-foreground truncate">{lastMessage.content}</p>}
+                          {lastMessage && <p className="text-[10px] text-muted-foreground truncate">{lastMessage.content && isCallMsg(lastMessage.content) ? <span className="inline-flex items-center gap-1">{parseCallMsg(lastMessage.content).type === "missed" ? <><PhoneOff className="w-3 h-3 text-red-400 inline" /> {t("com.callMissed")}</> : <><Phone className="w-3 h-3 text-green-400 inline" /> {t("com.callOutgoing")}</>}</span> : lastMessage.content && isVoiceMsg(lastMessage.content) ? <span className="inline-flex items-center gap-1"><Mic className="w-3 h-3 inline" /> {t("com.voiceMessage")}</span> : lastMessage.content}</p>}
                         </div>
                         {lastMessage && <span className="text-[9px] text-muted-foreground shrink-0">{timeAgoShort(lastMessage.createdAt)}</span>}
                       </div>
@@ -3176,7 +3176,7 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
                     <p className="font-semibold text-sm truncate">{chat.name}</p>
                     <Badge variant="outline" className="text-[9px] shrink-0">{chat.memberCount} {t("com.membersShort")}</Badge>
                   </div>
-                  {chat.lastMessage && <p className="text-xs text-muted-foreground truncate mt-0.5">{chat.lastMessage.content}</p>}
+                  {chat.lastMessage && <p className="text-xs text-muted-foreground truncate mt-0.5">{isCallMsg(chat.lastMessage.content) ? <span className="inline-flex items-center gap-1">{parseCallMsg(chat.lastMessage.content).type === "missed" ? <><PhoneOff className="w-3 h-3 text-red-400 inline" /> {t("com.callMissed")}</> : <><Phone className="w-3 h-3 text-green-400 inline" /> {t("com.callOutgoing")}</>}</span> : isVoiceMsg(chat.lastMessage.content) ? <span className="inline-flex items-center gap-1"><Mic className="w-3 h-3 inline" /> {t("com.voiceMessage")}</span> : chat.lastMessage.content}</p>}
                 </div>
                 {chat.lastMessage && <p className="text-[10px] text-muted-foreground shrink-0">{timeAgoShort(chat.lastMessage.createdAt)}</p>}
                 <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
