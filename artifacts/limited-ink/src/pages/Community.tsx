@@ -1202,6 +1202,8 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [robloxGroupChatCreated, setRobloxGroupChatCreated] = useState(false);
   const [showMembersPanel, setShowMembersPanel] = useState(false);
   const [memberActionId, setMemberActionId] = useState<number | null>(null);
+  const [dmSectionOpen, setDmSectionOpen] = useState(true);
+  const [gcSectionOpen, setGcSectionOpen] = useState(true);
 
   const [callActive, setCallActive] = useState(false);
   const [callMuted, setCallMuted] = useState(false);
@@ -1672,54 +1674,93 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
               <div className="p-3 space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
             ) : (
               <>
-                {[...groupChats].sort((a, b) => (b.robloxGroupId ? 1 : 0) - (a.robloxGroupId ? 1 : 0)).map(gc => (
-                  <div
-                    key={`gc-${gc.id}`}
-                    onClick={() => openGroup(gc)}
-                    className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${active?.kind === "group" && active.chat.id === gc.id ? "bg-secondary/70" : ""} ${gc.robloxGroupId ? "bg-secondary/20" : ""}`}
-                  >
-                    {gc.groupThumbnailUrl ? (
-                      <img src={gc.groupThumbnailUrl} alt={gc.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
-                    ) : (
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: gc.robloxGroupId ? "#000" : (gc.avatarColor || "#6366f1") }}>
-                        {gc.robloxGroupId ? <Users className="w-4 h-4" /> : gc.name.charAt(0)}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-xs font-semibold truncate">{gc.name}</p>
-                        {gc.robloxGroupId && <Badge className="text-[8px] h-4 px-1 shrink-0 bg-black text-white border-0">Roblox</Badge>}
-                        <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0">{gc.memberCount || "?"}</Badge>
-                      </div>
-                      {gc.lastMessage && <p className="text-[10px] text-muted-foreground truncate">{gc.lastMessage.isDeleted ? <span className="italic">{t("com.deletedMessage")}</span> : isCallMsg(gc.lastMessage.content) ? <span className="inline-flex items-center gap-1">{parseCallMsg(gc.lastMessage.content).type === "missed" ? <><PhoneOff className="w-3 h-3 text-red-400 inline" /> {t("com.callMissed")}</> : <><Phone className="w-3 h-3 text-green-400 inline" /> {t("com.callOutgoing")}</>}</span> : isVoiceMsg(gc.lastMessage.content) ? `🎤 ${t("com.voiceMessage")}` : gc.lastMessage.content}</p>}
-                    </div>
-                    {gc.lastMessage && <span className="text-[9px] text-muted-foreground shrink-0">{timeAgoShort(gc.lastMessage.createdAt)}</span>}
-                  </div>
-                ))}
-
-                {conversations.map(({ conversation, otherUser, lastMessage, unreadCount }) => (
-                  <div
-                    key={`dm-${conversation.id}`}
-                    onClick={() => openDm(otherUser)}
-                    className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${active?.kind === "dm" && active.user.id === otherUser?.id ? "bg-secondary/70" : ""}`}
-                  >
-                    <div className="relative">
-                      <Avatar className="w-9 h-9 border border-border shrink-0">
-                        <AvatarImage src={otherUser?.avatarUrl || robloxHeadshot(otherUser?.robloxUserId || 0)} />
-                        <AvatarFallback className="text-xs font-bold">{otherUser?.displayName?.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      {unreadCount > 0 && (
-                        <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-black rounded-full flex items-center justify-center text-[9px] text-white font-bold">
-                          {unreadCount}
+                {conversations.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setDmSectionOpen(p => !p)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:bg-secondary/30 transition-colors"
+                    >
+                      <ChevronDown className={`w-3 h-3 transition-transform ${dmSectionOpen ? "" : "-rotate-90"}`} />
+                      <MessageCircle className="w-3 h-3" />
+                      {t("com.directMessages") || "Direct Messages"}
+                      <Badge variant="outline" className="text-[8px] h-4 px-1 ml-auto">{conversations.length}</Badge>
+                    </button>
+                    {dmSectionOpen && [...conversations]
+                      .sort((a, b) => {
+                        const ta = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+                        const tb = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+                        return tb - ta;
+                      })
+                      .map(({ conversation, otherUser, lastMessage, unreadCount }) => (
+                      <div
+                        key={`dm-${conversation.id}`}
+                        onClick={() => openDm(otherUser)}
+                        className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${active?.kind === "dm" && active.user.id === otherUser?.id ? "bg-secondary/70" : ""}`}
+                      >
+                        <div className="relative">
+                          <Avatar className="w-9 h-9 border border-border shrink-0">
+                            <AvatarImage src={otherUser?.avatarUrl || robloxHeadshot(otherUser?.robloxUserId || 0)} />
+                            <AvatarFallback className="text-xs font-bold">{otherUser?.displayName?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          {unreadCount > 0 && (
+                            <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-black rounded-full flex items-center justify-center text-[9px] text-white font-bold">
+                              {unreadCount}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold truncate">{otherUser?.displayName}</p>
-                      {lastMessage && <p className="text-[10px] text-muted-foreground truncate">{lastMessage.content}</p>}
-                    </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate">{otherUser?.displayName}</p>
+                          {lastMessage && <p className="text-[10px] text-muted-foreground truncate">{lastMessage.content}</p>}
+                        </div>
+                        {lastMessage && <span className="text-[9px] text-muted-foreground shrink-0">{timeAgoShort(lastMessage.createdAt)}</span>}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+
+                {groupChats.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setGcSectionOpen(p => !p)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:bg-secondary/30 transition-colors"
+                    >
+                      <ChevronDown className={`w-3 h-3 transition-transform ${gcSectionOpen ? "" : "-rotate-90"}`} />
+                      <Users className="w-3 h-3" />
+                      {t("com.groupChatsFolder") || "Group Chats"}
+                      <Badge variant="outline" className="text-[8px] h-4 px-1 ml-auto">{groupChats.length}</Badge>
+                    </button>
+                    {gcSectionOpen && [...groupChats]
+                      .sort((a, b) => {
+                        const ta = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+                        const tb = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+                        return tb - ta;
+                      })
+                      .map(gc => (
+                      <div
+                        key={`gc-${gc.id}`}
+                        onClick={() => openGroup(gc)}
+                        className={`flex items-center gap-2.5 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border-b border-border/40 ${active?.kind === "group" && active.chat.id === gc.id ? "bg-secondary/70" : ""}`}
+                      >
+                        {gc.groupThumbnailUrl ? (
+                          <img src={gc.groupThumbnailUrl} alt={gc.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: gc.robloxGroupId ? "#000" : (gc.avatarColor || "#6366f1") }}>
+                            {gc.robloxGroupId ? <Users className="w-4 h-4" /> : gc.name.charAt(0)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-semibold truncate">{gc.name}</p>
+                            {gc.robloxGroupId && <Badge className="text-[8px] h-4 px-1 shrink-0 bg-black text-white border-0">Roblox</Badge>}
+                            <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0">{gc.memberCount || "?"}</Badge>
+                          </div>
+                          {gc.lastMessage && <p className="text-[10px] text-muted-foreground truncate">{gc.lastMessage.isDeleted ? <span className="italic">{t("com.deletedMessage")}</span> : isCallMsg(gc.lastMessage.content) ? <span className="inline-flex items-center gap-1">{parseCallMsg(gc.lastMessage.content).type === "missed" ? <><PhoneOff className="w-3 h-3 text-red-400 inline" /> {t("com.callMissed")}</> : <><Phone className="w-3 h-3 text-green-400 inline" /> {t("com.callOutgoing")}</>}</span> : isVoiceMsg(gc.lastMessage.content) ? `🎤 ${t("com.voiceMessage")}` : gc.lastMessage.content}</p>}
+                        </div>
+                        {gc.lastMessage && <span className="text-[9px] text-muted-foreground shrink-0">{timeAgoShort(gc.lastMessage.createdAt)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {groupChats.length === 0 && conversations.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
