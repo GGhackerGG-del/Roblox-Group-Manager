@@ -559,15 +559,20 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchFeed = useCallback(async () => {
-    setLoading(true);
+  const fetchFeed = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const d = await apiFetch<{ posts: Post[] }>("/api/social/feed");
       setPosts(d.posts);
-    } catch {} finally { setLoading(false); }
+    } catch {} finally { if (!silent) setLoading(false); }
   }, []);
 
   useEffect(() => { fetchFeed(); }, [fetchFeed]);
+
+  useEffect(() => {
+    const iv = setInterval(() => fetchFeed(true), 8000);
+    return () => clearInterval(iv);
+  }, [fetchFeed]);
 
   const handleFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -752,16 +757,23 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
   const [votes, setVotes] = useState<{ likes: number; dislikes: number; myVote: "like" | "dislike" | null }>({ likes: 0, dislikes: 0, myVote: null });
   const [voting, setVoting] = useState(false);
 
-  useEffect(() => {
-    apiFetch<{ users: Array<PlatformUser & { isMe?: boolean }> }>("/api/social/users")
-      .then(d => setUsers(d.users))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-    apiFetch<{ groups: any[] }>("/api/featured-groups")
-      .then(d => setFeaturedGroups(d.groups))
-      .catch(() => {})
-      .finally(() => setFgLoading(false));
+  const fetchDiscover = useCallback(async (silent = false) => {
+    try {
+      const d = await apiFetch<{ users: Array<PlatformUser & { isMe?: boolean }> }>("/api/social/users");
+      setUsers(d.users);
+    } catch {} finally { if (!silent) setLoading(false); }
+    try {
+      const d = await apiFetch<{ groups: any[] }>("/api/featured-groups");
+      setFeaturedGroups(d.groups);
+    } catch {} finally { if (!silent) setFgLoading(false); }
   }, []);
+
+  useEffect(() => { fetchDiscover(); }, [fetchDiscover]);
+
+  useEffect(() => {
+    const iv = setInterval(() => fetchDiscover(true), 20000);
+    return () => clearInterval(iv);
+  }, [fetchDiscover]);
 
   const openGroupDetail = async (group: any) => {
     setSelectedGroup(group);
@@ -1032,8 +1044,8 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
   const [pending, setPending] = useState<Array<{ friendship: { id: number; status: string }; user: PlatformUser }>>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchFriends = useCallback(async () => {
-    setLoading(true);
+  const fetchFriends = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const d = await apiFetch<{
         friends: Array<{ friendship: { id: number; status: string }; user: PlatformUser }>;
@@ -1041,10 +1053,15 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
       }>("/api/social/friends");
       setFriends(d.friends);
       setPending(d.pending);
-    } catch {} finally { setLoading(false); }
+    } catch {} finally { if (!silent) setLoading(false); }
   }, []);
 
   useEffect(() => { fetchFriends(); }, [fetchFriends]);
+
+  useEffect(() => {
+    const iv = setInterval(() => fetchFriends(true), 15000);
+    return () => clearInterval(iv);
+  }, [fetchFriends]);
 
   const handleAction = async (friendshipId: number, action: "accept" | "reject") => {
     try {
@@ -1217,7 +1234,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   }, []);
   const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (silent = false) => {
     try {
       const [dmData, gcData] = await Promise.all([
         apiFetch<{ conversations: DmConversation[] }>("/api/social/messages").catch(() => ({ conversations: [] as DmConversation[] })),
@@ -1225,7 +1242,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
       ]);
       setConversations(dmData.conversations);
       setGroupChats(gcData.chats);
-    } catch {} finally { setLoading(false); }
+    } catch {} finally { if (!silent) setLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -1236,6 +1253,41 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   }, [groupsData, myUser, robloxGroupChatCreated, fetchAll]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    const iv = setInterval(() => fetchAll(true), 10000);
+    return () => clearInterval(iv);
+  }, [fetchAll]);
+
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
+  const lastMsgCountRef = useRef(0);
+
+  useEffect(() => {
+    let inFlight = false;
+    const iv = setInterval(async () => {
+      const cur = activeRef.current;
+      if (!cur || inFlight) return;
+      inFlight = true;
+      try {
+        if (cur.kind === "dm") {
+          const d = await apiFetch<{ messages: DmMessage[] }>(`/api/social/messages/${cur.user.id}`);
+          if (d.messages.length !== lastMsgCountRef.current) {
+            setMessages(d.messages);
+            lastMsgCountRef.current = d.messages.length;
+          }
+        } else {
+          const d = await apiFetch<{ messages: any[] }>(`/api/community/group-chats/${cur.chat.id}/messages`);
+          if (d.messages.length !== lastMsgCountRef.current) {
+            setMessages(d.messages);
+            lastMsgCountRef.current = d.messages.length;
+          }
+        }
+      } catch {} finally { inFlight = false; }
+    }, 3000);
+    return () => clearInterval(iv);
+  }, []);
 
   const openDm = useCallback(async (user: PlatformUser) => {
     setActive({ kind: "dm", user });
@@ -1265,8 +1317,20 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     if (initialChatUser) { openDm(initialChatUser); onClearInitial(); }
   }, [initialChatUser, openDm, onClearInitial]);
 
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
+
+  const handleChatScroll = useCallback(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    shouldAutoScrollRef.current = atBottom;
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldAutoScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const startCall = async () => {
@@ -1738,7 +1802,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   </motion.div>
                 )}
               </AnimatePresence>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 overflow-y-auto p-4 space-y-3">
                 {loadingMsgs ? (
                   <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
                 ) : messages.length === 0 ? (
@@ -1896,7 +1960,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   </motion.div>
                 )}
               </AnimatePresence>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 overflow-y-auto p-4 space-y-3">
                 {loadingMsgs ? (
                   <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
                 ) : messages.length === 0 ? (
@@ -2049,17 +2113,22 @@ function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUser
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
-  const fetchTopics = useCallback(async () => {
-    setLoading(true);
+  const fetchTopics = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await apiFetch<{ topics: ForumTopic[] }>(`/api/forum/topics?category=${category}`);
       setTopics(data.topics);
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to load topics" });
-    } finally { setLoading(false); }
+      if (!silent) toast({ variant: "destructive", title: "Error", description: "Failed to load topics" });
+    } finally { if (!silent) setLoading(false); }
   }, [category]);
 
   useEffect(() => { fetchTopics(); }, [fetchTopics]);
+
+  useEffect(() => {
+    const iv = setInterval(() => fetchTopics(true), 15000);
+    return () => clearInterval(iv);
+  }, [fetchTopics]);
 
   const handleCreate = async () => {
     if (!newTitle.trim() || !newContent.trim()) return;
@@ -2104,6 +2173,22 @@ function ForumTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUser
       toast({ variant: "destructive", title: "Error", description: "Failed to delete" });
     }
   };
+
+  const selectedTopicRef = useRef(selectedTopic);
+  selectedTopicRef.current = selectedTopic;
+
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const st = selectedTopicRef.current;
+      if (!st) return;
+      try {
+        const data = await apiFetch<{ topic: ForumTopic; replies: ForumReply[] }>(`/api/forum/topics/${st.id}`);
+        setSelectedTopic(data.topic);
+        setReplies(data.replies);
+      } catch {}
+    }, 5000);
+    return () => clearInterval(iv);
+  }, []);
 
   const openTopic = async (topic: ForumTopic) => {
     setSelectedTopic(topic);
@@ -2371,12 +2456,19 @@ function LeaderboardTab({ onUserClick }: { onUserClick: (id: number) => void }) 
   const [data, setData] = useState<{ topPosters: LeaderboardEntry[]; topHelpers: LeaderboardEntry[]; topContributors: LeaderboardEntry[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    apiFetch<{ topPosters: LeaderboardEntry[]; topHelpers: LeaderboardEntry[]; topContributors: LeaderboardEntry[] }>("/api/forum/leaderboard")
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+  const fetchLeaderboard = useCallback(async (silent = false) => {
+    try {
+      const d = await apiFetch<{ topPosters: LeaderboardEntry[]; topHelpers: LeaderboardEntry[]; topContributors: LeaderboardEntry[] }>("/api/forum/leaderboard");
+      setData(d);
+    } catch {} finally { if (!silent) setLoading(false); }
   }, []);
+
+  useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
+
+  useEffect(() => {
+    const iv = setInterval(() => fetchLeaderboard(true), 30000);
+    return () => clearInterval(iv);
+  }, [fetchLeaderboard]);
 
   if (loading) {
     return (
@@ -2444,12 +2536,19 @@ function SubscriptionsTab({ myUser }: { myUser: PlatformUser | null }) {
   const [addGroupId, setAddGroupId] = useState("");
   const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
-    apiFetch<{ subscriptions: GroupSub[] }>("/api/forum/subscriptions")
-      .then(d => setSubs(d.subscriptions))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+  const fetchSubs = useCallback(async (silent = false) => {
+    try {
+      const d = await apiFetch<{ subscriptions: GroupSub[] }>("/api/forum/subscriptions");
+      setSubs(d.subscriptions);
+    } catch {} finally { if (!silent) setLoading(false); }
   }, []);
+
+  useEffect(() => { fetchSubs(); }, [fetchSubs]);
+
+  useEffect(() => {
+    const iv = setInterval(() => fetchSubs(true), 20000);
+    return () => clearInterval(iv);
+  }, [fetchSubs]);
 
   const handleSubscribe = async () => {
     const groupId = parseInt(addGroupId, 10);
@@ -2604,8 +2703,8 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
   const [inviteUsername, setInviteUsername] = useState("");
   const [inviting, setInviting] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [{ workspaces: ws }, { invites: inv }] = await Promise.all([
         apiFetch<{ workspaces: any[] }>("/api/community/workspaces"),
@@ -2613,10 +2712,15 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
       ]);
       setWorkspaces(ws); setInvites(inv);
     } catch {}
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   };
 
   useEffect(() => { if (myUser) load(); else setLoading(false); }, [myUser]);
+
+  useEffect(() => {
+    const iv = setInterval(() => { if (myUser) load(true); }, 15000);
+    return () => clearInterval(iv);
+  }, [myUser]);
 
   const openWs = async (ws: any) => {
     setActiveWs(ws); setMembersLoading(true);
@@ -2844,18 +2948,56 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
 
-  const loadChats = async () => {
+  const loadChats = async (silent = false) => {
     try {
       const { chats: c } = await apiFetch<{ chats: any[] }>("/api/community/group-chats");
       setChats(c);
     } catch {}
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   };
 
   useEffect(() => { if (myUser) loadChats(); else setLoading(false); }, [myUser]);
 
   useEffect(() => {
-    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    const iv = setInterval(() => loadChats(true), 10000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const activeChatRef = useRef(activeChat);
+  activeChatRef.current = activeChat;
+
+  const gcLastCountRef = useRef(0);
+
+  useEffect(() => {
+    let inFlight = false;
+    const iv = setInterval(async () => {
+      const cur = activeChatRef.current;
+      if (!cur || inFlight) return;
+      inFlight = true;
+      try {
+        const { messages: msgs } = await apiFetch<{ messages: any[] }>(`/api/community/group-chats/${cur.id}/messages`);
+        if (msgs.length !== gcLastCountRef.current) {
+          setMessages(msgs);
+          gcLastCountRef.current = msgs.length;
+        }
+      } catch {} finally { inFlight = false; }
+    }, 3000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const gcContainerRef = useRef<HTMLDivElement>(null);
+  const gcAutoScrollRef = useRef(true);
+
+  const handleGcScroll = useCallback(() => {
+    const el = gcContainerRef.current;
+    if (!el) return;
+    gcAutoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, []);
+
+  useEffect(() => {
+    if (gcAutoScrollRef.current && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const openChat = async (chat: any) => {
@@ -2958,7 +3100,7 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
           <Button size="sm" className="rounded-xl h-8" onClick={addMemberToChat}><Check className="w-3.5 h-3.5" /></Button>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto py-3 space-y-3 min-h-0">
+      <div ref={gcContainerRef} onScroll={handleGcScroll} className="flex-1 overflow-y-auto py-3 space-y-3 min-h-0">
         {msgsLoading ? <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : messages.length === 0 ? (
           <p className="text-center text-muted-foreground text-sm py-8">{t("com.noMessagesStart")}</p>
         ) : messages.map(msg => {
@@ -3095,6 +3237,31 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
       .then(({ members: m }) => setWsMembers(m.filter(m => m.status === "active")))
       .catch(() => {});
   }, [selectedWs]);
+
+  const activeProjectRef = useRef(activeProject);
+  activeProjectRef.current = activeProject;
+  const selectedWsRef = useRef(selectedWs);
+  selectedWsRef.current = selectedWs;
+
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const ws = selectedWsRef.current;
+      const proj = activeProjectRef.current;
+      if (ws) {
+        try {
+          const { projects: p } = await apiFetch<{ projects: any[] }>(`/api/community/workspaces/${ws}/projects`);
+          setProjects(p);
+        } catch {}
+      }
+      if (proj) {
+        try {
+          const { tasks: t } = await apiFetch<{ tasks: any[] }>(`/api/community/projects/${proj.id}/tasks`);
+          setTasks(t);
+        } catch {}
+      }
+    }, 10000);
+    return () => clearInterval(iv);
+  }, []);
 
   const openProject = async (project: any) => {
     setActiveProject(project); setTasksLoading(true); setTasks([]);
@@ -3471,8 +3638,8 @@ function MarketplaceTab({ myUser, onChatUser }: { myUser: PlatformUser | null; o
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
 
-  const loadListings = async () => {
-    setLoading(true);
+  const loadListings = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (category !== "all") params.set("category", category);
@@ -3480,10 +3647,15 @@ function MarketplaceTab({ myUser, onChatUser }: { myUser: PlatformUser | null; o
       const { listings: l } = await apiFetch<{ listings: any[] }>(`/api/community/marketplace?${params}`);
       setListings(l);
     } catch {}
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   };
 
   useEffect(() => { loadListings(); }, [category, sort]);
+
+  useEffect(() => {
+    const iv = setInterval(() => loadListings(true), 20000);
+    return () => clearInterval(iv);
+  }, [category, sort]);
 
   const toggleLike = async (id: number) => {
     if (!myUser) return;
