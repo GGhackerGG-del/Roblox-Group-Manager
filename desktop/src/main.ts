@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage, session as electronSession } from "electron";
+import { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage, session as electronSession, ipcMain, Notification } from "electron";
 import path from "path";
 
 let mainWindow: BrowserWindow | null = null;
@@ -133,6 +133,49 @@ app.whenReady().then(async () => {
       `Failed to start the application:\n\n${err?.message || err}\n\n${err?.stack || ""}`
     );
     app.quit();
+  }
+});
+
+ipcMain.on("show-call-notification", (event, data: { callerName: string; callerAvatar?: string }) => {
+  if (!mainWindow) return;
+  const senderUrl = event.senderFrame?.url || "";
+  if (!senderUrl.startsWith("http://localhost:") && !senderUrl.startsWith("http://127.0.0.1:")) return;
+  if (typeof data?.callerName !== "string" || data.callerName.length > 200) return;
+
+  if (mainWindow.isFocused()) return;
+
+  const notification = new Notification({
+    title: "Incoming Call",
+    body: `${data.callerName} is calling you`,
+    icon: app.isPackaged
+      ? path.join(process.resourcesPath, "icon.png")
+      : path.join(__dirname, "..", "resources", "icon.png"),
+    urgency: "critical",
+    silent: true,
+  });
+
+  notification.on("click", () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
+  notification.show();
+
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+  mainWindow.flashFrame(true);
+});
+
+ipcMain.on("focus-window", (event) => {
+  const senderUrl = event.senderFrame?.url || "";
+  if (!senderUrl.startsWith("http://localhost:") && !senderUrl.startsWith("http://127.0.0.1:")) return;
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.flashFrame(false);
   }
 });
 

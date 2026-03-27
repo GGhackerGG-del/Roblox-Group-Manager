@@ -273,6 +273,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     const incoming = stateRef.current.incomingCall;
     if (!incoming) return;
     stopIncomingRing();
+    try { (window as any).electronAPI?.focusWindow?.(); } catch {}
     callTargetRef.current = incoming.callerId;
 
     try {
@@ -316,6 +317,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     const incoming = stateRef.current.incomingCall;
     if (!incoming) return;
     stopIncomingRing();
+    try { (window as any).electronAPI?.focusWindow?.(); } catch {}
     sendWs({ type: "call-reject", callerId: incoming.callerId, rejecterId: myUserId });
     setState(s => ({ ...s, incomingCall: null }));
   }, [myUserId, sendWs]);
@@ -462,6 +464,28 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
                 offer: msg.offer,
               },
             }));
+            try {
+              const ea = (window as any).electronAPI;
+              if (ea?.showCallNotification) {
+                ea.showCallNotification(msg.callerName || "Unknown", msg.callerAvatar);
+              } else if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("Incoming Call", {
+                  body: `${msg.callerName || "Someone"} is calling you`,
+                  icon: msg.callerAvatar || undefined,
+                  requireInteraction: true,
+                });
+              } else if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission().then(p => {
+                  if (p === "granted") {
+                    new Notification("Incoming Call", {
+                      body: `${msg.callerName || "Someone"} is calling you`,
+                      icon: msg.callerAvatar || undefined,
+                      requireInteraction: true,
+                    });
+                  }
+                });
+              }
+            } catch {}
           } else {
             sendWs({ type: "call-reject", callerId: msg.callerId, rejecterId: myUserId });
           }
