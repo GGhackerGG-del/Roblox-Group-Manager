@@ -97,16 +97,6 @@ router.post("/roblox/auth", async (req, res): Promise<void> => {
   res.json(req.session.robloxProfile);
 });
 
-router.delete("/roblox/session", (req, res): void => {
-  req.session.robloxCookie = undefined;
-  req.session.robloxUserId = undefined;
-  req.session.robloxProfile = undefined;
-  req.session.save((err) => {
-    if (err) console.error("[Roblox] Session clear error:", err);
-    res.json({ success: true });
-  });
-});
-
 router.get("/roblox/session-cookie", async (req, res): Promise<void> => {
   const cookie = req.session.robloxCookie;
   if (!cookie) {
@@ -250,9 +240,11 @@ router.get("/roblox/groups", async (req, res): Promise<void> => {
 
   const userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
   if (!userResp.ok) {
-    delete req.session.robloxCookie;
-    delete req.session.robloxProfile;
-    delete (req.session as any).robloxUserId;
+    if (userResp.status === 401 || userResp.status === 403) {
+      delete req.session.robloxCookie;
+      delete req.session.robloxProfile;
+      delete (req.session as any).robloxUserId;
+    }
     res.status(401).json({ error: "Roblox session expired. Please sign in again." });
     return;
   }
@@ -261,7 +253,7 @@ router.get("/roblox/groups", async (req, res): Promise<void> => {
 
   const groupsResp = await fetchRoblox(`${ROBLOX_GROUPS_API}/v1/users/${userData.id}/groups/roles`, cookie);
   if (!groupsResp.ok) {
-    res.status(401).json({ error: "Failed to load groups." });
+    res.status(groupsResp.status === 429 ? 429 : 502).json({ error: "Failed to load groups. Try again." });
     return;
   }
 
@@ -356,9 +348,11 @@ router.get("/roblox/groups/:groupId/stats", async (req, res): Promise<void> => {
 
   const meResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
   if (!meResp.ok) {
-    delete req.session.robloxCookie;
-    delete req.session.robloxProfile;
-    delete (req.session as any).robloxUserId;
+    if (meResp.status === 401 || meResp.status === 403) {
+      delete req.session.robloxCookie;
+      delete req.session.robloxProfile;
+      delete (req.session as any).robloxUserId;
+    }
     res.status(401).json({ error: "Roblox session expired. Please sign in again." });
     return;
   }

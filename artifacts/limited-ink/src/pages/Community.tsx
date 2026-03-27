@@ -1248,11 +1248,11 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const fetchAll = useCallback(async (silent = false) => {
     try {
       const [dmData, gcData] = await Promise.all([
-        apiFetch<{ conversations: DmConversation[] }>("/api/social/messages").catch(() => ({ conversations: [] as DmConversation[] })),
-        apiFetch<{ chats: any[] }>("/api/community/group-chats").catch(() => ({ chats: [] as any[] })),
+        apiFetch<{ conversations: DmConversation[] }>("/api/social/messages").catch(() => null),
+        apiFetch<{ chats: any[] }>("/api/community/group-chats").catch(() => null),
       ]);
-      setConversations(dmData.conversations);
-      setGroupChats(gcData.chats);
+      if (dmData) setConversations(dmData.conversations);
+      if (gcData) setGroupChats(gcData.chats);
     } catch {} finally { if (!silent) setLoading(false); }
   }, []);
 
