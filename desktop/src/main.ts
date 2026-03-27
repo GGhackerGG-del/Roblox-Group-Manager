@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage, session as electronSession, ipcMain, Notification } from "electron";
+import { app, BrowserWindow, shell, dialog, Tray, Menu, nativeImage, session as electronSession, ipcMain, Notification, desktopCapturer } from "electron";
 import path from "path";
 
 let mainWindow: BrowserWindow | null = null;
@@ -167,6 +167,24 @@ ipcMain.on("show-call-notification", (event, data: { callerName: string; callerA
     mainWindow.show();
   }
   mainWindow.flashFrame(true);
+});
+
+ipcMain.handle("get-desktop-sources", async (event) => {
+  const senderUrl = event.senderFrame?.url || "";
+  if (!senderUrl.startsWith("http://localhost:") && !senderUrl.startsWith("http://127.0.0.1:")) return [];
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ["window", "screen"],
+      thumbnailSize: { width: 320, height: 180 },
+    });
+    return sources.map(s => ({
+      id: s.id,
+      name: s.name,
+      thumbnail: s.thumbnail.toDataURL(),
+    }));
+  } catch {
+    return [];
+  }
 });
 
 ipcMain.on("focus-window", (event) => {

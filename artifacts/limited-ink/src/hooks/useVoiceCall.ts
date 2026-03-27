@@ -43,6 +43,7 @@ export interface VoiceCallState {
   screenSharing: boolean;
   remoteVideoEnabled: boolean;
   remoteScreenSharing: boolean;
+  showScreenPicker: boolean;
   callPeer: CallPeerInfo | null;
 }
 
@@ -78,6 +79,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     screenSharing: false,
     remoteVideoEnabled: false,
     remoteScreenSharing: false,
+    showScreenPicker: false,
     callPeer: null,
   });
 
@@ -124,6 +126,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       screenSharing: false,
       remoteVideoEnabled: false,
       remoteScreenSharing: false,
+      showScreenPicker: false,
       callPeer: null,
     }));
   }, []);
@@ -386,6 +389,60 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     }
   }, [sendWs, myUserId]);
 
+  const startScreenStream = useCallback(async (sourceId?: string) => {
+    const pc = pcRef.current;
+    if (!pc) return;
+
+    try {
+      let stream: MediaStream;
+      const ea = (window as any).electronAPI;
+
+      if (ea?.isElectron && sourceId) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: "desktop",
+              chromeMediaSourceId: sourceId,
+              maxWidth: 1920,
+              maxHeight: 1080,
+            },
+          } as any,
+        });
+      } else {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: 1920, height: 1080 },
+          audio: false,
+        });
+      }
+
+      screenStreamRef.current = stream;
+      const screenTrack = stream.getVideoTracks()[0];
+
+      screenTrack.onended = () => {
+        screenStreamRef.current = null;
+        if (screenSenderRef.current && pcRef.current) {
+          pcRef.current.removeTrack(screenSenderRef.current);
+          screenSenderRef.current = null;
+        }
+        setState(s => ({ ...s, screenSharing: false }));
+        sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "screen", enabled: false });
+      };
+
+      if (screenVideoRef.current) {
+        screenVideoRef.current.srcObject = stream;
+      }
+
+      const sender = pc.addTrack(screenTrack, stream);
+      screenSenderRef.current = sender;
+
+      setState(s => ({ ...s, screenSharing: true, showScreenPicker: false }));
+      sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "screen", enabled: true });
+    } catch {
+      setState(s => ({ ...s, showScreenPicker: false }));
+    }
+  }, [sendWs, myUserId]);
+
   const toggleScreenShare = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc || !stateRef.current.callActive) return;
@@ -400,37 +457,14 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       setState(s => ({ ...s, screenSharing: false }));
       sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "screen", enabled: false });
     } else {
-      try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { width: 1920, height: 1080 },
-          audio: false,
-        });
-        screenStreamRef.current = stream;
-        const screenTrack = stream.getVideoTracks()[0];
-
-        screenTrack.onended = () => {
-          screenStreamRef.current = null;
-          if (screenSenderRef.current && pcRef.current) {
-            pcRef.current.removeTrack(screenSenderRef.current);
-            screenSenderRef.current = null;
-          }
-          setState(s => ({ ...s, screenSharing: false }));
-          sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "screen", enabled: false });
-        };
-
-        if (screenVideoRef.current) {
-          screenVideoRef.current.srcObject = stream;
-        }
-
-        const sender = pc.addTrack(screenTrack, stream);
-        screenSenderRef.current = sender;
-
-        setState(s => ({ ...s, screenSharing: true }));
-        sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "screen", enabled: true });
-      } catch {
+      const ea = (window as any).electronAPI;
+      if (ea?.getDesktopSources) {
+        setState(s => ({ ...s, showScreenPicker: true }));
+      } else {
+        startScreenStream();
       }
     }
-  }, [sendWs, myUserId]);
+  }, [sendWs, myUserId, startScreenStream]);
 
   const connectWs = useCallback(() => {
     if (!myUserId || unmountedRef.current) return;
@@ -588,6 +622,10 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     };
   }, [connectWs, cleanupCall]);
 
+  const dismissScreenPicker = useCallback(() => {
+    setState(s => ({ ...s, showScreenPicker: false }));
+  }, []);
+
   return {
     ...state,
     startCall,
@@ -598,6 +636,8 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     toggleDeafen,
     toggleVideo,
     toggleScreenShare,
+    startScreenStream,
+    dismissScreenPicker,
     localVideoRef,
     remoteVideoRef,
     screenVideoRef,

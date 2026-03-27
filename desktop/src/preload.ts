@@ -9,4 +9,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   focusWindow: () => {
     ipcRenderer.send("focus-window");
   },
+  getDesktopSources: () => {
+    return ipcRenderer.invoke("get-desktop-sources");
+  },
 });

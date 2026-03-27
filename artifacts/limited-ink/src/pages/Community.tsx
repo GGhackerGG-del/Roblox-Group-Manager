@@ -26,6 +26,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import AccessoriesTab, { UserEquippedAccessories } from "@/components/AccessoriesTab";
 import CallOverlay from "@/components/CallOverlay";
+import ScreenPicker from "@/components/ScreenPicker";
 import { Sparkles, Gamepad2 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -1638,6 +1639,11 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
         localVideoRef={voiceCall.localVideoRef}
         remoteVideoRef={voiceCall.remoteVideoRef}
         screenVideoRef={voiceCall.screenVideoRef}
+      />
+      <ScreenPicker
+        open={voiceCall.showScreenPicker}
+        onSelect={(sourceId) => voiceCall.startScreenStream(sourceId)}
+        onClose={voiceCall.dismissScreenPicker}
       />
       <div className="flex gap-4 h-[620px]">
         {/* Sidebar */}
