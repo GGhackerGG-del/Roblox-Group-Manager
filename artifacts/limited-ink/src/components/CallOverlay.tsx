@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
@@ -37,6 +37,7 @@ interface CallOverlayProps {
   localVideoRef: React.RefObject<HTMLVideoElement | null>;
   remoteVideoRef: React.RefObject<HTMLVideoElement | null>;
   screenVideoRef: React.RefObject<HTMLVideoElement | null>;
+  remoteScreenStream?: React.RefObject<MediaStream | null>;
 }
 
 function formatTime(seconds: number): string {
@@ -90,6 +91,21 @@ function CtrlBtn({
 export default function CallOverlay(props: CallOverlayProps) {
   const { t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
+  const prevScreenSharing = useRef(false);
+
+  useEffect(() => {
+    if (props.remoteScreenSharing && !prevScreenSharing.current) {
+      setExpanded(true);
+    }
+    prevScreenSharing.current = props.remoteScreenSharing;
+  }, [props.remoteScreenSharing]);
+
+  useEffect(() => {
+    if (expanded && props.remoteScreenSharing && props.screenVideoRef.current && props.remoteScreenStream?.current) {
+      props.screenVideoRef.current.srcObject = props.remoteScreenStream.current;
+      props.screenVideoRef.current.play().catch(() => {});
+    }
+  }, [expanded, props.remoteScreenSharing]);
 
   const showCallPanel = props.callActive || props.callConnecting;
   const showIncoming = !!props.incomingCall && !props.callActive && !props.callConnecting;

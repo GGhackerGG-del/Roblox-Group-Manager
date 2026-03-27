@@ -1639,6 +1639,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
         localVideoRef={voiceCall.localVideoRef}
         remoteVideoRef={voiceCall.remoteVideoRef}
         screenVideoRef={voiceCall.screenVideoRef}
+        remoteScreenStream={voiceCall.remoteScreenStreamRef}
       />
       <ScreenPicker
         open={voiceCall.showScreenPicker}

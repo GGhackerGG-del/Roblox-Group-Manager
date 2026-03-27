@@ -65,6 +65,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
   const videoSenderRef = useRef<RTCRtpSender | null>(null);
   const screenSenderRef = useRef<RTCRtpSender | null>(null);
   const renegotiatingRef = useRef(false);
+  const remoteScreenStreamRef = useRef<MediaStream | null>(null);
 
   const [state, setState] = useState<VoiceCallState>({
     connected: false,
@@ -99,6 +100,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     localVideoStreamRef.current = null;
     screenStreamRef.current?.getTracks().forEach(t => t.stop());
     screenStreamRef.current = null;
+    remoteScreenStreamRef.current = null;
     videoSenderRef.current = null;
     screenSenderRef.current = null;
     if (remoteAudioRef.current) {
@@ -139,6 +141,20 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     return false;
   }, []);
 
+  const assignScreenStream = useCallback((stream: MediaStream | null) => {
+    remoteScreenStreamRef.current = stream;
+    const tryAssign = () => {
+      if (screenVideoRef.current && stream) {
+        screenVideoRef.current.srcObject = stream;
+        screenVideoRef.current.play().catch(() => {});
+      }
+    };
+    tryAssign();
+    setTimeout(tryAssign, 50);
+    setTimeout(tryAssign, 200);
+    setTimeout(tryAssign, 600);
+  }, []);
+
   const handleRemoteTrack = useCallback((e: RTCTrackEvent) => {
     const stream = e.streams[0];
     if (!stream) return;
@@ -153,15 +169,15 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       setState(s => ({ ...s, remoteStreamActive: true }));
     } else if (e.track.kind === "video") {
       const trackLabel = e.track.label?.toLowerCase() || "";
-      const isScreen = trackLabel.includes("screen") || trackLabel.includes("monitor") || trackLabel.includes("window") || trackLabel.includes("display") || trackLabel.includes("tab");
+      const isScreenFromLabel = trackLabel.includes("screen") || trackLabel.includes("monitor") || trackLabel.includes("window") || trackLabel.includes("display") || trackLabel.includes("tab");
+      const isScreenFromSignaling = stateRef.current.remoteScreenSharing;
+      const isScreen = isScreenFromLabel || (isScreenFromSignaling && !remoteScreenStreamRef.current);
 
       if (isScreen) {
-        if (screenVideoRef.current) {
-          screenVideoRef.current.srcObject = stream;
-          screenVideoRef.current.play().catch(() => {});
-        }
+        assignScreenStream(stream);
         setState(s => ({ ...s, remoteScreenSharing: true }));
         e.track.onended = () => {
+          remoteScreenStreamRef.current = null;
           setState(s => ({ ...s, remoteScreenSharing: false }));
         };
       } else {
@@ -175,7 +191,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
         };
       }
     }
-  }, []);
+  }, [assignScreenStream]);
 
   const setupPeerConnection = useCallback((stream: MediaStream) => {
     const pc = new RTCPeerConnection(ICE_SERVERS);
@@ -591,6 +607,9 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
           if (msg.track === "video") {
             setState(s => ({ ...s, remoteVideoEnabled: msg.enabled }));
           } else if (msg.track === "screen") {
+            if (!msg.enabled) {
+              remoteScreenStreamRef.current = null;
+            }
             setState(s => ({ ...s, remoteScreenSharing: msg.enabled }));
           }
           break;
@@ -643,5 +662,6 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     screenVideoRef,
     localVideoStreamRef,
     screenStreamRef,
+    remoteScreenStreamRef,
   };
 }
