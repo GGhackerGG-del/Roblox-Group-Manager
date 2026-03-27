@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 
 const PROFILE_STORAGE_KEY = "limitedink_profile";
 const DEVICE_FP_STORAGE_KEY = "limitedink_device_fp";
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface AuthContextType {
   licenseToken: string | null;
@@ -120,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     if (fp) headers["X-Device-Fingerprint"] = fp;
-    fetch("/api/roblox/session", { method: "DELETE", credentials: "include", headers }).catch(() => {});
+    fetch(`${BASE}/api/roblox/session`, { method: "DELETE", credentials: "include", headers }).catch(() => {});
     localStorage.removeItem(PROFILE_STORAGE_KEY);
     setProfile(null);
     toast({ title: "Disconnected", description: "Roblox session ended." });
@@ -136,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(DEVICE_FP_STORAGE_KEY);
     setLicenseToken(null);
     setLicenseDetails(null);
-    fetch("/api/roblox/session", { method: "DELETE", credentials: "include", headers }).catch(() => {});
+    fetch(`${BASE}/api/roblox/session`, { method: "DELETE", credentials: "include", headers }).catch(() => {});
     localStorage.removeItem(PROFILE_STORAGE_KEY);
     setProfile(null);
     toast({ title: "License revoked", description: "You have been fully signed out." });

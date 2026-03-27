@@ -97,6 +97,16 @@ router.post("/roblox/auth", async (req, res): Promise<void> => {
   res.json(req.session.robloxProfile);
 });
 
+router.delete("/roblox/session", (req, res): void => {
+  req.session.robloxCookie = undefined;
+  req.session.robloxUserId = undefined;
+  req.session.robloxProfile = undefined;
+  req.session.save((err) => {
+    if (err) console.error("[Roblox] Session clear error:", err);
+    res.json({ success: true });
+  });
+});
+
 router.get("/roblox/session-cookie", async (req, res): Promise<void> => {
   const cookie = req.session.robloxCookie;
   if (!cookie) {
