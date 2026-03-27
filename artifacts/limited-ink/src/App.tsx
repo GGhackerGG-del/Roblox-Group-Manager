@@ -30,6 +30,7 @@ import ContentPlanner from "@/pages/ContentPlanner";
 import Gamification from "@/pages/Gamification";
 import Integrations from "@/pages/Integrations";
 import Testing from "@/pages/Testing";
+import ShortsGenerator from "@/pages/ShortsGenerator";
 
 
 const queryClient = new QueryClient({
@@ -91,6 +92,7 @@ const STATIC_PAGES = [
   { path: "/gamification", key: "gamification" },
   { path: "/integrations", key: "integrations" },
   { path: "/testing", key: "testing" },
+  { path: "/shorts", key: "shorts" },
 ];
 
 function PersistentPages() {
@@ -127,6 +129,7 @@ function PersistentPages() {
       <div className={location === "/gamification" ? "block" : "hidden"}><Gamification /></div>
       <div className={location === "/integrations" ? "block" : "hidden"}><Integrations /></div>
       <div className={location === "/testing" ? "block" : "hidden"}><Testing /></div>
+      <div className={location === "/shorts" ? "block" : "hidden"}><ShortsGenerator /></div>
       {isGroupPage && <GroupView id={groupId!} />}
     </DashboardLayout>
   );

@@ -16,7 +16,7 @@ interface AuthContextType {
   isLoading: boolean;
   loginLicense: (token: string) => Promise<void>;
   loginRoblox: (profile: RobloxProfile) => void;
-  logoutRoblox: () => void;
+  logoutRoblox: () => Promise<void>;
   logoutLicense: () => void;
 }
 
@@ -116,30 +116,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(prof);
   }, []);
 
-  const logoutRoblox = useCallback(() => {
+  const logoutRoblox = useCallback(async () => {
     const { token, fingerprint: fp } = getAuthCredentials();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     if (fp) headers["X-Device-Fingerprint"] = fp;
-    fetch(`${BASE}/api/roblox/session`, { method: "DELETE", credentials: "include", headers }).catch(() => {});
     localStorage.removeItem(PROFILE_STORAGE_KEY);
     setProfile(null);
+    try {
+      await fetch(`${BASE}/api/roblox/session`, { method: "DELETE", credentials: "include", headers });
+    } catch {}
     toast({ title: "Disconnected", description: "Roblox session ended." });
   }, []);
 
-  const logoutLicense = useCallback(() => {
+  const logoutLicense = useCallback(async () => {
     const { token, fingerprint: fp } = getAuthCredentials();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     if (fp) headers["X-Device-Fingerprint"] = fp;
+    localStorage.removeItem(PROFILE_STORAGE_KEY);
+    setProfile(null);
     clearToken();
     setAuthCredentials(null, null);
     localStorage.removeItem(DEVICE_FP_STORAGE_KEY);
     setLicenseToken(null);
     setLicenseDetails(null);
-    fetch(`${BASE}/api/roblox/session`, { method: "DELETE", credentials: "include", headers }).catch(() => {});
-    localStorage.removeItem(PROFILE_STORAGE_KEY);
-    setProfile(null);
+    try {
+      await fetch(`${BASE}/api/roblox/session`, { method: "DELETE", credentials: "include", headers });
+    } catch {}
     toast({ title: "License revoked", description: "You have been fully signed out." });
   }, []);
 

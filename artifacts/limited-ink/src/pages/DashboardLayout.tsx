@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair, Cog, ShieldCheck, Megaphone, Gamepad2, Share2, Receipt, CalendarDays, Trophy, Plug, FlaskConical } from "lucide-react";
+import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair, Cog, ShieldCheck, Megaphone, Gamepad2, Share2, Receipt, CalendarDays, Trophy, Plug, FlaskConical, Film } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-react";
@@ -30,6 +30,7 @@ const SECTION_MAP: Record<string, string> = {
   "/gamification": "gamification",
   "/integrations": "integrations",
   "/testing": "testing",
+  "/shorts": "shorts",
   "/settings": "settings",
 };
 
@@ -151,6 +152,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <NavItem href="/gamification" icon={<Trophy className="w-4 h-4" />} label={t("nav.gamification")} isActive={location === "/gamification"} />
           <NavItem href="/integrations" icon={<Plug className="w-4 h-4" />} label={t("nav.integrations")} isActive={location === "/integrations"} />
           <NavItem href="/testing" icon={<FlaskConical className="w-4 h-4" />} label={t("nav.testing")} isActive={location === "/testing"} />
+          <NavItem href="/shorts" icon={<Film className="w-4 h-4" />} label="Shorts" isActive={location === "/shorts"} badge="NEW" />
         </div>
 
         <div className="space-y-1">

@@ -64,6 +64,11 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - `GET /api/forum/subscriptions/check/:groupId` — Check if subscribed to a group
 - `WebSocket /ws/signaling` — Voice/video call signaling server (register, call-offer, call-answer, call-reject, call-end, ice-candidate, renegotiate-offer, renegotiate-answer, track-state). 1:1 DM calls only. Server enforces sender identity (currentUserId) on all relayed messages.
 
+### AI Shorts Generator
+- `ShortsGenerator.tsx` — Full-featured short-form video creation tool for TikTok/YouTube Shorts. Product details input (name, description, price, URL, CTA), drag-and-drop image uploads (1-8 images), AI script generation (hook, subtitles, CTA, caption, hashtags), style presets (clean/hype/minimal/luxury/streetwear), duration selection (10/15/20/30s), music upload, brand settings (watermark, colors). FFmpeg-based video assembly with zoom/pan animations, text overlays, scene transitions.
+- Backend: `shorts.ts` route + `shortsGenerator.ts` service. Multer for file uploads. Job-based async generation with progress polling.
+- Endpoints: `POST /api/shorts/generate-script`, `POST /api/shorts/generate` (multipart), `GET /api/shorts/:id/status`, `GET /api/shorts/:id/download`
+
 ### Voice/Video Calls (WebRTC) — Discord-style
 - `artifacts/api-server/src/signaling.ts` — WebSocket signaling server for peer-to-peer calls. Server-side identity enforcement prevents spoofing.
 - `artifacts/limited-ink/src/hooks/useVoiceCall.ts` — React hook managing WebSocket signaling + RTCPeerConnection lifecycle. Supports audio, video, and screen sharing tracks with mid-call renegotiation.
