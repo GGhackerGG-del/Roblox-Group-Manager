@@ -73,6 +73,7 @@ export const dmMessages = pgTable("dm_messages", {
   content: text("content").notNull(),
   imageUrl: text("image_url"),
   isRead: boolean("is_read").notNull().default(false),
+  isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   index("dm_messages_conv_idx").on(t.conversationId),

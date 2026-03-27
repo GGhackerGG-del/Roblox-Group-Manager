@@ -491,4 +491,22 @@ router.post("/social/messages/:userId", async (req, res): Promise<void> => {
   res.json({ message: msg });
 });
 
+router.delete("/social/messages/:msgId", async (req, res): Promise<void> => {
+  const robloxUserId = req.session.robloxUserId;
+  if (!robloxUserId) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const cookie = req.session.robloxCookie!;
+  const myUser = await getOrCreatePlatformUser(robloxUserId, cookie);
+  if (!myUser) { res.status(500).json({ error: "Failed" }); return; }
+
+  const msgId = parseInt(req.params.msgId, 10);
+  if (isNaN(msgId)) { res.status(400).json({ error: "Invalid message ID" }); return; }
+
+  const msg = await db.query.dmMessages.findFirst({ where: eq(dmMessages.id, msgId) });
+  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+  if (msg.senderId !== myUser.id) { res.status(403).json({ error: "Can only delete your own messages" }); return; }
+
+  await db.update(dmMessages).set({ isDeleted: true }).where(eq(dmMessages.id, msgId));
+  res.json({ ok: true });
+});
+
 export default router;

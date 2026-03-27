@@ -1962,10 +1962,14 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                               <button
                                 className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-full hover:bg-secondary"
                                 onClick={async () => {
-                                  const chatId = active?.kind === "group" ? active.chat.id : null;
-                                  if (!chatId) return;
                                   try {
-                                    await apiFetch(`/api/community/group-chats/${chatId}/messages/${msg.id}`, { method: "DELETE" });
+                                    if (active?.kind === "group") {
+                                      await apiFetch(`/api/community/group-chats/${active.chat.id}/messages/${msg.id}`, { method: "DELETE" });
+                                    } else if (active?.kind === "dm") {
+                                      await apiFetch(`/api/social/messages/${msg.id}`, { method: "DELETE" });
+                                    } else {
+                                      return;
+                                    }
                                     setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isDeleted: true } : m));
                                   } catch {}
                                 }}
