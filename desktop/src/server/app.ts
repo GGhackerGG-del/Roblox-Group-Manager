@@ -32,9 +32,41 @@ async function solveChefChallenge(
   fetchFn: any
 ): Promise<{ redemptionToken: string; nonce: string } | null> {
   try {
-    const { prefix, difficulty, solveUrl, redemptionToken } = metadata;
+    console.log(`[ChefPoW] Metadata received: ${JSON.stringify(metadata)}`);
+    let prefix = metadata.prefix;
+    let difficulty = metadata.difficulty;
+    let solveUrl = metadata.solveUrl;
+    let redemptionToken = metadata.redemptionToken;
+
     if (!prefix || difficulty === undefined) {
-      console.error("[ChefPoW] Missing prefix or difficulty in metadata:", JSON.stringify(metadata));
+      console.log(`[ChefPoW] Missing prefix/difficulty in metadata, fetching challenge from API...`);
+      try {
+        const continueResp = await fetchFn(`https://apis.roblox.com/challenge/v1/continue`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            challengeId,
+            challengeType: "chef",
+            challengeMetadata: JSON.stringify(metadata),
+          }),
+        });
+        const continueData = await continueResp.json() as any;
+        console.log(`[ChefPoW] Continue response: status=${continueResp.status} data=${JSON.stringify(continueData).slice(0, 500)}`);
+        let parsed: any = {};
+        if (continueData.challengeMetadata) {
+          try { parsed = JSON.parse(continueData.challengeMetadata); } catch {}
+        }
+        if (parsed.prefix) prefix = parsed.prefix;
+        if (parsed.difficulty !== undefined) difficulty = parsed.difficulty;
+        if (parsed.solveUrl) solveUrl = parsed.solveUrl;
+        if (parsed.redemptionToken) redemptionToken = parsed.redemptionToken;
+      } catch (apiErr: any) {
+        console.error(`[ChefPoW] Continue API error: ${apiErr.message}`);
+      }
+    }
+
+    if (!prefix || difficulty === undefined) {
+      console.error(`[ChefPoW] Still missing prefix/difficulty after API call. prefix=${prefix} difficulty=${difficulty}`);
       return null;
     }
 
@@ -45,17 +77,22 @@ async function solveChefChallenge(
     console.log(`[ChefPoW] Solved in ${elapsed}ms, nonce=${nonce}`);
 
     if (solveUrl) {
-      const solveResp = await fetchFn(solveUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nonce, redemptionToken }),
-      });
-      const solveData = await solveResp.json() as any;
-      console.log(`[ChefPoW] Solve endpoint: status=${solveResp.status}`);
-      return {
-        redemptionToken: solveData.redemptionToken || redemptionToken,
-        nonce,
-      };
+      try {
+        const solveResp = await fetchFn(solveUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nonce, redemptionToken, challengeId }),
+        });
+        const solveData = await solveResp.json() as any;
+        console.log(`[ChefPoW] Solve endpoint: status=${solveResp.status} data=${JSON.stringify(solveData).slice(0, 300)}`);
+        return {
+          redemptionToken: solveData.redemptionToken || redemptionToken,
+          nonce,
+        };
+      } catch (solveErr: any) {
+        console.error(`[ChefPoW] Solve endpoint error: ${solveErr.message}`);
+        return { redemptionToken, nonce };
+      }
     }
 
     return { redemptionToken, nonce };
