@@ -232,7 +232,7 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-[#222222] rounded-xl border border-[#363636] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-card rounded-xl border border-border shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {loading ? (
@@ -244,9 +244,9 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
             <div className="relative">
               <div className="h-32 bg-gradient-to-br from-[#2a2a3e] via-[#1e1e2e] to-[#2d2a3e] rounded-t-xl" />
               <div className="absolute -bottom-12 left-6">
-                <Avatar className="w-24 h-24 border-4 border-[#222222] shadow-xl">
+                <Avatar className="w-24 h-24 border-4 border-border shadow-xl">
                   <AvatarImage src={profile.user.avatarUrl || robloxHeadshot(profile.user.robloxUserId)} />
-                  <AvatarFallback className="text-2xl font-bold bg-[#333]">{profile.user.displayName.charAt(0)}</AvatarFallback>
+                  <AvatarFallback className="text-2xl font-bold bg-secondary">{profile.user.displayName.charAt(0)}</AvatarFallback>
                 </Avatar>
               </div>
               <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/80">
@@ -258,13 +258,13 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-xl font-bold text-white">{profile.user.displayName}</h2>
-                    {isMe && <span className="text-[11px] px-2 py-0.5 rounded bg-[#333] text-[#b0b0b0]">You</span>}
+                    <h2 className="text-xl font-bold text-foreground">{profile.user.displayName}</h2>
+                    {isMe && <span className="text-[11px] px-2 py-0.5 rounded bg-secondary text-muted-foreground">You</span>}
                     {friendStatus?.status === "accepted" && !isMe && (
                       <span className="text-[11px] px-2 py-0.5 rounded bg-green-500/15 text-green-400">Friends</span>
                     )}
                   </div>
-                  <p className="text-[13px] text-[#939393]">@{profile.user.robloxUsername}</p>
+                  <p className="text-[13px] text-muted-foreground">@{profile.user.robloxUsername}</p>
                   {equippedAccessories.length > 0 && (
                     <div className="mt-1"><UserEquippedAccessories accessories={equippedAccessories} /></div>
                   )}
@@ -278,14 +278,14 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
                       onClick={handleFriendAction}
                       disabled={requesting || (friendStatus?.status === "pending" && friendStatus.requesterId === myUser.id)}
                       className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 ${
-                        friendStatus?.status === "accepted" ? "bg-[#333] hover:bg-[#404040] text-[#b0b0b0]" : "bg-[#5B88BD] hover:bg-[#4a77ac] text-white"
+                        friendStatus?.status === "accepted" ? "bg-secondary hover:bg-accent text-muted-foreground" : "bg-[#5B88BD] hover:bg-[#4a77ac] text-white"
                       }`}
                     >
                       {requesting ? <Loader2 className="w-4 h-4 animate-spin" /> : getFriendButtonLabel().icon}
                       {getFriendButtonLabel().label}
                     </button>
                     {friendStatus?.status === "accepted" && onChat && (
-                      <button onClick={() => { onChat(profile.user); onClose(); }} className="px-4 py-2 bg-[#333] hover:bg-[#404040] text-[#b0b0b0] text-[13px] rounded-lg transition-colors flex items-center gap-1.5">
+                      <button onClick={() => { onChat(profile.user); onClose(); }} className="px-4 py-2 bg-secondary hover:bg-accent text-muted-foreground text-[13px] rounded-lg transition-colors flex items-center gap-1.5">
                         <MessageSquare className="w-4 h-4" /> Chat
                       </button>
                     )}
@@ -294,28 +294,28 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
               </div>
 
               {profile.user.bio && (
-                <p className="text-[13px] text-[#b0b0b0] bg-[#2a2a2a] rounded-lg p-3 border border-[#363636]">{profile.user.bio}</p>
+                <p className="text-[13px] text-muted-foreground bg-muted rounded-lg p-3 border border-border">{profile.user.bio}</p>
               )}
 
               {profile.groups.length > 0 && (
                 <div>
-                  <h3 className="text-[13px] font-semibold text-white flex items-center gap-2 mb-3">
+                  <h3 className="text-[13px] font-semibold text-foreground flex items-center gap-2 mb-3">
                     <Users className="w-4 h-4 text-[#5B88BD]" /> Groups <span className="text-[#5B88BD]">{profile.groups.length}</span>
                   </h3>
                   <div className="grid grid-cols-2 gap-2">
                     {profile.groups.map(g => (
                       <a key={g.id} href={`https://www.roblox.com/groups/${g.id}`} target="_blank" rel="noopener noreferrer">
-                        <div className="flex items-center gap-2 p-3 rounded-lg border border-[#363636] hover:bg-[#2a2a2a] transition-colors">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-[#363636] shrink-0">
+                        <div className="flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-muted transition-colors">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-border shrink-0">
                             {g.thumbnailUrl ? (
                               <img src={g.thumbnailUrl} alt={g.name} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full bg-[#333] flex items-center justify-center text-xs font-bold text-[#b0b0b0]">{g.name.substring(0, 2).toUpperCase()}</div>
+                              <div className="w-full h-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">{g.name.substring(0, 2).toUpperCase()}</div>
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-[12px] font-semibold text-[#e1e3e6] truncate">{g.name}</p>
-                            <p className="text-[11px] text-[#939393]">{g.memberCount.toLocaleString()} members</p>
+                            <p className="text-[12px] font-semibold text-foreground truncate">{g.name}</p>
+                            <p className="text-[11px] text-muted-foreground">{g.memberCount.toLocaleString()} members</p>
                           </div>
                         </div>
                       </a>
@@ -326,14 +326,14 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
 
               {profile.posts.length > 0 && (
                 <div>
-                  <h3 className="text-[13px] font-semibold text-white flex items-center gap-2 mb-3">
+                  <h3 className="text-[13px] font-semibold text-foreground flex items-center gap-2 mb-3">
                     <MessageSquare className="w-4 h-4 text-[#5B88BD]" /> Posts <span className="text-[#5B88BD]">{profile.posts.length}</span>
                   </h3>
                   <div className="space-y-2">
                     {profile.posts.slice(0, 5).map(p => (
-                      <div key={p.id} className="bg-[#2a2a2a] rounded-lg p-3 border border-[#363636]">
-                        <p className="text-[13px] text-[#e1e3e6] line-clamp-3">{p.content}</p>
-                        <div className="flex items-center gap-3 mt-2 text-[11px] text-[#939393]">
+                      <div key={p.id} className="bg-muted rounded-lg p-3 border border-border">
+                        <p className="text-[13px] text-foreground line-clamp-3">{p.content}</p>
+                        <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
                           <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{p.likesCount}</span>
                           <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{p.commentsCount}</span>
                           <span>{timeAgo(p.createdAt, t)}</span>
@@ -346,14 +346,14 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
 
               {!profile.user.bio && profile.groups.length === 0 && profile.posts.length === 0 && (
                 <div className="text-center py-8">
-                  <Star className="w-8 h-8 mx-auto mb-2 text-[#939393] opacity-30" strokeWidth={1} />
-                  <p className="text-[13px] text-[#939393]">This developer hasn't shared anything yet.</p>
+                  <Star className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-30" strokeWidth={1} />
+                  <p className="text-[13px] text-muted-foreground">This developer hasn't shared anything yet.</p>
                 </div>
               )}
             </div>
           </>
         ) : (
-          <div className="text-center py-12 text-[#939393]">Profile not found</div>
+          <div className="text-center py-12 text-muted-foreground">Profile not found</div>
         )}
       </motion.div>
     </div>
@@ -375,26 +375,26 @@ function PostCard({ post, myUserId, onLike, onDelete, onComment, onUserClick }: 
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="bg-[#222222] rounded-xl border border-[#363636] p-5 space-y-3">
+      <div className="bg-card rounded-xl border border-border p-5 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <button className="flex items-center gap-3 text-left" onClick={() => onUserClick(post.authorId)}>
-            <Avatar className="w-10 h-10 border border-[#363636]">
+            <Avatar className="w-10 h-10 border border-border">
               <AvatarImage src={post.author?.avatarUrl || robloxHeadshot(post.author?.robloxUserId || 0)} />
-              <AvatarFallback className="font-bold text-sm bg-[#333]">{post.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
+              <AvatarFallback className="font-bold text-sm bg-secondary">{post.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
             </Avatar>
             <div>
-              <p className="font-semibold text-[13px] text-[#e1e3e6] hover:text-[#5B88BD] transition-colors">{post.author?.displayName}</p>
-              <p className="text-[12px] text-[#939393]">{timeAgo(post.createdAt, t)}</p>
+              <p className="font-semibold text-[13px] text-foreground hover:text-primary transition-colors">{post.author?.displayName}</p>
+              <p className="text-[12px] text-muted-foreground">{timeAgo(post.createdAt, t)}</p>
             </div>
           </button>
           {isOwn && (
-            <button onClick={() => onDelete(post.id)} className="text-[#939393] hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-500/10">
+            <button onClick={() => onDelete(post.id)} className="text-muted-foreground hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-500/10">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        <p className="text-[14px] leading-relaxed whitespace-pre-wrap text-[#e1e3e6]">{post.content}</p>
+        <p className="text-[14px] leading-relaxed whitespace-pre-wrap text-foreground">{post.content}</p>
 
         {post.imageUrl && (() => {
           const atts = parseAttachments(post.imageUrl);
@@ -415,10 +415,10 @@ function PostCard({ post, myUserId, onLike, onDelete, onComment, onUserClick }: 
               {files.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {files.map((file, i) => (
-                    <a key={i} href={file.dataUrl} download={file.name} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#363636] bg-[#2a2a2a] hover:bg-[#333] transition-colors text-[13px] text-[#b0b0b0]">
-                      <FileText className="w-4 h-4 text-[#939393] shrink-0" />
+                    <a key={i} href={file.dataUrl} download={file.name} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted hover:bg-secondary transition-colors text-[13px] text-muted-foreground">
+                      <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                       <span className="truncate max-w-[150px]">{file.name}</span>
-                      <Download className="w-3.5 h-3.5 text-[#939393] shrink-0" />
+                      <Download className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                     </a>
                   ))}
                 </div>
@@ -427,17 +427,17 @@ function PostCard({ post, myUserId, onLike, onDelete, onComment, onUserClick }: 
           );
         })()}
 
-        <div className="flex items-center gap-4 pt-2 border-t border-[#363636]">
+        <div className="flex items-center gap-4 pt-2 border-t border-border">
           <button
             onClick={() => onLike(post.id)}
-            className={`flex items-center gap-1.5 text-[13px] font-medium transition-all ${post.isLiked ? "text-red-400" : "text-[#939393] hover:text-red-400"}`}
+            className={`flex items-center gap-1.5 text-[13px] font-medium transition-all ${post.isLiked ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
           >
             <Heart className={`w-[18px] h-[18px] ${post.isLiked ? "fill-red-400" : ""}`} />
             {post.likesCount > 0 && <span>{post.likesCount}</span>}
           </button>
           <button
             onClick={() => onComment(post)}
-            className="flex items-center gap-1.5 text-[13px] font-medium text-[#939393] hover:text-[#b0b0b0] transition-colors"
+            className="flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground hover:text-muted-foreground transition-colors"
           >
             <MessageCircle className="w-[18px] h-[18px]" />
             {post.commentsCount > 0 && <span>{post.commentsCount}</span>}
@@ -488,15 +488,15 @@ function CommentsPanel({ post, myUser, onClose }: { post: Post; myUser: Platform
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 30 }}
-        className="bg-[#222222] rounded-xl border border-[#363636] shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+        className="bg-card rounded-xl border border-border shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-5 border-b border-[#363636]">
+        <div className="flex items-center justify-between p-5 border-b border-border">
           <div>
-            <h3 className="font-bold text-white">Comments</h3>
-            <p className="text-[12px] text-[#939393] line-clamp-1 mt-0.5">{post.content}</p>
+            <h3 className="font-bold text-foreground">Comments</h3>
+            <p className="text-[12px] text-muted-foreground line-clamp-1 mt-0.5">{post.content}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-[#333] flex items-center justify-center hover:bg-[#404040] text-[#b0b0b0]">
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-accent text-muted-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -504,34 +504,34 @@ function CommentsPanel({ post, myUser, onClose }: { post: Post; myUser: Platform
           {loading ? (
             <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-[#5B88BD]" /></div>
           ) : comments.length === 0 ? (
-            <div className="text-center py-8 text-[#939393] text-[13px]">No comments yet. Be the first!</div>
+            <div className="text-center py-8 text-muted-foreground text-[13px]">No comments yet. Be the first!</div>
           ) : (
             comments.map(c => (
               <div key={c.id} className="flex items-start gap-3">
-                <Avatar className="w-8 h-8 shrink-0 border border-[#363636]">
+                <Avatar className="w-8 h-8 shrink-0 border border-border">
                   <AvatarImage src={c.author?.avatarUrl || robloxHeadshot(c.author?.robloxUserId || 0)} />
-                  <AvatarFallback className="text-xs font-bold bg-[#333]">{c.author?.displayName?.charAt(0)}</AvatarFallback>
+                  <AvatarFallback className="text-xs font-bold bg-secondary">{c.author?.displayName?.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <div className="flex-1 bg-[#2a2a2a] rounded-lg px-3 py-2.5 border border-[#363636]">
-                  <p className="text-[12px] font-semibold text-[#e1e3e6]">{c.author?.displayName} <span className="font-normal text-[#939393]">· {timeAgo(c.createdAt, t)}</span></p>
-                  <p className="text-[13px] mt-1 text-[#b0b0b0]">{c.content}</p>
+                <div className="flex-1 bg-muted rounded-lg px-3 py-2.5 border border-border">
+                  <p className="text-[12px] font-semibold text-foreground">{c.author?.displayName} <span className="font-normal text-muted-foreground">· {timeAgo(c.createdAt, t)}</span></p>
+                  <p className="text-[13px] mt-1 text-muted-foreground">{c.content}</p>
                 </div>
               </div>
             ))
           )}
         </div>
         {myUser && (
-          <div className="p-4 border-t border-[#363636] flex gap-2 items-center">
-            <Avatar className="w-8 h-8 shrink-0 border border-[#363636]">
+          <div className="p-4 border-t border-border flex gap-2 items-center">
+            <Avatar className="w-8 h-8 shrink-0 border border-border">
               <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
-              <AvatarFallback className="text-xs font-bold bg-[#333]">{myUser.displayName.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="text-xs font-bold bg-secondary">{myUser.displayName.charAt(0)}</AvatarFallback>
             </Avatar>
             <input
               value={text}
               onChange={e => setText(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
               placeholder="Write a comment..."
-              className="flex-1 px-3 py-2 rounded-lg bg-[#1a1a1a] border border-[#363636] text-[13px] text-[#e1e3e6] placeholder:text-[#666] focus:outline-none focus:border-[#5B88BD]"
+              className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring"
             />
             <button onClick={handleSend} disabled={sending || !text.trim()} className="p-2 rounded-lg bg-[#5B88BD] hover:bg-[#4a77ac] disabled:opacity-40 text-white transition-colors">
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -630,18 +630,18 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
   return (
     <div className="space-y-3 max-w-[600px] mx-auto">
       {myUser && (
-        <div className="bg-[#222222] rounded-xl border border-[#363636] p-4 space-y-3">
+        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
           <div className="flex gap-3">
-            <Avatar className="w-9 h-9 shrink-0 border border-[#363636] mt-0.5">
+            <Avatar className="w-9 h-9 shrink-0 border border-border mt-0.5">
               <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
-              <AvatarFallback className="font-bold text-xs bg-[#333]">{myUser.displayName.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="font-bold text-xs bg-secondary">{myUser.displayName.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="flex-1 space-y-2">
               <Textarea
                 value={newContent}
                 onChange={e => setNewContent(e.target.value)}
                 placeholder={`What's on your mind, ${myUser.displayName.split(" ")[0]}?`}
-                className="resize-none min-h-[60px] rounded-lg text-[13px] border-0 bg-[#1a1a1a] text-[#e1e3e6] placeholder:text-[#666] focus-visible:ring-1 focus-visible:ring-[#5B88BD]"
+                className="resize-none min-h-[60px] rounded-lg text-[13px] border-0 bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-[#5B88BD]"
               />
               <AnimatePresence>
                 {attachments.length > 0 && (
@@ -649,11 +649,11 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
                     {attachments.map((att, idx) => (
                       <div key={idx} className="relative group">
                         {isImageType(att.type) ? (
-                          <img src={att.dataUrl} alt={att.name} className="w-20 h-20 object-cover rounded-lg border border-[#363636]" />
+                          <img src={att.dataUrl} alt={att.name} className="w-20 h-20 object-cover rounded-lg border border-border" />
                         ) : (
-                          <div className="w-20 h-20 rounded-lg border border-[#363636] bg-[#2a2a2a] flex flex-col items-center justify-center gap-1 px-1">
-                            <FileText className="w-5 h-5 text-[#939393]" />
-                            <span className="text-[10px] text-[#939393] truncate w-full text-center">{att.name}</span>
+                          <div className="w-20 h-20 rounded-lg border border-border bg-muted flex flex-col items-center justify-center gap-1 px-1">
+                            <FileText className="w-5 h-5 text-muted-foreground" />
+                            <span className="text-[10px] text-muted-foreground truncate w-full text-center">{att.name}</span>
                           </div>
                         )}
                         <button onClick={() => removeAttachment(idx)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -669,13 +669,13 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = "image/*"; fileInputRef.current.click(); } }}
-                    className="text-[12px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[#939393] hover:text-[#b0b0b0] hover:bg-[#2a2a2a] transition-colors"
+                    className="text-[12px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-muted-foreground hover:text-muted-foreground hover:bg-muted transition-colors"
                   >
                     <ImageIcon className="w-4 h-4" /> {t("com.attachImage")}
                   </button>
                   <button
                     onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = ".pdf,.doc,.docx,.txt,.zip,.rar,.7z,.xls,.xlsx"; fileInputRef.current.click(); } }}
-                    className="text-[12px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[#939393] hover:text-[#b0b0b0] hover:bg-[#2a2a2a] transition-colors"
+                    className="text-[12px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-muted-foreground hover:text-muted-foreground hover:bg-muted transition-colors"
                   >
                     <Paperclip className="w-4 h-4" /> {t("com.attachFile")}
                   </button>
@@ -695,12 +695,12 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
       )}
 
       {loading ? (
-        <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-32 rounded-xl bg-[#2a2a2a]" />)}</div>
+        <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-32 rounded-xl bg-muted" />)}</div>
       ) : posts.length === 0 ? (
         <div className="text-center py-16">
-          <Globe className="w-12 h-12 mx-auto mb-3 text-[#939393] opacity-30" strokeWidth={1} />
-          <p className="font-medium text-[#b0b0b0]">No posts yet</p>
-          <p className="text-[13px] mt-1 text-[#939393]">Be the first to share something!</p>
+          <Globe className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-30" strokeWidth={1} />
+          <p className="font-medium text-muted-foreground">No posts yet</p>
+          <p className="text-[13px] mt-1 text-muted-foreground">Be the first to share something!</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -847,51 +847,51 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#5B88BD]" /></div>
         ) : groupDetail ? (
           <div className="space-y-3">
-            <div className="bg-[#222222] rounded-xl border border-[#363636] p-5 space-y-4">
+            <div className="bg-card rounded-xl border border-border p-5 space-y-4">
               <div className="flex items-center gap-4">
                 {groupDetail.thumbnailUrl ? (
-                  <img src={groupDetail.thumbnailUrl} alt={groupDetail.name} className="w-20 h-20 rounded-xl border border-[#363636] object-cover" />
+                  <img src={groupDetail.thumbnailUrl} alt={groupDetail.name} className="w-20 h-20 rounded-xl border border-border object-cover" />
                 ) : (
-                  <div className="w-20 h-20 rounded-xl bg-[#333] flex items-center justify-center text-2xl font-bold text-[#b0b0b0]">{groupDetail.name?.charAt(0)}</div>
+                  <div className="w-20 h-20 rounded-xl bg-secondary flex items-center justify-center text-2xl font-bold text-muted-foreground">{groupDetail.name?.charAt(0)}</div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-bold text-white">{groupDetail.name}</h2>
+                  <h2 className="text-lg font-bold text-foreground">{groupDetail.name}</h2>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-[12px] text-[#939393] flex items-center gap-1"><Users className="w-3 h-3" />{(groupDetail.memberCount || 0).toLocaleString()} {t("com.members")}</span>
+                    <span className="text-[12px] text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" />{(groupDetail.memberCount || 0).toLocaleString()} {t("com.members")}</span>
                     {groupDetail.publicEntryAllowed !== null && (
-                      <span className="text-[12px] text-[#939393]">{groupDetail.publicEntryAllowed ? t("com.open") : t("com.closed")}</span>
+                      <span className="text-[12px] text-muted-foreground">{groupDetail.publicEntryAllowed ? t("com.open") : t("com.closed")}</span>
                     )}
                   </div>
                   {groupDetail.created && (
-                    <p className="text-[11px] text-[#666] mt-1">{t("com.created")}: {new Date(groupDetail.created).toLocaleDateString("ru-RU")}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">{t("com.created")}: {new Date(groupDetail.created).toLocaleDateString("ru-RU")}</p>
                   )}
                 </div>
               </div>
               {groupDetail.description && (
-                <p className="text-[13px] text-[#b0b0b0] leading-relaxed whitespace-pre-wrap">{groupDetail.description}</p>
+                <p className="text-[13px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{groupDetail.description}</p>
               )}
               {groupDetail.owner && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-[#2a2a2a] border border-[#363636]">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted border border-border">
                   {groupDetail.owner.avatar ? (
-                    <img src={groupDetail.owner.avatar} className="w-10 h-10 rounded-full border border-[#363636]" alt="" />
+                    <img src={groupDetail.owner.avatar} className="w-10 h-10 rounded-full border border-border" alt="" />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-[#333] flex items-center justify-center text-sm font-bold text-[#b0b0b0]">{groupDetail.owner.displayName?.charAt(0)}</div>
+                    <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-sm font-bold text-muted-foreground">{groupDetail.owner.displayName?.charAt(0)}</div>
                   )}
                   <div>
-                    <p className="text-[12px] font-semibold text-[#e1e3e6]">{groupDetail.owner.displayName}</p>
-                    <p className="text-[11px] text-[#939393]">{t("com.groupOwner")}</p>
+                    <p className="text-[12px] font-semibold text-foreground">{groupDetail.owner.displayName}</p>
+                    <p className="text-[11px] text-muted-foreground">{t("com.groupOwner")}</p>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
-              <p className="text-[13px] font-semibold text-white mb-3">{t("com.groupRating")}</p>
+            <div className="bg-card rounded-xl border border-border p-5">
+              <p className="text-[13px] font-semibold text-foreground mb-3">{t("com.groupRating")}</p>
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => handleVote("like")}
                   disabled={voting}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-lg border transition-all ${votes.myVote === "like" ? "border-green-500 bg-green-500/10 text-green-400" : "border-[#363636] hover:border-green-500/50 text-[#b0b0b0]"}`}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-lg border transition-all ${votes.myVote === "like" ? "border-green-500 bg-green-500/10 text-green-400" : "border-border hover:border-green-500/50 text-muted-foreground"}`}
                 >
                   <ThumbsUp className="w-5 h-5" />
                   <span className="font-bold text-lg">{votes.likes}</span>
@@ -899,23 +899,23 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
                 <button
                   onClick={() => handleVote("dislike")}
                   disabled={voting}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-lg border transition-all ${votes.myVote === "dislike" ? "border-red-500 bg-red-500/10 text-red-400" : "border-[#363636] hover:border-red-500/50 text-[#b0b0b0]"}`}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-lg border transition-all ${votes.myVote === "dislike" ? "border-red-500 bg-red-500/10 text-red-400" : "border-border hover:border-red-500/50 text-muted-foreground"}`}
                 >
                   <ThumbsDown className="w-5 h-5" />
                   <span className="font-bold text-lg">{votes.dislikes}</span>
                 </button>
               </div>
-              <p className="text-[11px] text-[#666] mt-2">{t("com.removeVote")}</p>
+              <p className="text-[11px] text-muted-foreground mt-2">{t("com.removeVote")}</p>
             </div>
 
             <a href={`https://www.roblox.com/groups/${groupDetail.groupId}`} target="_blank" rel="noopener noreferrer">
-              <button className="w-full px-4 py-2.5 bg-[#333] hover:bg-[#404040] text-[#b0b0b0] text-[13px] font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+              <button className="w-full px-4 py-2.5 bg-secondary hover:bg-accent text-muted-foreground text-[13px] font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
                 <ExternalLink className="w-4 h-4" /> {t("com.openRoblox")}
               </button>
             </a>
           </div>
         ) : (
-          <div className="text-center py-8 text-[#939393]">{t("com.groupNotFound")}</div>
+          <div className="text-center py-8 text-muted-foreground">{t("com.groupNotFound")}</div>
         )}
       </div>
     );
@@ -923,32 +923,32 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
 
   return (
     <div className="space-y-3 max-w-[700px]">
-      <div className="bg-[#222222] rounded-xl border border-[#363636] p-3">
+      <div className="bg-card rounded-xl border border-border p-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#939393]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={t("community.searchPlaceholder") || "Search communities and developers..."}
-            className="w-full pl-9 pr-4 py-2 rounded-lg bg-[#1a1a1a] border border-[#363636] text-[13px] text-[#e1e3e6] placeholder:text-[#666] focus:outline-none focus:border-[#5B88BD] transition-colors"
+            className="w-full pl-9 pr-4 py-2 rounded-lg bg-background border border-border text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring transition-colors"
           />
         </div>
       </div>
 
       {!fgLoading && filteredGroups.length > 0 && (
-        <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
-          <h3 className="text-[15px] font-semibold text-white mb-4">{t("community.discover") || "Communities"}</h3>
+        <div className="bg-card rounded-xl border border-border p-5">
+          <h3 className="text-[15px] font-semibold text-foreground mb-4">{t("community.discover") || "Communities"}</h3>
           <div className="grid grid-cols-2 gap-3">
             {filteredGroups.map(g => (
-              <button key={g.groupId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#2a2a2a] transition-colors text-left" onClick={() => openGroupDetail(g)}>
+              <button key={g.groupId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors text-left" onClick={() => openGroupDetail(g)}>
                 {g.thumbnailUrl ? (
-                  <img src={g.thumbnailUrl} alt={g.name} className="w-12 h-12 rounded-full border border-[#363636] object-cover shrink-0" />
+                  <img src={g.thumbnailUrl} alt={g.name} className="w-12 h-12 rounded-full border border-border object-cover shrink-0" />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-[#333] flex items-center justify-center text-sm font-bold text-[#b0b0b0] shrink-0">{g.name?.charAt(0)}</div>
+                  <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center text-sm font-bold text-muted-foreground shrink-0">{g.name?.charAt(0)}</div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-[#e1e3e6] truncate">{g.name}</p>
-                  <p className="text-[12px] text-[#939393]">{(g.memberCount || 0).toLocaleString()} {t("com.members")}</p>
+                  <p className="text-[13px] font-semibold text-foreground truncate">{g.name}</p>
+                  <p className="text-[12px] text-muted-foreground">{(g.memberCount || 0).toLocaleString()} {t("com.members")}</p>
                 </div>
               </button>
             ))}
@@ -956,40 +956,40 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
         </div>
       )}
 
-      <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
+      <div className="bg-card rounded-xl border border-border p-5">
         <h3 className="text-[15px] font-semibold text-white mb-4">Developers <span className="text-[#5B88BD]">{sorted.length}</span></h3>
         {loading ? (
-          <div className="space-y-3">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-16 rounded-lg bg-[#2a2a2a]" />)}</div>
+          <div className="space-y-3">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-16 rounded-lg bg-muted" />)}</div>
         ) : sorted.length === 0 ? (
           <div className="text-center py-10">
-            <Users className="w-10 h-10 mx-auto mb-3 text-[#939393] opacity-30" strokeWidth={1} />
-            <p className="font-medium text-[#b0b0b0]">{search ? "No users found" : "No developers registered yet"}</p>
+            <Users className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-30" strokeWidth={1} />
+            <p className="font-medium text-muted-foreground">{search ? "No users found" : "No developers registered yet"}</p>
           </div>
         ) : (
           <div className="space-y-1">
             {sorted.map(user => (
               <div
                 key={user.id}
-                className={`flex items-center gap-3 p-3 rounded-lg hover:bg-[#2a2a2a] transition-colors cursor-pointer group ${user.isMe ? "bg-[#2a2a2a]" : ""}`}
+                className={`flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors cursor-pointer group ${user.isMe ? "bg-muted" : ""}`}
                 onClick={() => onUserClick(user.id)}
               >
-                <Avatar className="w-11 h-11 border border-[#363636] shrink-0">
+                <Avatar className="w-11 h-11 border border-border shrink-0">
                   <AvatarImage src={user.avatarUrl || robloxHeadshot(user.robloxUserId)} />
-                  <AvatarFallback className="font-bold bg-[#333] text-[#b0b0b0]">{user.displayName.charAt(0)}</AvatarFallback>
+                  <AvatarFallback className="font-bold bg-secondary text-muted-foreground">{user.displayName.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-[13px] text-[#e1e3e6]">{user.displayName}</p>
+                    <p className="font-semibold text-[13px] text-foreground">{user.displayName}</p>
                     {getFriendChip(user)}
                   </div>
-                  {user.bio && <p className="text-[12px] text-[#939393] line-clamp-1 mt-0.5">{user.bio}</p>}
+                  {user.bio && <p className="text-[12px] text-muted-foreground line-clamp-1 mt-0.5">{user.bio}</p>}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   {myUser && !user.isMe && !user.friendship && (
                     <button
                       onClick={e => handleSendRequest(user.id, e)}
                       disabled={requesting === user.id}
-                      className="p-1.5 rounded-lg hover:bg-[#333] text-[#939393] hover:text-[#5B88BD] transition-colors"
+                      className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-primary transition-colors"
                     >
                       {requesting === user.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                     </button>
@@ -997,7 +997,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
                   {user.friendship?.status === "accepted" && !user.isMe && onChat && (
                     <button
                       onClick={e => { e.stopPropagation(); onChat(user); }}
-                      className="p-1.5 rounded-lg hover:bg-[#333] text-[#939393] hover:text-[#5B88BD] transition-colors"
+                      className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-primary transition-colors"
                     >
                       <MessageSquare className="w-4 h-4" />
                     </button>
@@ -1063,34 +1063,34 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
   };
 
   if (loading) {
-    return <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl bg-[#2a2a2a]" />)}</div>;
+    return <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl bg-muted" />)}</div>;
   }
 
   return (
     <div className="space-y-3 max-w-[700px]">
       {pending.length > 0 && (
-        <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
-          <h3 className="text-[15px] font-semibold text-white mb-4 flex items-center gap-2">
+        <div className="bg-card rounded-xl border border-border p-5">
+          <h3 className="text-[15px] font-semibold text-foreground mb-4 flex items-center gap-2">
             Friend Requests <span className="text-[#5B88BD]">{pending.length}</span>
           </h3>
           <div className="space-y-4">
             {pending.map(({ friendship: f, user }) => (
               <div key={f.id} className="flex items-center gap-3">
                 <button onClick={() => onUserClick(user.id)}>
-                  <Avatar className="w-12 h-12 border border-[#363636]">
+                  <Avatar className="w-12 h-12 border border-border">
                     <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
-                    <AvatarFallback className="font-bold bg-[#333]">{user?.displayName?.charAt(0)}</AvatarFallback>
+                    <AvatarFallback className="font-bold bg-secondary">{user?.displayName?.charAt(0)}</AvatarFallback>
                   </Avatar>
                 </button>
                 <div className="flex-1 min-w-0">
-                  <button className="text-[13px] font-semibold text-[#e1e3e6] hover:text-[#5B88BD] transition-colors" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>
-                  <p className="text-[12px] text-[#939393]">@{user?.robloxUsername}</p>
+                  <button className="text-[13px] font-semibold text-foreground hover:text-primary transition-colors" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>
+                  <p className="text-[12px] text-muted-foreground">@{user?.robloxUsername}</p>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => handleAction(f.id, "accept")} className="px-4 py-1.5 bg-[#5B88BD] hover:bg-[#4a77ac] text-white text-[13px] font-medium rounded-lg transition-colors">
                     Accept
                   </button>
-                  <button onClick={() => handleAction(f.id, "reject")} className="px-3 py-1.5 text-[#939393] hover:text-[#b0b0b0] text-[13px] transition-colors">
+                  <button onClick={() => handleAction(f.id, "reject")} className="px-3 py-1.5 text-muted-foreground hover:text-muted-foreground text-[13px] transition-colors">
                     Decline
                   </button>
                 </div>
@@ -1100,7 +1100,7 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
         </div>
       )}
 
-      <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
+      <div className="bg-card rounded-xl border border-border p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <span className="text-[15px] font-semibold text-white">All friends <span className="text-[#5B88BD]">{friends.length}</span></span>
@@ -1108,29 +1108,29 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
         </div>
         {friends.length === 0 ? (
           <div className="text-center py-10">
-            <Users className="w-10 h-10 mx-auto mb-3 text-[#939393] opacity-30" strokeWidth={1} />
-            <p className="font-medium text-[#b0b0b0]">No friends yet</p>
-            <p className="text-[13px] mt-1 text-[#939393]">Find developers in the Discover tab</p>
+            <Users className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-30" strokeWidth={1} />
+            <p className="font-medium text-muted-foreground">No friends yet</p>
+            <p className="text-[13px] mt-1 text-muted-foreground">Find developers in the Discover tab</p>
           </div>
         ) : (
           <div className="space-y-1">
             {friends.map(({ friendship: f, user }) => (
-              <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[#2a2a2a] transition-colors group">
+              <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors group">
                 <button onClick={() => onUserClick(user.id)}>
-                  <Avatar className="w-12 h-12 border border-[#363636]">
+                  <Avatar className="w-12 h-12 border border-border">
                     <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
-                    <AvatarFallback className="font-bold bg-[#333]">{user?.displayName?.charAt(0)}</AvatarFallback>
+                    <AvatarFallback className="font-bold bg-secondary">{user?.displayName?.charAt(0)}</AvatarFallback>
                   </Avatar>
                 </button>
                 <div className="flex-1 min-w-0">
-                  <button className="text-[13px] font-semibold text-[#e1e3e6] hover:text-[#5B88BD] transition-colors" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>
-                  <p className="text-[12px] text-[#939393]">@{user?.robloxUsername}</p>
+                  <button className="text-[13px] font-semibold text-foreground hover:text-primary transition-colors" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>
+                  <p className="text-[12px] text-muted-foreground">@{user?.robloxUsername}</p>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => onChat(user)} className="text-[12px] text-[#939393] hover:text-[#5B88BD] transition-colors flex items-center gap-1.5">
+                  <button onClick={() => onChat(user)} className="text-[12px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5">
                     <MessageSquare className="w-4 h-4" /> {t("community.chat")}
                   </button>
-                  <button onClick={() => handleUnfriend(f.id)} className="text-[12px] text-[#939393] hover:text-red-400 transition-colors flex items-center gap-1.5">
+                  <button onClick={() => handleUnfriend(f.id)} className="text-[12px] text-muted-foreground hover:text-red-400 transition-colors flex items-center gap-1.5">
                     <X className="w-4 h-4" /> {t("community.unfriended") || "Unfriend"}
                   </button>
                 </div>
@@ -3842,26 +3842,26 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
   return (
     <div className="flex gap-4">
       <div className="flex-1 min-w-0 space-y-3">
-        <div className="bg-[#222222] rounded-xl overflow-hidden border border-[#363636]">
+        <div className="bg-card rounded-xl overflow-hidden border border-border">
           <div className="h-52 bg-gradient-to-br from-[#2a2a3e] via-[#1e1e2e] to-[#2d2a3e] relative">
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           </div>
           <div className="px-6 pb-5 -mt-16 relative z-10">
             <div className="flex items-end gap-5">
-              <Avatar className="w-[120px] h-[120px] border-4 border-[#222222] shadow-2xl">
+              <Avatar className="w-[120px] h-[120px] border-4 border-border shadow-2xl">
                 <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
-                <AvatarFallback className="text-4xl font-bold bg-[#333]">{myUser.displayName.charAt(0)}</AvatarFallback>
+                <AvatarFallback className="text-4xl font-bold bg-secondary">{myUser.displayName.charAt(0)}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0 pb-1">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-[22px] font-bold text-white">{myUser.displayName}</h1>
+                  <h1 className="text-[22px] font-bold text-foreground">{myUser.displayName}</h1>
                   {equippedAccessories.length > 0 && <UserEquippedAccessories accessories={equippedAccessories} />}
                 </div>
-                <p className="text-[13px] text-[#939393] mt-0.5">@{myUser.robloxUsername}</p>
-                {myUser.bio && <p className="text-[13px] text-[#b0b0b0] mt-2 line-clamp-2">{myUser.bio}</p>}
+                <p className="text-[13px] text-muted-foreground mt-0.5">@{myUser.robloxUsername}</p>
+                {myUser.bio && <p className="text-[13px] text-muted-foreground mt-2 line-clamp-2">{myUser.bio}</p>}
               </div>
               <div className="flex gap-2 pb-1">
-                <button onClick={onEditBio} className="px-4 py-2 bg-[#333] hover:bg-[#404040] text-[13px] text-white rounded-lg transition-colors flex items-center gap-2">
+                <button onClick={onEditBio} className="px-4 py-2 bg-secondary hover:bg-accent text-[13px] text-white rounded-lg transition-colors flex items-center gap-2">
                   <Pencil className="w-3.5 h-3.5" /> Edit profile
                 </button>
               </div>
@@ -3869,15 +3869,15 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
           </div>
         </div>
 
-        <div className="bg-[#222222] rounded-xl border border-[#363636] p-4">
+        <div className="bg-card rounded-xl border border-border p-4">
           <div className="flex items-center gap-3 mb-3">
-            <span className="text-[13px] font-semibold text-white">My posts</span>
-            <span className="text-[13px] text-[#939393] cursor-pointer hover:text-[#b0b0b0]">Archive</span>
+            <span className="text-[13px] font-semibold text-foreground">My posts</span>
+            <span className="text-[13px] text-muted-foreground cursor-pointer hover:text-muted-foreground">Archive</span>
           </div>
           {loading ? (
-            <div className="space-y-3">{[1, 2].map(i => <Skeleton key={i} className="h-24 rounded-lg bg-[#2a2a2a]" />)}</div>
+            <div className="space-y-3">{[1, 2].map(i => <Skeleton key={i} className="h-24 rounded-lg bg-muted" />)}</div>
           ) : posts.length === 0 ? (
-            <div className="text-center py-10 text-[#939393]">
+            <div className="text-center py-10 text-muted-foreground">
               <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-30" />
               <p className="text-[13px]">No posts yet</p>
             </div>
@@ -3896,23 +3896,23 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
       </div>
 
       <div className="w-[280px] shrink-0 space-y-3">
-        <div className="bg-[#222222] rounded-xl border border-[#363636] p-4">
+        <div className="bg-card rounded-xl border border-border p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[13px] font-semibold text-white">Friends <span className="text-[#5B88BD]">{friends.length}</span></span>
           </div>
           {friends.length === 0 ? (
-            <p className="text-[12px] text-[#939393]">No friends yet</p>
+            <p className="text-[12px] text-muted-foreground">No friends yet</p>
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {friends.slice(0, 6).map(({ user }) => (
                 <div key={user.id} className="flex flex-col items-center gap-1.5 group">
                   <button onClick={() => onUserClick(user.id)}>
-                    <Avatar className="w-[54px] h-[54px] border border-[#363636] group-hover:border-[#5B88BD] transition-colors">
+                    <Avatar className="w-[54px] h-[54px] border border-border group-hover:border-[#5B88BD] transition-colors">
                       <AvatarImage src={user.avatarUrl || robloxHeadshot(user.robloxUserId)} />
-                      <AvatarFallback className="text-xs bg-[#333]">{user.displayName.charAt(0)}</AvatarFallback>
+                      <AvatarFallback className="text-xs bg-secondary">{user.displayName.charAt(0)}</AvatarFallback>
                     </Avatar>
                   </button>
-                  <span className="text-[11px] text-[#b0b0b0] group-hover:text-[#5B88BD] truncate w-full text-center transition-colors">{user.displayName.split(" ")[0]}</span>
+                  <span className="text-[11px] text-muted-foreground group-hover:text-primary truncate w-full text-center transition-colors">{user.displayName.split(" ")[0]}</span>
                   <button onClick={() => onChat(user)} className="text-[10px] text-[#5B88BD] hover:text-[#7aaad4] transition-colors opacity-0 group-hover:opacity-100">
                     <MessageSquare className="w-3 h-3" />
                   </button>
@@ -3922,14 +3922,14 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
           )}
         </div>
 
-        <div className="bg-[#222222] rounded-xl border border-[#363636] p-4">
-          <span className="text-[13px] font-semibold text-white">Info</span>
+        <div className="bg-card rounded-xl border border-border p-4">
+          <span className="text-[13px] font-semibold text-foreground">Info</span>
           <div className="mt-3 space-y-2">
-            <div className="flex items-center gap-2 text-[12px] text-[#939393]">
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
               <Globe className="w-3.5 h-3.5" />
-              <a href={`https://www.roblox.com/users/${myUser.robloxUserId}/profile`} target="_blank" rel="noopener noreferrer" className="hover:text-[#5B88BD] transition-colors">Roblox Profile</a>
+              <a href={`https://www.roblox.com/users/${myUser.robloxUserId}/profile`} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Roblox Profile</a>
             </div>
-            <div className="flex items-center gap-2 text-[12px] text-[#939393]">
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
               <Clock className="w-3.5 h-3.5" />
               <span>Joined {new Date(myUser.createdAt).toLocaleDateString()}</span>
             </div>
@@ -3986,10 +3986,10 @@ export default function Community() {
 
   if (registering) {
     return (
-      <div className="p-8 flex items-center justify-center min-h-[400px] bg-[#181818]">
+      <div className="p-8 flex items-center justify-center min-h-[400px] bg-background">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-[#5B88BD]" />
-          <p className="text-sm font-medium text-[#939393]">{t("community.loading") || "Setting up your community profile..."}</p>
+          <p className="text-sm font-medium text-muted-foreground">{t("community.loading") || "Setting up your community profile..."}</p>
         </div>
       </div>
     );
@@ -4007,19 +4007,19 @@ export default function Community() {
   ];
 
   return (
-    <div className="flex w-full max-w-[1200px] mx-auto min-h-[calc(100vh-80px)] bg-[#181818]">
+    <div className="flex w-full max-w-[1200px] mx-auto min-h-[calc(100vh-80px)] bg-background">
       <div className="w-[200px] shrink-0 py-3 pr-0 pl-2 flex flex-col gap-0.5">
         {myUser && (
           <button
             onClick={() => handleTabChange("profile")}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#2a2a2a] transition-colors mb-2 group"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors mb-2 group"
           >
-            <Avatar className="w-9 h-9 border border-[#363636]">
+            <Avatar className="w-9 h-9 border border-border">
               <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
-              <AvatarFallback className="text-sm font-bold bg-[#333]">{myUser.displayName.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="text-sm font-bold bg-secondary">{myUser.displayName.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-[13px] font-semibold truncate leading-tight text-[#e1e3e6] group-hover:text-white transition-colors">{myUser.displayName}</p>
+              <p className="text-[13px] font-semibold truncate leading-tight text-foreground group-hover:text-foreground transition-colors">{myUser.displayName}</p>
             </div>
           </button>
         )}
@@ -4037,8 +4037,8 @@ export default function Community() {
                 onClick={() => handleTabChange(item.id)}
                 className={`flex items-center gap-3 px-3 py-[9px] rounded-lg text-[13px] font-medium transition-all w-full text-left ${
                   isActive
-                    ? "bg-[#2a2a2a] text-white"
-                    : "text-[#b0b0b0] hover:text-white hover:bg-[#222]"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-card"
                 }`}
               >
                 <Icon className={`w-[20px] h-[20px] shrink-0 ${isActive ? "text-[#5B88BD]" : ""}`} />
@@ -4080,12 +4080,12 @@ export default function Community() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="bg-[#222222] rounded-xl border border-[#363636] shadow-2xl w-full max-w-md p-6 space-y-4"
+              className="bg-card rounded-xl border border-border shadow-2xl w-full max-w-md p-6 space-y-4"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-lg text-white">{t("community.editBio") || "Edit Bio"}</h3>
-                <button onClick={() => setEditingBio(false)} className="w-8 h-8 rounded-full bg-[#333] flex items-center justify-center hover:bg-[#404040] text-[#b0b0b0]">
+                <h3 className="font-bold text-lg text-foreground">{t("community.editBio") || "Edit Bio"}</h3>
+                <button onClick={() => setEditingBio(false)} className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-accent text-muted-foreground">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -4093,11 +4093,11 @@ export default function Community() {
                 value={bioText}
                 onChange={e => setBioText(e.target.value)}
                 placeholder={t("profile.bio.placeholder")}
-                className="min-h-[120px] resize-none rounded-lg bg-[#1a1a1a] border-[#363636] text-white placeholder:text-[#666]"
+                className="min-h-[120px] resize-none rounded-lg bg-background border-border text-foreground placeholder:text-muted-foreground"
                 maxLength={250}
               />
               <div className="flex items-center justify-between">
-                <p className="text-xs text-[#939393]">{bioText.length}/250</p>
+                <p className="text-xs text-muted-foreground">{bioText.length}/250</p>
                 <button onClick={handleSaveBio} disabled={savingBio} className="px-4 py-2 bg-[#5B88BD] hover:bg-[#4a77ac] disabled:opacity-50 text-white text-[13px] font-medium rounded-lg transition-colors flex items-center gap-2">
                   {savingBio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   {t("profile.bio.save")}
