@@ -25,7 +25,7 @@ router.get("/featured-groups", async (_req, res): Promise<void> => {
     })
     .from(featuredGroups)
     .where(gte(featuredGroups.lastActiveAt, thirtyDaysAgo))
-    .orderBy(desc(featuredGroups.lastActiveAt))
+    .orderBy(desc(featuredGroups.memberCount))
     .limit(12);
 
   res.json({ groups });
