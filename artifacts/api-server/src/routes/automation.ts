@@ -25,21 +25,63 @@ async function solveChefChallenge(
   metadata: any
 ): Promise<{ redemptionToken: string; nonce: string } | null> {
   try {
-    const { prefix, difficulty, solveUrl, redemptionToken } = metadata;
-    if (!prefix || difficulty === undefined) return null;
+    console.log(`[ChefPoW] Metadata received: ${JSON.stringify(metadata)}`);
+    let prefix = metadata.prefix;
+    let difficulty = metadata.difficulty;
+    let solveUrl = metadata.solveUrl;
+    let redemptionToken = metadata.redemptionToken;
+
+    if (!prefix || difficulty === undefined) {
+      console.log(`[ChefPoW] Missing prefix/difficulty in metadata, fetching challenge from API...`);
+      try {
+        const continueResp = await fetch(`https://apis.roblox.com/challenge/v1/continue`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            challengeId,
+            challengeType: "chef",
+            challengeMetadata: JSON.stringify(metadata),
+          }),
+        });
+        const continueData = await continueResp.json() as any;
+        console.log(`[ChefPoW] Continue response: status=${continueResp.status} data=${JSON.stringify(continueData).slice(0, 500)}`);
+        let parsed: any = {};
+        if (continueData.challengeMetadata) {
+          try { parsed = JSON.parse(continueData.challengeMetadata); } catch {}
+        }
+        if (parsed.prefix) prefix = parsed.prefix;
+        if (parsed.difficulty !== undefined) difficulty = parsed.difficulty;
+        if (parsed.solveUrl) solveUrl = parsed.solveUrl;
+        if (parsed.redemptionToken) redemptionToken = parsed.redemptionToken;
+      } catch (apiErr: any) {
+        console.error(`[ChefPoW] Continue API error: ${apiErr.message}`);
+      }
+    }
+
+    if (!prefix || difficulty === undefined) {
+      console.error(`[ChefPoW] Still missing prefix/difficulty after API call. prefix=${prefix} difficulty=${difficulty}`);
+      return null;
+    }
+
     console.log(`[ChefPoW] Solving: prefix=${prefix}, difficulty=${difficulty}`);
     const start = Date.now();
     const nonce = solveChefPoW(prefix, difficulty);
     console.log(`[ChefPoW] Solved in ${Date.now() - start}ms, nonce=${nonce}`);
+
     if (solveUrl) {
-      const solveResp = await fetch(solveUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nonce, redemptionToken }),
-      });
-      const solveData = await solveResp.json() as any;
-      console.log(`[ChefPoW] Solve endpoint: status=${solveResp.status}`);
-      return { redemptionToken: solveData.redemptionToken || redemptionToken, nonce };
+      try {
+        const solveResp = await fetch(solveUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nonce, redemptionToken, challengeId }),
+        });
+        const solveData = await solveResp.json() as any;
+        console.log(`[ChefPoW] Solve endpoint: status=${solveResp.status} data=${JSON.stringify(solveData).slice(0, 300)}`);
+        return { redemptionToken: solveData.redemptionToken || redemptionToken, nonce };
+      } catch (solveErr: any) {
+        console.error(`[ChefPoW] Solve endpoint error: ${solveErr.message}`);
+        return { redemptionToken, nonce };
+      }
     }
     return { redemptionToken, nonce };
   } catch (err: any) {
@@ -482,7 +524,7 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
     console.log(`[Payout] Sending to ${payoutUrl}, body=${JSON.stringify(body)}`);
     let resp: Response | null = null;
     let respBody = "";
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       resp = await fetch(payoutUrl, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
       respBody = await resp.text();
       const allHeaders = Object.fromEntries(resp.headers.entries());
@@ -512,7 +554,7 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
             console.log(`[Payout] Chef PoW solved, retrying...`);
             continue;
           } else {
-            res.status(403).json({ error: "Failed to solve Roblox security challenge." });
+            res.status(403).json({ error: "Failed to solve Roblox security challenge. Please try again or make a test payout on roblox.com first, then retry here." });
             return;
           }
         }
