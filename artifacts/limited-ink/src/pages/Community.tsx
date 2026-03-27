@@ -21,7 +21,7 @@ import {
   Briefcase, UserCog, ShieldCheck, Store, Download, ThumbsUp as Endorse,
   Columns, ListTodo, Tag, Package, ChevronDown, Hash, Settings2,
   Phone, PhoneOff, Mic, MicOff, Volume2, Paperclip, FileText,
-  LogOut, MoreVertical, Shield,
+  LogOut, MoreVertical, Shield, User, Camera,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AccessoriesTab, { UserEquippedAccessories } from "@/components/AccessoriesTab";
@@ -226,27 +226,26 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-background rounded-3xl border border-border shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-[#222222] rounded-xl border border-[#363636] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#5B88BD]" />
           </div>
         ) : profile ? (
           <>
-            {/* Cover + Avatar */}
             <div className="relative">
-              <div className="h-28 bg-gradient-to-br from-zinc-800 via-zinc-700 to-zinc-900 rounded-t-3xl" />
-              <div className="absolute -bottom-10 left-6">
-                <Avatar className="w-20 h-20 border-4 border-background shadow-xl">
+              <div className="h-32 bg-gradient-to-br from-[#2a2a3e] via-[#1e1e2e] to-[#2d2a3e] rounded-t-xl" />
+              <div className="absolute -bottom-12 left-6">
+                <Avatar className="w-24 h-24 border-4 border-[#222222] shadow-xl">
                   <AvatarImage src={profile.user.avatarUrl || robloxHeadshot(profile.user.robloxUserId)} />
-                  <AvatarFallback className="text-2xl font-bold">{profile.user.displayName.charAt(0)}</AvatarFallback>
+                  <AvatarFallback className="text-2xl font-bold bg-[#333]">{profile.user.displayName.charAt(0)}</AvatarFallback>
                 </Avatar>
               </div>
               <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/80">
@@ -254,79 +253,68 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
               </button>
             </div>
 
-            <div className="pt-14 px-6 pb-6 space-y-5">
-              {/* Profile Info */}
+            <div className="pt-16 px-6 pb-6 space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-2xl font-bold">{profile.user.displayName}</h2>
-                    {isMe && <Badge className="text-xs bg-black text-white border-0">You</Badge>}
+                    <h2 className="text-xl font-bold text-white">{profile.user.displayName}</h2>
+                    {isMe && <span className="text-[11px] px-2 py-0.5 rounded bg-[#333] text-[#b0b0b0]">You</span>}
                     {friendStatus?.status === "accepted" && !isMe && (
-                      <Badge className="text-xs bg-green-500/15 text-green-600 border-green-500/20">Friends</Badge>
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-green-500/15 text-green-400">Friends</span>
                     )}
                   </div>
-                  <p className="text-muted-foreground text-sm">@{profile.user.robloxUsername}</p>
+                  <p className="text-[13px] text-[#939393]">@{profile.user.robloxUsername}</p>
                   {equippedAccessories.length > 0 && (
-                    <div className="mt-1">
-                      <UserEquippedAccessories accessories={equippedAccessories} />
-                    </div>
+                    <div className="mt-1"><UserEquippedAccessories accessories={equippedAccessories} /></div>
                   )}
-                  <a
-                    href={`https://www.roblox.com/users/${profile.user.robloxUserId}/profile`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-0.5"
-                  >
+                  <a href={`https://www.roblox.com/users/${profile.user.robloxUserId}/profile`} target="_blank" rel="noopener noreferrer" className="text-[12px] text-[#5B88BD] hover:underline flex items-center gap-1 mt-1">
                     View on Roblox <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
                 {!isMe && myUser && (
                   <div className="flex gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant={friendStatus?.status === "accepted" ? "outline" : "default"}
-                      className="rounded-xl gap-1"
+                    <button
                       onClick={handleFriendAction}
                       disabled={requesting || (friendStatus?.status === "pending" && friendStatus.requesterId === myUser.id)}
+                      className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 ${
+                        friendStatus?.status === "accepted" ? "bg-[#333] hover:bg-[#404040] text-[#b0b0b0]" : "bg-[#5B88BD] hover:bg-[#4a77ac] text-white"
+                      }`}
                     >
                       {requesting ? <Loader2 className="w-4 h-4 animate-spin" /> : getFriendButtonLabel().icon}
                       {getFriendButtonLabel().label}
-                    </Button>
+                    </button>
                     {friendStatus?.status === "accepted" && onChat && (
-                      <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => { onChat(profile.user); onClose(); }}>
+                      <button onClick={() => { onChat(profile.user); onClose(); }} className="px-4 py-2 bg-[#333] hover:bg-[#404040] text-[#b0b0b0] text-[13px] rounded-lg transition-colors flex items-center gap-1.5">
                         <MessageSquare className="w-4 h-4" /> Chat
-                      </Button>
+                      </button>
                     )}
                   </div>
                 )}
               </div>
 
               {profile.user.bio && (
-                <p className="text-sm text-muted-foreground bg-secondary/50 rounded-xl p-3">{profile.user.bio}</p>
+                <p className="text-[13px] text-[#b0b0b0] bg-[#2a2a2a] rounded-lg p-3 border border-[#363636]">{profile.user.bio}</p>
               )}
 
-              {/* Groups */}
               {profile.groups.length > 0 && (
                 <div>
-                  <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
-                    <Users className="w-4 h-4" /> Groups ({profile.groups.length})
+                  <h3 className="text-[13px] font-semibold text-white flex items-center gap-2 mb-3">
+                    <Users className="w-4 h-4 text-[#5B88BD]" /> Groups <span className="text-[#5B88BD]">{profile.groups.length}</span>
                   </h3>
                   <div className="grid grid-cols-2 gap-2">
                     {profile.groups.map(g => (
                       <a key={g.id} href={`https://www.roblox.com/groups/${g.id}`} target="_blank" rel="noopener noreferrer">
-                        <div className="flex items-center gap-2 p-3 rounded-xl border border-border hover:bg-secondary/50 transition-colors">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-border shrink-0">
+                        <div className="flex items-center gap-2 p-3 rounded-lg border border-[#363636] hover:bg-[#2a2a2a] transition-colors">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-[#363636] shrink-0">
                             {g.thumbnailUrl ? (
                               <img src={g.thumbnailUrl} alt={g.name} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full bg-secondary flex items-center justify-center text-xs font-bold">
-                                {g.name.substring(0, 2).toUpperCase()}
-                              </div>
+                              <div className="w-full h-full bg-[#333] flex items-center justify-center text-xs font-bold text-[#b0b0b0]">{g.name.substring(0, 2).toUpperCase()}</div>
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold truncate">{g.name}</p>
-                            <p className="text-[10px] text-muted-foreground">{g.memberCount.toLocaleString()} members</p>
+                            <p className="text-[12px] font-semibold text-[#e1e3e6] truncate">{g.name}</p>
+                            <p className="text-[11px] text-[#939393]">{g.memberCount.toLocaleString()} members</p>
                           </div>
                         </div>
                       </a>
@@ -335,17 +323,16 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
                 </div>
               )}
 
-              {/* Posts */}
               {profile.posts.length > 0 && (
                 <div>
-                  <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
-                    <MessageSquare className="w-4 h-4" /> Posts ({profile.posts.length})
+                  <h3 className="text-[13px] font-semibold text-white flex items-center gap-2 mb-3">
+                    <MessageSquare className="w-4 h-4 text-[#5B88BD]" /> Posts <span className="text-[#5B88BD]">{profile.posts.length}</span>
                   </h3>
                   <div className="space-y-2">
                     {profile.posts.slice(0, 5).map(p => (
-                      <div key={p.id} className="bg-secondary/50 rounded-xl p-3">
-                        <p className="text-sm line-clamp-3">{p.content}</p>
-                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                      <div key={p.id} className="bg-[#2a2a2a] rounded-lg p-3 border border-[#363636]">
+                        <p className="text-[13px] text-[#e1e3e6] line-clamp-3">{p.content}</p>
+                        <div className="flex items-center gap-3 mt-2 text-[11px] text-[#939393]">
                           <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{p.likesCount}</span>
                           <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{p.commentsCount}</span>
                           <span>{timeAgo(p.createdAt, t)}</span>
@@ -357,15 +344,15 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
               )}
 
               {!profile.user.bio && profile.groups.length === 0 && profile.posts.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Star className="w-8 h-8 mx-auto mb-2 opacity-30" strokeWidth={1} />
-                  <p className="text-sm">This developer hasn't shared anything yet.</p>
+                <div className="text-center py-8">
+                  <Star className="w-8 h-8 mx-auto mb-2 text-[#939393] opacity-30" strokeWidth={1} />
+                  <p className="text-[13px] text-[#939393]">This developer hasn't shared anything yet.</p>
                 </div>
               )}
             </div>
           </>
         ) : (
-          <div className="text-center py-12 text-muted-foreground">Profile not found</div>
+          <div className="text-center py-12 text-[#939393]">Profile not found</div>
         )}
       </motion.div>
     </div>
@@ -387,78 +374,75 @@ function PostCard({ post, myUserId, onLike, onDelete, onComment, onUserClick }: 
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <Card className="rounded-2xl border border-border shadow-sm hover:shadow-md transition-all">
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <button className="flex items-center gap-3 text-left" onClick={() => onUserClick(post.authorId)}>
-              <Avatar className="w-10 h-10 border border-border">
-                <AvatarImage src={post.author?.avatarUrl || robloxHeadshot(post.author?.robloxUserId || 0)} />
-                <AvatarFallback className="font-bold text-sm">{post.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="font-semibold text-sm hover:underline">{post.author?.displayName}</p>
-                <p className="text-xs text-muted-foreground">@{post.author?.robloxUsername} · {timeAgo(post.createdAt, t)}</p>
-              </div>
+      <div className="bg-[#222222] rounded-xl border border-[#363636] p-5 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <button className="flex items-center gap-3 text-left" onClick={() => onUserClick(post.authorId)}>
+            <Avatar className="w-10 h-10 border border-[#363636]">
+              <AvatarImage src={post.author?.avatarUrl || robloxHeadshot(post.author?.robloxUserId || 0)} />
+              <AvatarFallback className="font-bold text-sm bg-[#333]">{post.author?.displayName?.charAt(0) || "?"}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-semibold text-[13px] text-[#e1e3e6] hover:text-[#5B88BD] transition-colors">{post.author?.displayName}</p>
+              <p className="text-[12px] text-[#939393]">{timeAgo(post.createdAt, t)}</p>
+            </div>
+          </button>
+          {isOwn && (
+            <button onClick={() => onDelete(post.id)} className="text-[#939393] hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-500/10">
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
-            {isOwn && (
-              <button onClick={() => onDelete(post.id)} className="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-destructive/10">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+          )}
+        </div>
 
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
+        <p className="text-[14px] leading-relaxed whitespace-pre-wrap text-[#e1e3e6]">{post.content}</p>
 
-          {post.imageUrl && (() => {
-            const atts = parseAttachments(post.imageUrl);
-            if (atts.length === 0) return null;
-            const images = atts.filter(a => isImageType(a.type));
-            const files = atts.filter(a => !isImageType(a.type));
-            return (
-              <div className="space-y-2">
-                {images.length > 0 && (
-                  <div className={`grid gap-2 ${images.length === 1 ? "grid-cols-1" : images.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-                    {images.map((img, i) => (
-                      <div key={i} className="rounded-xl overflow-hidden border border-border">
-                        <img src={img.dataUrl} alt={img.name} className={`w-full object-cover ${images.length === 1 ? "max-h-80" : "h-40"}`} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {files.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {files.map((file, i) => (
-                      <a key={i} href={file.dataUrl} download={file.name} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-secondary/40 hover:bg-secondary/80 transition-colors text-sm">
-                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
-                        <span className="truncate max-w-[150px]">{file.name}</span>
-                        <Download className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+        {post.imageUrl && (() => {
+          const atts = parseAttachments(post.imageUrl);
+          if (atts.length === 0) return null;
+          const images = atts.filter(a => isImageType(a.type));
+          const files = atts.filter(a => !isImageType(a.type));
+          return (
+            <div className="space-y-2">
+              {images.length > 0 && (
+                <div className={`grid gap-1 ${images.length === 1 ? "grid-cols-1" : images.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                  {images.map((img, i) => (
+                    <div key={i} className="rounded-lg overflow-hidden">
+                      <img src={img.dataUrl} alt={img.name} className={`w-full object-cover ${images.length === 1 ? "max-h-[400px]" : "h-40"}`} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {files.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {files.map((file, i) => (
+                    <a key={i} href={file.dataUrl} download={file.name} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#363636] bg-[#2a2a2a] hover:bg-[#333] transition-colors text-[13px] text-[#b0b0b0]">
+                      <FileText className="w-4 h-4 text-[#939393] shrink-0" />
+                      <span className="truncate max-w-[150px]">{file.name}</span>
+                      <Download className="w-3.5 h-3.5 text-[#939393] shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
-          <div className="flex items-center gap-5 pt-1 border-t border-border/50">
-            <button
-              onClick={() => onLike(post.id)}
-              className={`flex items-center gap-1.5 text-sm font-medium transition-all pt-2 ${post.isLiked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}
-            >
-              <Heart className={`w-4 h-4 ${post.isLiked ? "fill-red-500" : ""}`} />
-              {post.likesCount > 0 && <span>{post.likesCount}</span>}
-            </button>
-            <button
-              onClick={() => onComment(post)}
-              className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors pt-2"
-            >
-              <MessageCircle className="w-4 h-4" />
-              {post.commentsCount > 0 && <span>{post.commentsCount}</span>}
-              <span>Comment</span>
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="flex items-center gap-4 pt-2 border-t border-[#363636]">
+          <button
+            onClick={() => onLike(post.id)}
+            className={`flex items-center gap-1.5 text-[13px] font-medium transition-all ${post.isLiked ? "text-red-400" : "text-[#939393] hover:text-red-400"}`}
+          >
+            <Heart className={`w-[18px] h-[18px] ${post.isLiked ? "fill-red-400" : ""}`} />
+            {post.likesCount > 0 && <span>{post.likesCount}</span>}
+          </button>
+          <button
+            onClick={() => onComment(post)}
+            className="flex items-center gap-1.5 text-[13px] font-medium text-[#939393] hover:text-[#b0b0b0] transition-colors"
+          >
+            <MessageCircle className="w-[18px] h-[18px]" />
+            {post.commentsCount > 0 && <span>{post.commentsCount}</span>}
+          </button>
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -498,59 +482,59 @@ function CommentsPanel({ post, myUser, onClose }: { post: Post; myUser: Platform
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-end md:items-center justify-center p-4" onClick={onClose}>
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 30 }}
-        className="bg-background rounded-3xl border border-border shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+        className="bg-[#222222] rounded-xl border border-[#363636] shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-5 border-b border-border">
+        <div className="flex items-center justify-between p-5 border-b border-[#363636]">
           <div>
-            <h3 className="font-bold">Comments</h3>
-            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{post.content}</p>
+            <h3 className="font-bold text-white">Comments</h3>
+            <p className="text-[12px] text-[#939393] line-clamp-1 mt-0.5">{post.content}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/70">
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-[#333] flex items-center justify-center hover:bg-[#404040] text-[#b0b0b0]">
             <X className="w-4 h-4" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {loading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-[#5B88BD]" /></div>
           ) : comments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">No comments yet. Be the first!</div>
+            <div className="text-center py-8 text-[#939393] text-[13px]">No comments yet. Be the first!</div>
           ) : (
             comments.map(c => (
               <div key={c.id} className="flex items-start gap-3">
-                <Avatar className="w-8 h-8 shrink-0 border border-border">
+                <Avatar className="w-8 h-8 shrink-0 border border-[#363636]">
                   <AvatarImage src={c.author?.avatarUrl || robloxHeadshot(c.author?.robloxUserId || 0)} />
-                  <AvatarFallback className="text-xs font-bold">{c.author?.displayName?.charAt(0)}</AvatarFallback>
+                  <AvatarFallback className="text-xs font-bold bg-[#333]">{c.author?.displayName?.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <div className="flex-1 bg-secondary/60 rounded-xl px-3 py-2.5">
-                  <p className="text-xs font-semibold">{c.author?.displayName} <span className="font-normal text-muted-foreground">· {timeAgo(c.createdAt, t)}</span></p>
-                  <p className="text-sm mt-1">{c.content}</p>
+                <div className="flex-1 bg-[#2a2a2a] rounded-lg px-3 py-2.5 border border-[#363636]">
+                  <p className="text-[12px] font-semibold text-[#e1e3e6]">{c.author?.displayName} <span className="font-normal text-[#939393]">· {timeAgo(c.createdAt, t)}</span></p>
+                  <p className="text-[13px] mt-1 text-[#b0b0b0]">{c.content}</p>
                 </div>
               </div>
             ))
           )}
         </div>
         {myUser && (
-          <div className="p-4 border-t border-border flex gap-2 items-center">
-            <Avatar className="w-8 h-8 shrink-0 border border-border">
+          <div className="p-4 border-t border-[#363636] flex gap-2 items-center">
+            <Avatar className="w-8 h-8 shrink-0 border border-[#363636]">
               <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
-              <AvatarFallback className="text-xs font-bold">{myUser.displayName.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="text-xs font-bold bg-[#333]">{myUser.displayName.charAt(0)}</AvatarFallback>
             </Avatar>
-            <Input
+            <input
               value={text}
               onChange={e => setText(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
               placeholder="Write a comment..."
-              className="rounded-xl flex-1"
+              className="flex-1 px-3 py-2 rounded-lg bg-[#1a1a1a] border border-[#363636] text-[13px] text-[#e1e3e6] placeholder:text-[#666] focus:outline-none focus:border-[#5B88BD]"
             />
-            <Button onClick={handleSend} disabled={sending || !text.trim()} size="sm" className="rounded-xl px-3 shrink-0">
+            <button onClick={handleSend} disabled={sending || !text.trim()} className="p-2 rounded-lg bg-[#5B88BD] hover:bg-[#4a77ac] disabled:opacity-40 text-white transition-colors">
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </Button>
+            </button>
           </div>
         )}
       </motion.div>
@@ -643,88 +627,82 @@ function FeedTab({ myUser, onUserClick }: { myUser: PlatformUser | null; onUserC
   };
 
   return (
-    <div className="space-y-5">
-      {/* Composer */}
+    <div className="space-y-3 max-w-[600px] mx-auto">
       {myUser && (
-        <Card className="rounded-2xl border border-border shadow-sm">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex gap-3">
-              <Avatar className="w-9 h-9 shrink-0 border border-border mt-0.5">
-                <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
-                <AvatarFallback className="font-bold text-xs">{myUser.displayName.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 space-y-2">
-                <Textarea
-                  value={newContent}
-                  onChange={e => setNewContent(e.target.value)}
-                  placeholder={`What's on your mind, ${myUser.displayName.split(" ")[0]}?`}
-                  className="resize-none min-h-[80px] rounded-xl text-sm border-0 bg-secondary/50 focus-visible:ring-1"
-                />
-                <AnimatePresence>
-                  {attachments.length > 0 && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap gap-2">
-                      {attachments.map((att, idx) => (
-                        <div key={idx} className="relative group">
-                          {isImageType(att.type) ? (
-                            <img src={att.dataUrl} alt={att.name} className="w-20 h-20 object-cover rounded-xl border border-border" />
-                          ) : (
-                            <div className="w-20 h-20 rounded-xl border border-border bg-secondary/60 flex flex-col items-center justify-center gap-1 px-1">
-                              <FileText className="w-5 h-5 text-muted-foreground" />
-                              <span className="text-[10px] text-muted-foreground truncate w-full text-center">{att.name}</span>
-                            </div>
-                          )}
-                          <button onClick={() => removeAttachment(idx)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleFilePick} />
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = "image/*"; fileInputRef.current.click(); } }}
-                      className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <ImageIcon className="w-3.5 h-3.5" /> {t("com.attachImage")}
-                    </button>
-                    <button
-                      onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = ".pdf,.doc,.docx,.txt,.zip,.rar,.7z,.xls,.xlsx"; fileInputRef.current.click(); } }}
-                      className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <Paperclip className="w-3.5 h-3.5" /> {t("com.attachFile")}
-                    </button>
-                  </div>
-                  <Button onClick={handlePost} disabled={posting || (!newContent.trim() && attachments.length === 0)} size="sm" className="rounded-xl gap-2 h-8">
-                    {posting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    {t("com.publish")}
-                  </Button>
+        <div className="bg-[#222222] rounded-xl border border-[#363636] p-4 space-y-3">
+          <div className="flex gap-3">
+            <Avatar className="w-9 h-9 shrink-0 border border-[#363636] mt-0.5">
+              <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
+              <AvatarFallback className="font-bold text-xs bg-[#333]">{myUser.displayName.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 space-y-2">
+              <Textarea
+                value={newContent}
+                onChange={e => setNewContent(e.target.value)}
+                placeholder={`What's on your mind, ${myUser.displayName.split(" ")[0]}?`}
+                className="resize-none min-h-[60px] rounded-lg text-[13px] border-0 bg-[#1a1a1a] text-[#e1e3e6] placeholder:text-[#666] focus-visible:ring-1 focus-visible:ring-[#5B88BD]"
+              />
+              <AnimatePresence>
+                {attachments.length > 0 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap gap-2">
+                    {attachments.map((att, idx) => (
+                      <div key={idx} className="relative group">
+                        {isImageType(att.type) ? (
+                          <img src={att.dataUrl} alt={att.name} className="w-20 h-20 object-cover rounded-lg border border-[#363636]" />
+                        ) : (
+                          <div className="w-20 h-20 rounded-lg border border-[#363636] bg-[#2a2a2a] flex flex-col items-center justify-center gap-1 px-1">
+                            <FileText className="w-5 h-5 text-[#939393]" />
+                            <span className="text-[10px] text-[#939393] truncate w-full text-center">{att.name}</span>
+                          </div>
+                        )}
+                        <button onClick={() => removeAttachment(idx)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleFilePick} />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = "image/*"; fileInputRef.current.click(); } }}
+                    className="text-[12px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[#939393] hover:text-[#b0b0b0] hover:bg-[#2a2a2a] transition-colors"
+                  >
+                    <ImageIcon className="w-4 h-4" /> {t("com.attachImage")}
+                  </button>
+                  <button
+                    onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = ".pdf,.doc,.docx,.txt,.zip,.rar,.7z,.xls,.xlsx"; fileInputRef.current.click(); } }}
+                    className="text-[12px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[#939393] hover:text-[#b0b0b0] hover:bg-[#2a2a2a] transition-colors"
+                  >
+                    <Paperclip className="w-4 h-4" /> {t("com.attachFile")}
+                  </button>
                 </div>
+                <button
+                  onClick={handlePost}
+                  disabled={posting || (!newContent.trim() && attachments.length === 0)}
+                  className="px-4 py-1.5 bg-[#5B88BD] hover:bg-[#4a77ac] disabled:opacity-40 text-white text-[13px] font-medium rounded-lg transition-colors flex items-center gap-2"
+                >
+                  {posting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  {t("com.publish")}
+                </button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Recent Posts</p>
-        <Button size="sm" variant="ghost" onClick={fetchFeed} className="rounded-lg text-xs gap-1.5 h-8">
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </Button>
-      </div>
-
       {loading ? (
-        <div className="space-y-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>
+        <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-32 rounded-xl bg-[#2a2a2a]" />)}</div>
       ) : posts.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" strokeWidth={1} />
-          <p className="font-medium">No posts yet</p>
-          <p className="text-sm mt-1">Be the first to share something!</p>
+        <div className="text-center py-16">
+          <Globe className="w-12 h-12 mx-auto mb-3 text-[#939393] opacity-30" strokeWidth={1} />
+          <p className="font-medium text-[#b0b0b0]">No posts yet</p>
+          <p className="text-[13px] mt-1 text-[#939393]">Be the first to share something!</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {posts.map(p => (
             <PostCard
               key={p.id}
@@ -815,10 +793,15 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
     } finally { setVoting(false); }
   };
 
+  const searchLower = search.toLowerCase();
   const filtered = users.filter(u =>
     !search ||
-    u.displayName.toLowerCase().includes(search.toLowerCase()) ||
-    u.robloxUsername.toLowerCase().includes(search.toLowerCase())
+    u.displayName.toLowerCase().includes(searchLower) ||
+    u.robloxUsername.toLowerCase().includes(searchLower)
+  );
+
+  const filteredGroups = featuredGroups.filter(g =>
+    !search || g.name?.toLowerCase().includes(searchLower)
   );
 
   const sorted = [...filtered].sort((a, b) => {
@@ -855,190 +838,175 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
 
   if (selectedGroup) {
     return (
-      <div className="space-y-4">
-        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={() => { setSelectedGroup(null); setGroupDetail(null); }}>
+      <div className="space-y-3 max-w-[700px]">
+        <button onClick={() => { setSelectedGroup(null); setGroupDetail(null); }} className="flex items-center gap-1.5 text-[13px] text-[#5B88BD] hover:text-[#7aaad4] transition-colors">
           <ArrowLeft className="w-4 h-4" /> {t("com.back")}
-        </Button>
+        </button>
         {detailLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#5B88BD]" /></div>
         ) : groupDetail ? (
-          <div className="space-y-4">
-            <Card className="rounded-2xl border-border/50">
-              <CardContent className="pt-5 space-y-4">
-                <div className="flex items-center gap-4">
-                  {groupDetail.thumbnailUrl ? (
-                    <img src={groupDetail.thumbnailUrl} alt={groupDetail.name} className="w-20 h-20 rounded-2xl border border-border object-cover" />
-                  ) : (
-                    <div className="w-20 h-20 rounded-2xl bg-secondary flex items-center justify-center text-2xl font-bold text-muted-foreground">{groupDetail.name?.charAt(0)}</div>
+          <div className="space-y-3">
+            <div className="bg-[#222222] rounded-xl border border-[#363636] p-5 space-y-4">
+              <div className="flex items-center gap-4">
+                {groupDetail.thumbnailUrl ? (
+                  <img src={groupDetail.thumbnailUrl} alt={groupDetail.name} className="w-20 h-20 rounded-xl border border-[#363636] object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-xl bg-[#333] flex items-center justify-center text-2xl font-bold text-[#b0b0b0]">{groupDetail.name?.charAt(0)}</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-bold text-white">{groupDetail.name}</h2>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-[12px] text-[#939393] flex items-center gap-1"><Users className="w-3 h-3" />{(groupDetail.memberCount || 0).toLocaleString()} {t("com.members")}</span>
+                    {groupDetail.publicEntryAllowed !== null && (
+                      <span className="text-[12px] text-[#939393]">{groupDetail.publicEntryAllowed ? t("com.open") : t("com.closed")}</span>
+                    )}
+                  </div>
+                  {groupDetail.created && (
+                    <p className="text-[11px] text-[#666] mt-1">{t("com.created")}: {new Date(groupDetail.created).toLocaleDateString("ru-RU")}</p>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-bold">{groupDetail.name}</h2>
-                    <div className="flex items-center gap-3 mt-1">
-                      <Badge variant="outline" className="text-xs"><Users className="w-3 h-3 mr-1" />{(groupDetail.memberCount || 0).toLocaleString()} {t("com.members")}</Badge>
-                      {groupDetail.publicEntryAllowed !== null && (
-                        <Badge variant="outline" className="text-xs">{groupDetail.publicEntryAllowed ? t("com.open") : t("com.closed")}</Badge>
-                      )}
-                    </div>
-                    {groupDetail.created && (
-                      <p className="text-[10px] text-muted-foreground mt-1">{t("com.created")}: {new Date(groupDetail.created).toLocaleDateString("ru-RU")}</p>
-                    )}
+                </div>
+              </div>
+              {groupDetail.description && (
+                <p className="text-[13px] text-[#b0b0b0] leading-relaxed whitespace-pre-wrap">{groupDetail.description}</p>
+              )}
+              {groupDetail.owner && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-[#2a2a2a] border border-[#363636]">
+                  {groupDetail.owner.avatar ? (
+                    <img src={groupDetail.owner.avatar} className="w-10 h-10 rounded-full border border-[#363636]" alt="" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-[#333] flex items-center justify-center text-sm font-bold text-[#b0b0b0]">{groupDetail.owner.displayName?.charAt(0)}</div>
+                  )}
+                  <div>
+                    <p className="text-[12px] font-semibold text-[#e1e3e6]">{groupDetail.owner.displayName}</p>
+                    <p className="text-[11px] text-[#939393]">{t("com.groupOwner")}</p>
                   </div>
                 </div>
-                {groupDetail.description && (
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{groupDetail.description}</p>
-                )}
-                {groupDetail.owner && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/40 border border-border/50">
-                    {groupDetail.owner.avatar ? (
-                      <img src={groupDetail.owner.avatar} className="w-10 h-10 rounded-full border border-border" alt="" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-sm font-bold">{groupDetail.owner.displayName?.charAt(0)}</div>
-                    )}
-                    <div>
-                      <p className="text-xs font-semibold">{groupDetail.owner.displayName}</p>
-                      <p className="text-[10px] text-muted-foreground">{t("com.groupOwner")}</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              )}
+            </div>
 
-            <Card className="rounded-2xl border-border/50">
-              <CardContent className="pt-5">
-                <p className="text-sm font-semibold mb-3">{t("com.groupRating")}</p>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => handleVote("like")}
-                    disabled={voting}
-                    className={`flex items-center gap-2 px-5 py-3 rounded-xl border-2 transition-all ${votes.myVote === "like" ? "border-green-500 bg-green-500/10 text-green-600" : "border-border hover:border-green-500/50"}`}
-                  >
-                    <ThumbsUp className="w-5 h-5" />
-                    <span className="font-bold text-lg">{votes.likes}</span>
-                  </button>
-                  <button
-                    onClick={() => handleVote("dislike")}
-                    disabled={voting}
-                    className={`flex items-center gap-2 px-5 py-3 rounded-xl border-2 transition-all ${votes.myVote === "dislike" ? "border-red-500 bg-red-500/10 text-red-600" : "border-border hover:border-red-500/50"}`}
-                  >
-                    <ThumbsDown className="w-5 h-5" />
-                    <span className="font-bold text-lg">{votes.dislikes}</span>
-                  </button>
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-2">{t("com.removeVote")}</p>
-              </CardContent>
-            </Card>
+            <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
+              <p className="text-[13px] font-semibold text-white mb-3">{t("com.groupRating")}</p>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => handleVote("like")}
+                  disabled={voting}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-lg border transition-all ${votes.myVote === "like" ? "border-green-500 bg-green-500/10 text-green-400" : "border-[#363636] hover:border-green-500/50 text-[#b0b0b0]"}`}
+                >
+                  <ThumbsUp className="w-5 h-5" />
+                  <span className="font-bold text-lg">{votes.likes}</span>
+                </button>
+                <button
+                  onClick={() => handleVote("dislike")}
+                  disabled={voting}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-lg border transition-all ${votes.myVote === "dislike" ? "border-red-500 bg-red-500/10 text-red-400" : "border-[#363636] hover:border-red-500/50 text-[#b0b0b0]"}`}
+                >
+                  <ThumbsDown className="w-5 h-5" />
+                  <span className="font-bold text-lg">{votes.dislikes}</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-[#666] mt-2">{t("com.removeVote")}</p>
+            </div>
 
             <a href={`https://www.roblox.com/groups/${groupDetail.groupId}`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="w-full rounded-xl gap-2"><ExternalLink className="w-4 h-4" /> {t("com.openRoblox")}</Button>
+              <button className="w-full px-4 py-2.5 bg-[#333] hover:bg-[#404040] text-[#b0b0b0] text-[13px] font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+                <ExternalLink className="w-4 h-4" /> {t("com.openRoblox")}
+              </button>
             </a>
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">{t("com.groupNotFound")}</div>
+          <div className="text-center py-8 text-[#939393]">{t("com.groupNotFound")}</div>
         )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      {!fgLoading && featuredGroups.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold flex items-center gap-2"><Star className="w-4 h-4" /> Featured Groups</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {featuredGroups.map(g => (
-              <Card key={g.groupId} className="rounded-2xl border-border/50 hover:border-black/20 cursor-pointer transition-all hover:shadow-md" onClick={() => openGroupDetail(g)}>
-                <CardContent className="p-3 flex items-center gap-3">
-                  {g.thumbnailUrl ? (
-                    <img src={g.thumbnailUrl} alt={g.name} className="w-11 h-11 rounded-xl border border-border object-cover shrink-0" />
-                  ) : (
-                    <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-sm font-bold shrink-0">{g.name?.charAt(0)}</div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold truncate">{g.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{(g.memberCount || 0).toLocaleString()} {t("com.members")}</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+    <div className="space-y-3 max-w-[700px]">
+      <div className="bg-[#222222] rounded-xl border border-[#363636] p-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#939393]" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={t("community.searchPlaceholder") || "Search communities and developers..."}
+            className="w-full pl-9 pr-4 py-2 rounded-lg bg-[#1a1a1a] border border-[#363636] text-[13px] text-[#e1e3e6] placeholder:text-[#666] focus:outline-none focus:border-[#5B88BD] transition-colors"
+          />
         </div>
-      )}
-
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search developers by name..."
-          className="pl-9 rounded-xl"
-        />
       </div>
 
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28 rounded-2xl" />)}
-        </div>
-      ) : sorted.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <Users className="w-12 h-12 mx-auto mb-3 opacity-30" strokeWidth={1} />
-          <p className="font-medium">{search ? "No users found" : "No developers registered yet"}</p>
-          <p className="text-sm mt-1">Visit Community to register your profile and appear here.</p>
-        </div>
-      ) : (
-        <>
-          <p className="text-xs text-muted-foreground">{sorted.length} developers found</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {sorted.map(user => (
-              <motion.div key={user.id} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}>
-                <Card
-                  className={`rounded-2xl border shadow-sm hover:shadow-md transition-all cursor-pointer ${user.isMe ? "border-black/20 bg-secondary/30" : "border-border"}`}
-                  onClick={() => onUserClick(user.id)}
-                >
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <Avatar className="w-12 h-12 border border-border shrink-0">
-                      <AvatarImage src={user.avatarUrl || robloxHeadshot(user.robloxUserId)} />
-                      <AvatarFallback className="font-bold">{user.displayName.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <p className="font-semibold text-sm">{user.displayName}</p>
-                        {getFriendChip(user)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">@{user.robloxUsername}</p>
-                      {user.bio && <p className="text-xs text-muted-foreground/70 line-clamp-1 mt-0.5">{user.bio}</p>}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {myUser && !user.isMe && !user.friendship && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-lg h-7 px-2.5 text-xs gap-1"
-                          onClick={e => handleSendRequest(user.id, e)}
-                          disabled={requesting === user.id}
-                        >
-                          {requesting === user.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
-                        </Button>
-                      )}
-                      {user.friendship?.status === "accepted" && !user.isMe && onChat && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-lg h-7 px-2.5 text-xs"
-                          onClick={e => { e.stopPropagation(); onChat(user); }}
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                        </Button>
-                      )}
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+      {!fgLoading && filteredGroups.length > 0 && (
+        <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
+          <h3 className="text-[15px] font-semibold text-white mb-4">{t("community.discover") || "Communities"}</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {filteredGroups.map(g => (
+              <button key={g.groupId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#2a2a2a] transition-colors text-left" onClick={() => openGroupDetail(g)}>
+                {g.thumbnailUrl ? (
+                  <img src={g.thumbnailUrl} alt={g.name} className="w-12 h-12 rounded-full border border-[#363636] object-cover shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-[#333] flex items-center justify-center text-sm font-bold text-[#b0b0b0] shrink-0">{g.name?.charAt(0)}</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-[#e1e3e6] truncate">{g.name}</p>
+                  <p className="text-[12px] text-[#939393]">{(g.memberCount || 0).toLocaleString()} {t("com.members")}</p>
+                </div>
+              </button>
             ))}
           </div>
-        </>
+        </div>
       )}
+
+      <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
+        <h3 className="text-[15px] font-semibold text-white mb-4">Developers <span className="text-[#5B88BD]">{sorted.length}</span></h3>
+        {loading ? (
+          <div className="space-y-3">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-16 rounded-lg bg-[#2a2a2a]" />)}</div>
+        ) : sorted.length === 0 ? (
+          <div className="text-center py-10">
+            <Users className="w-10 h-10 mx-auto mb-3 text-[#939393] opacity-30" strokeWidth={1} />
+            <p className="font-medium text-[#b0b0b0]">{search ? "No users found" : "No developers registered yet"}</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {sorted.map(user => (
+              <div
+                key={user.id}
+                className={`flex items-center gap-3 p-3 rounded-lg hover:bg-[#2a2a2a] transition-colors cursor-pointer group ${user.isMe ? "bg-[#2a2a2a]" : ""}`}
+                onClick={() => onUserClick(user.id)}
+              >
+                <Avatar className="w-11 h-11 border border-[#363636] shrink-0">
+                  <AvatarImage src={user.avatarUrl || robloxHeadshot(user.robloxUserId)} />
+                  <AvatarFallback className="font-bold bg-[#333] text-[#b0b0b0]">{user.displayName.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-[13px] text-[#e1e3e6]">{user.displayName}</p>
+                    {getFriendChip(user)}
+                  </div>
+                  {user.bio && <p className="text-[12px] text-[#939393] line-clamp-1 mt-0.5">{user.bio}</p>}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {myUser && !user.isMe && !user.friendship && (
+                    <button
+                      onClick={e => handleSendRequest(user.id, e)}
+                      disabled={requesting === user.id}
+                      className="p-1.5 rounded-lg hover:bg-[#333] text-[#939393] hover:text-[#5B88BD] transition-colors"
+                    >
+                      {requesting === user.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                    </button>
+                  )}
+                  {user.friendship?.status === "accepted" && !user.isMe && onChat && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onChat(user); }}
+                      className="p-1.5 rounded-lg hover:bg-[#333] text-[#939393] hover:text-[#5B88BD] transition-colors"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1094,85 +1062,78 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
   };
 
   if (loading) {
-    return <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>;
+    return <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl bg-[#2a2a2a]" />)}</div>;
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 max-w-[700px]">
       {pending.length > 0 && (
-        <div>
-          <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Clock className="w-4 h-4" /> Incoming Requests ({pending.length})
+        <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
+          <h3 className="text-[15px] font-semibold text-white mb-4 flex items-center gap-2">
+            Friend Requests <span className="text-[#5B88BD]">{pending.length}</span>
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {pending.map(({ friendship: f, user }) => (
-              <Card key={f.id} className="rounded-2xl border border-border shadow-sm">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <button onClick={() => onUserClick(user.id)}>
-                    <Avatar className="w-11 h-11 border border-border">
-                      <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
-                      <AvatarFallback className="font-bold">{user?.displayName?.charAt(0)}</AvatarFallback>
-                    </Avatar>
+              <div key={f.id} className="flex items-center gap-3">
+                <button onClick={() => onUserClick(user.id)}>
+                  <Avatar className="w-12 h-12 border border-[#363636]">
+                    <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
+                    <AvatarFallback className="font-bold bg-[#333]">{user?.displayName?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                </button>
+                <div className="flex-1 min-w-0">
+                  <button className="text-[13px] font-semibold text-[#e1e3e6] hover:text-[#5B88BD] transition-colors" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>
+                  <p className="text-[12px] text-[#939393]">@{user?.robloxUsername}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleAction(f.id, "accept")} className="px-4 py-1.5 bg-[#5B88BD] hover:bg-[#4a77ac] text-white text-[13px] font-medium rounded-lg transition-colors">
+                    Accept
                   </button>
-                  <div className="flex-1 min-w-0">
-                    <button className="text-sm font-semibold hover:underline" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>
-                    <p className="text-xs text-muted-foreground">@{user?.robloxUsername}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" className="rounded-xl gap-1.5 h-8 text-xs" onClick={() => handleAction(f.id, "accept")}>
-                      <Check className="w-3.5 h-3.5" /> Accept
-                    </Button>
-                    <Button size="sm" variant="outline" className="rounded-xl h-8 text-xs" onClick={() => handleAction(f.id, "reject")}>
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                  <button onClick={() => handleAction(f.id, "reject")} className="px-3 py-1.5 text-[#939393] hover:text-[#b0b0b0] text-[13px] transition-colors">
+                    Decline
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         </div>
       )}
 
-      <div>
-        <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-          <UserCheck className="w-4 h-4" /> Friends ({friends.length})
-        </h3>
+      <div className="bg-[#222222] rounded-xl border border-[#363636] p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <span className="text-[15px] font-semibold text-white">All friends <span className="text-[#5B88BD]">{friends.length}</span></span>
+          </div>
+        </div>
         {friends.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Users className="w-10 h-10 mx-auto mb-3 opacity-30" strokeWidth={1} />
-            <p className="font-medium">No friends yet</p>
-            <p className="text-sm mt-1">Find developers in the Discover tab</p>
+          <div className="text-center py-10">
+            <Users className="w-10 h-10 mx-auto mb-3 text-[#939393] opacity-30" strokeWidth={1} />
+            <p className="font-medium text-[#b0b0b0]">No friends yet</p>
+            <p className="text-[13px] mt-1 text-[#939393]">Find developers in the Discover tab</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1">
             {friends.map(({ friendship: f, user }) => (
-              <Card key={f.id} className="rounded-2xl border border-border shadow-sm">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <button onClick={() => onUserClick(user.id)}>
-                    <Avatar className="w-11 h-11 border border-border">
-                      <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
-                      <AvatarFallback className="font-bold">{user?.displayName?.charAt(0)}</AvatarFallback>
-                    </Avatar>
+              <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[#2a2a2a] transition-colors group">
+                <button onClick={() => onUserClick(user.id)}>
+                  <Avatar className="w-12 h-12 border border-[#363636]">
+                    <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
+                    <AvatarFallback className="font-bold bg-[#333]">{user?.displayName?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                </button>
+                <div className="flex-1 min-w-0">
+                  <button className="text-[13px] font-semibold text-[#e1e3e6] hover:text-[#5B88BD] transition-colors" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>
+                  <p className="text-[12px] text-[#939393]">@{user?.robloxUsername}</p>
+                </div>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => onChat(user)} className="text-[12px] text-[#939393] hover:text-[#5B88BD] transition-colors flex items-center gap-1.5">
+                    <MessageSquare className="w-4 h-4" /> {t("community.chat")}
                   </button>
-                  <div className="flex-1 min-w-0">
-                    <button className="text-sm font-semibold hover:underline" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>
-                    <p className="text-xs text-muted-foreground">@{user?.robloxUsername}</p>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <Button size="sm" variant="outline" className="rounded-xl h-8 px-3 text-xs gap-1.5" onClick={() => onChat(user)}>
-                      <MessageSquare className="w-3.5 h-3.5" /> Chat
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="rounded-xl h-8 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleUnfriend(f.id)}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                  <button onClick={() => handleUnfriend(f.id)} className="text-[12px] text-[#939393] hover:text-red-400 transition-colors flex items-center gap-1.5">
+                    <X className="w-4 h-4" /> {t("community.unfriended") || "Unfriend"}
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -3824,6 +3785,151 @@ function MarketplaceTab({ myUser, onChatUser }: { myUser: PlatformUser | null; o
   );
 }
 
+function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
+  myUser: PlatformUser | null;
+  onUserClick: (userId: number) => void;
+  onChat: (user: PlatformUser) => void;
+  onEditBio: () => void;
+}) {
+  const { t } = useLanguage();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [friends, setFriends] = useState<Array<{ friendship: { id: number; status: string }; user: PlatformUser }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [commentPost, setCommentPost] = useState<Post | null>(null);
+  const [equippedAccessories, setEquippedAccessories] = useState<any[]>([]);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!myUser) return;
+    Promise.all([
+      apiFetch<{ posts: Post[] }>("/api/social/feed").catch(() => ({ posts: [] as Post[] })),
+      apiFetch<{ friends: Array<{ friendship: { id: number; status: string }; user: PlatformUser }>; pending: any[] }>("/api/social/friends").catch(() => ({ friends: [], pending: [] })),
+      apiFetch<any[]>(`/api/accessories/user/${myUser.id}`).catch(() => []),
+    ]).then(([feedData, friendsData, accessories]) => {
+      setPosts(feedData.posts.filter(p => p.authorId === myUser.id));
+      setFriends(friendsData.friends);
+      setEquippedAccessories(accessories);
+    }).finally(() => setLoading(false));
+  }, [myUser]);
+
+  const handleLike = async (postId: number) => {
+    if (!myUser) return;
+    try {
+      const d = await apiFetch<{ liked: boolean }>(`/api/social/posts/${postId}/like`, { method: "POST" });
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, isLiked: d.liked, likesCount: d.liked ? p.likesCount + 1 : p.likesCount - 1 } : p));
+    } catch {}
+  };
+
+  const handleDelete = async (postId: number) => {
+    try {
+      await apiFetch(`/api/social/posts/${postId}`, { method: "DELETE" });
+      setPosts(prev => prev.filter(p => p.id !== postId));
+    } catch {}
+  };
+
+  if (!myUser) return null;
+
+  return (
+    <div className="flex gap-4">
+      <div className="flex-1 min-w-0 space-y-3">
+        <div className="bg-[#222222] rounded-xl overflow-hidden border border-[#363636]">
+          <div className="h-52 bg-gradient-to-br from-[#2a2a3e] via-[#1e1e2e] to-[#2d2a3e] relative">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          </div>
+          <div className="px-6 pb-5 -mt-16 relative z-10">
+            <div className="flex items-end gap-5">
+              <Avatar className="w-[120px] h-[120px] border-4 border-[#222222] shadow-2xl">
+                <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
+                <AvatarFallback className="text-4xl font-bold bg-[#333]">{myUser.displayName.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0 pb-1">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-[22px] font-bold text-white">{myUser.displayName}</h1>
+                  {equippedAccessories.length > 0 && <UserEquippedAccessories accessories={equippedAccessories} />}
+                </div>
+                <p className="text-[13px] text-[#939393] mt-0.5">@{myUser.robloxUsername}</p>
+                {myUser.bio && <p className="text-[13px] text-[#b0b0b0] mt-2 line-clamp-2">{myUser.bio}</p>}
+              </div>
+              <div className="flex gap-2 pb-1">
+                <button onClick={onEditBio} className="px-4 py-2 bg-[#333] hover:bg-[#404040] text-[13px] text-white rounded-lg transition-colors flex items-center gap-2">
+                  <Pencil className="w-3.5 h-3.5" /> Edit profile
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-[#222222] rounded-xl border border-[#363636] p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-[13px] font-semibold text-white">My posts</span>
+            <span className="text-[13px] text-[#939393] cursor-pointer hover:text-[#b0b0b0]">Archive</span>
+          </div>
+          {loading ? (
+            <div className="space-y-3">{[1, 2].map(i => <Skeleton key={i} className="h-24 rounded-lg bg-[#2a2a2a]" />)}</div>
+          ) : posts.length === 0 ? (
+            <div className="text-center py-10 text-[#939393]">
+              <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-[13px]">No posts yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {posts.map(p => (
+                <PostCard key={p.id} post={p} myUserId={myUser.id} onLike={handleLike} onDelete={handleDelete} onComment={setCommentPost} onUserClick={onUserClick} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <AnimatePresence>
+          {commentPost && <CommentsPanel post={commentPost} myUser={myUser} onClose={() => setCommentPost(null)} />}
+        </AnimatePresence>
+      </div>
+
+      <div className="w-[280px] shrink-0 space-y-3">
+        <div className="bg-[#222222] rounded-xl border border-[#363636] p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[13px] font-semibold text-white">Friends <span className="text-[#5B88BD]">{friends.length}</span></span>
+          </div>
+          {friends.length === 0 ? (
+            <p className="text-[12px] text-[#939393]">No friends yet</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {friends.slice(0, 6).map(({ user }) => (
+                <div key={user.id} className="flex flex-col items-center gap-1.5 group">
+                  <button onClick={() => onUserClick(user.id)}>
+                    <Avatar className="w-[54px] h-[54px] border border-[#363636] group-hover:border-[#5B88BD] transition-colors">
+                      <AvatarImage src={user.avatarUrl || robloxHeadshot(user.robloxUserId)} />
+                      <AvatarFallback className="text-xs bg-[#333]">{user.displayName.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                  </button>
+                  <span className="text-[11px] text-[#b0b0b0] group-hover:text-[#5B88BD] truncate w-full text-center transition-colors">{user.displayName.split(" ")[0]}</span>
+                  <button onClick={() => onChat(user)} className="text-[10px] text-[#5B88BD] hover:text-[#7aaad4] transition-colors opacity-0 group-hover:opacity-100">
+                    <MessageSquare className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-[#222222] rounded-xl border border-[#363636] p-4">
+          <span className="text-[13px] font-semibold text-white">Info</span>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2 text-[12px] text-[#939393]">
+              <Globe className="w-3.5 h-3.5" />
+              <a href={`https://www.roblox.com/users/${myUser.robloxUserId}/profile`} target="_blank" rel="noopener noreferrer" className="hover:text-[#5B88BD] transition-colors">Roblox Profile</a>
+            </div>
+            <div className="flex items-center gap-2 text-[12px] text-[#939393]">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Joined {new Date(myUser.createdAt).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Community() {
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -3870,16 +3976,17 @@ export default function Community() {
 
   if (registering) {
     return (
-      <div className="p-8 flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Loader2 className="w-8 h-8 animate-spin" />
-          <p className="text-sm font-medium">{t("community.loading") || "Setting up your community profile..."}</p>
+      <div className="p-8 flex items-center justify-center min-h-[400px] bg-[#181818]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-[#5B88BD]" />
+          <p className="text-sm font-medium text-[#939393]">{t("community.loading") || "Setting up your community profile..."}</p>
         </div>
       </div>
     );
   }
 
   const navItems = [
+    { id: "profile", icon: User, label: "Profile" },
     { id: "feed", icon: Globe, label: t("community.feed") },
     { id: "chat", icon: MessageSquare, label: t("community.chat") },
     { id: "friends", icon: Users, label: t("community.friends") },
@@ -3890,27 +3997,24 @@ export default function Community() {
   ];
 
   return (
-    <div className="flex w-full max-w-[1200px] mx-auto min-h-[calc(100vh-80px)]">
-      <div className="w-56 shrink-0 border-r border-border/50 py-4 pr-2 pl-4 flex flex-col gap-1">
+    <div className="flex w-full max-w-[1200px] mx-auto min-h-[calc(100vh-80px)] bg-[#181818]">
+      <div className="w-[200px] shrink-0 py-3 pr-0 pl-2 flex flex-col gap-0.5">
         {myUser && (
           <button
-            onClick={() => setEditingBio(true)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary/60 transition-colors mb-3"
+            onClick={() => handleTabChange("profile")}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#2a2a2a] transition-colors mb-2 group"
           >
-            <Avatar className="w-9 h-9 border border-border/50">
+            <Avatar className="w-9 h-9 border border-[#363636]">
               <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
-              <AvatarFallback className="text-sm font-bold">{myUser.displayName.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="text-sm font-bold bg-[#333]">{myUser.displayName.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-semibold truncate leading-tight">{myUser.displayName}</p>
-              <p className="text-[11px] text-muted-foreground truncate">@{myUser.robloxUsername}</p>
+              <p className="text-[13px] font-semibold truncate leading-tight text-[#e1e3e6] group-hover:text-white transition-colors">{myUser.displayName}</p>
             </div>
           </button>
         )}
 
-        <div className="h-px bg-border/50 mx-2 mb-1" />
-
-        <nav role="tablist" aria-orientation="vertical" className="flex flex-col gap-1">
+        <nav role="tablist" aria-orientation="vertical" className="flex flex-col gap-0.5">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -3921,35 +4025,23 @@ export default function Community() {
                 aria-selected={isActive}
                 aria-controls={`panel-${item.id}`}
                 onClick={() => handleTabChange(item.id)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all w-full text-left ${
+                className={`flex items-center gap-3 px-3 py-[9px] rounded-lg text-[13px] font-medium transition-all w-full text-left ${
                   isActive
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                    ? "bg-[#2a2a2a] text-white"
+                    : "text-[#b0b0b0] hover:text-white hover:bg-[#222]"
                 }`}
               >
-                <Icon className="w-[18px] h-[18px] shrink-0" />
+                <Icon className={`w-[20px] h-[20px] shrink-0 ${isActive ? "text-[#5B88BD]" : ""}`} />
                 <span className="truncate">{item.label}</span>
               </button>
             );
           })}
         </nav>
-
-        {myUser && (
-          <>
-            <div className="h-px bg-border/50 mx-2 my-2" />
-            <div className="px-3 mt-auto">
-              {myUser.bio ? (
-                <p className="text-[11px] text-muted-foreground/70 line-clamp-3 leading-relaxed">{myUser.bio}</p>
-              ) : (
-                <p className="text-[11px] text-muted-foreground/40 italic">{t("profile.bio.placeholder")}</p>
-              )}
-            </div>
-          </>
-        )}
       </div>
 
       <div className="flex-1 min-w-0 overflow-hidden">
-        <div id={`panel-${activeTab}`} role="tabpanel" className="p-5 h-full overflow-y-auto">
+        <div id={`panel-${activeTab}`} role="tabpanel" className="p-4 h-full overflow-y-auto">
+          {activeTab === "profile" && <ProfileTab myUser={myUser} onUserClick={setProfileModalUserId} onChat={handleChatUser} onEditBio={() => setEditingBio(true)} />}
           {activeTab === "feed" && <FeedTab myUser={myUser} onUserClick={setProfileModalUserId} />}
           {activeTab === "forum" && <ForumTab myUser={myUser} onUserClick={setProfileModalUserId} />}
           {activeTab === "discover" && <DiscoverTab myUser={myUser} onUserClick={setProfileModalUserId} onChat={handleChatUser} />}
@@ -3973,17 +4065,17 @@ export default function Community() {
 
       <AnimatePresence>
         {editingBio && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setEditingBio(false)}>
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setEditingBio(false)}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="bg-background rounded-2xl border border-border shadow-2xl w-full max-w-md p-6 space-y-4"
+              className="bg-[#222222] rounded-xl border border-[#363636] shadow-2xl w-full max-w-md p-6 space-y-4"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-lg">{t("community.editBio") || "Edit Bio"}</h3>
-                <button onClick={() => setEditingBio(false)} className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                <h3 className="font-bold text-lg text-white">{t("community.editBio") || "Edit Bio"}</h3>
+                <button onClick={() => setEditingBio(false)} className="w-8 h-8 rounded-full bg-[#333] flex items-center justify-center hover:bg-[#404040] text-[#b0b0b0]">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -3991,15 +4083,15 @@ export default function Community() {
                 value={bioText}
                 onChange={e => setBioText(e.target.value)}
                 placeholder={t("profile.bio.placeholder")}
-                className="min-h-[120px] resize-none rounded-xl"
+                className="min-h-[120px] resize-none rounded-lg bg-[#1a1a1a] border-[#363636] text-white placeholder:text-[#666]"
                 maxLength={250}
               />
               <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">{bioText.length}/250</p>
-                <Button onClick={handleSaveBio} disabled={savingBio} className="rounded-xl gap-2">
+                <p className="text-xs text-[#939393]">{bioText.length}/250</p>
+                <button onClick={handleSaveBio} disabled={savingBio} className="px-4 py-2 bg-[#5B88BD] hover:bg-[#4a77ac] disabled:opacity-50 text-white text-[13px] font-medium rounded-lg transition-colors flex items-center gap-2">
                   {savingBio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   {t("profile.bio.save")}
-                </Button>
+                </button>
               </div>
             </motion.div>
           </div>
