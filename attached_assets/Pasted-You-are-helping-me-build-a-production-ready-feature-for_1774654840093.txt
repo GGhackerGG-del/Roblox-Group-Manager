@@ -1,0 +1,127 @@
+You are helping me build a production-ready feature for my web app called Limited.Ink.
+
+About the app:
+Limited.Ink is a Roblox-focused productivity platform that helps users manage Roblox groups, automate workflows, and simplify group-related tasks. The app already has a dark modern dashboard UI with sections for AI tools, automation, marketing, finance, social tools, content planning, and integrations.
+
+New feature to build:
+I want to add a new feature called "AI Shorts Generator"
+
+Feature goal:
+This feature should semi-automatically generate TikTok / YouTube Shorts style promotional videos for Roblox clothing, group stores, and item advertisements.
+
+IMPORTANT PRODUCT DIRECTION:
+Do NOT build this as a heavy text-to-video AI generator.
+Instead, build it as an automated short-form video creation pipeline using:
+- uploaded images / thumbnails / renders / Roblox clothing previews
+- generated marketing hooks and captions
+- optional voiceover
+- music upload or selection
+- automatic transitions and animations
+- export to vertical short video format
+
+The result should be fast, practical, and suitable for Replit deployment.
+
+Core requirements:
+1. Create a new page/section in the dashboard called "AI Shorts Generator"
+2. Allow the user to input:
+   - product name
+   - product description
+   - price
+   - Roblox item URL or group URL
+   - call to action
+   - target platform (TikTok / YouTube Shorts)
+   - video duration (10 / 15 / 20 / 30 seconds)
+   - style preset (clean, hype, minimal, luxury, streetwear)
+3. Allow image uploads:
+   - 1 to 8 images
+   - drag and drop uploader
+   - image preview grid
+4. Add an AI copy generation module that creates:
+   - hook text
+   - subtitle lines
+   - CTA line
+   - caption for post
+   - hashtags
+5. Add an optional voiceover toggle
+6. Add music upload support
+7. Add brand settings:
+   - logo upload
+   - watermark text
+   - primary color
+   - secondary color
+8. Add a "Generate Video" button
+
+Video generation behavior:
+- Generate a vertical 9:16 promotional video
+- Use the uploaded images as the visual source
+- Animate them with zoom, pan, slide, subtle motion
+- Add text overlays timed by scene
+- Add CTA at the end
+- Add optional logo/watermark
+- Add optional music
+- Add optional voiceover placeholder integration
+- Create downloadable output
+
+Technical direction:
+- Build this feature in a modular way
+- Frontend should be clean, modern, dark-themed, and consistent with the existing UI
+- Backend should expose an API endpoint for generation jobs
+- Use a job-based structure for video generation
+- Implement a practical MVP using FFmpeg-based video composition
+- If needed, use placeholder/mock AI generation functions first, but structure the code so real AI APIs can be plugged in later
+
+Suggested stack:
+- Frontend: React/TypeScript
+- Backend: Node.js/Express or the existing stack of the app
+- Video rendering: FFmpeg
+- Image processing: Sharp if needed
+- Use clean architecture with:
+  - components
+  - services
+  - API routes
+  - utility helpers
+
+Frontend requirements:
+- Build a full Shorts Generator page
+- Include:
+  - form controls
+  - upload area
+  - preset selector
+  - generated script preview
+  - generation progress state
+  - video preview/download section
+- UI must look polished and product-ready
+
+Backend requirements:
+- Add route(s) such as:
+  - POST /api/shorts/generate
+  - GET /api/shorts/:id/status
+  - GET /api/shorts/:id/download
+- Create a service layer for:
+  - script generation
+  - scene planning
+  - ffmpeg video assembly
+- Use mock generated text if no AI provider is connected yet
+- Keep code organized and commented
+
+Implementation priority:
+1. Build UI page
+2. Build backend API
+3. Build mock AI text generator
+4. Build FFmpeg-based slideshow short video generator
+5. Connect frontend to backend
+6. Return downloadable mp4 output
+
+Important constraints:
+- Make it lightweight enough for Replit
+- Keep the first version stable and realistic
+- Focus on practical automatic short creation, not experimental full AI video generation
+- Code should be easy to extend later
+
+Output format for your work:
+- First explain the architecture briefly
+- Then generate the code step by step
+- Show all created files and where they belong
+- Use production-style naming
+- Avoid vague placeholders where possible
+- Make the MVP actually runnable
