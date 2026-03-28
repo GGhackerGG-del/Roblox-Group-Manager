@@ -30,6 +30,7 @@ import AvatarWithFrame, { AVATAR_FRAMES, FRAME_NAMES, FRAME_RARITIES } from "@/c
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Sparkles, Gamepad2, Palette } from "lucide-react";
 import { usePresenceContext } from "@/contexts/PresenceContext";
+import EmojiPicker from "@/components/EmojiPicker";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -523,6 +524,7 @@ function CommentsPanel({ post, myUser, onClose }: { post: Post; myUser: Platform
         {myUser && (
           <div className="p-4 border-t border-border flex gap-2 items-center">
             <AvatarWithFrame src={myUser.avatarUrl} robloxId={myUser.robloxUserId} fallbackText={myUser.displayName.charAt(0)} frameId={myUser.avatarFrame || "none"} size="sm" className="shrink-0" />
+            <EmojiPicker onSelect={emoji => setText(t => t + emoji)} />
             <input
               value={text}
               onChange={e => setText(e.target.value)}
@@ -1988,6 +1990,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                     <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={() => chatFileInputRef.current?.click()} title="Attach file" disabled={isRecording || !!voiceBlob}>
                       <Paperclip className="w-4 h-4" />
                     </Button>
+                    <EmojiPicker onSelect={emoji => setText(t => t + emoji)} disabled={isRecording || !!voiceBlob} />
                     <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={`${t("com.messagePlaceholder")} ${active.user.displayName}`} className="rounded-xl flex-1" disabled={isRecording || !!voiceBlob} />
                     <Button onClick={handleSend} disabled={sending || (!text.trim() && chatAttachments.length === 0) || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
                       {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -2251,6 +2254,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                     <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={() => chatFileInputRef.current?.click()} title="Attach file" disabled={isRecording || !!voiceBlob}>
                       <Paperclip className="w-4 h-4" />
                     </Button>
+                    <EmojiPicker onSelect={emoji => setText(t => t + emoji)} disabled={isRecording || !!voiceBlob} />
                     <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={t("com.messagePlaceholder")} className="rounded-xl flex-1" disabled={isRecording || !!voiceBlob} />
                     <Button onClick={handleSend} disabled={sending || (!text.trim() && chatAttachments.length === 0) || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
                       {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -3457,6 +3461,7 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
         <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={() => gcFileInputRef.current?.click()} title="Attach file">
           <Paperclip className="w-4 h-4" />
         </Button>
+        <EmojiPicker onSelect={emoji => setText(t => t + emoji)} />
         <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()} placeholder={t("com.messagePlaceholder")} className="rounded-xl flex-1" />
         <Button className="rounded-xl" onClick={sendMessage} disabled={sending || (!text.trim() && gcAttachments.length === 0)}>
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
