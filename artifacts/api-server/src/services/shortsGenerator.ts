@@ -2,8 +2,28 @@ import { execFile } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import { promisify } from "util";
+import { fileURLToPath } from "url";
 
 const execFileAsync = promisify(execFile);
+
+const __dirname_local = path.dirname(fileURLToPath(import.meta.url));
+const FONT_CANDIDATES = [
+  path.resolve(__dirname_local, "../../assets/fonts/DejaVuSans-Bold.ttf"),
+  path.resolve(process.cwd(), "assets/fonts/DejaVuSans-Bold.ttf"),
+  path.resolve(process.cwd(), "artifacts/api-server/assets/fonts/DejaVuSans-Bold.ttf"),
+  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+];
+
+import { existsSync } from "fs";
+let FONT_PATH = "";
+for (const candidate of FONT_CANDIDATES) {
+  if (existsSync(candidate)) {
+    FONT_PATH = candidate;
+    break;
+  }
+}
+console.log(`[Shorts] Font path resolved: ${FONT_PATH || "NONE FOUND"}`);
+const fontFileParam = FONT_PATH ? `fontfile=${FONT_PATH.replace(/:/g, "\\\\:")}:` : "";
 
 export interface ShortsJobInput {
   productName: string;
@@ -288,7 +308,7 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
         `${fadeIn},${fadeOut},` +
         `drawbox=x=0:y=ih*0.73:w=iw:h=ih*0.14:color=${styleCfg.bgOpacity}:t=fill:` +
         `enable='between(t,0.3,${sceneDur - 0.3})',` +
-        `drawtext=text='${escapedText}':fontsize=${styleCfg.fontSize}:fontcolor=${styleCfg.textColor}:` +
+        `drawtext=${fontFileParam}text='${escapedText}':fontsize=${styleCfg.fontSize}:fontcolor=${styleCfg.textColor}:` +
         `borderw=3:bordercolor=black:x=(w-text_w)/2:y=h*0.78:` +
         `enable='between(t,0.4,${sceneDur - 0.3})'`,
       ].join("");
@@ -322,16 +342,16 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
       `fade=t=in:st=0:d=0.4,` +
       `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.45:t=fill,` +
       `drawbox=x=iw*0.1:y=ih*0.36:w=iw*0.8:h=ih*0.28:color=${styleCfg.bgOpacity}:t=fill,` +
-      `drawtext=text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize}:fontcolor=${styleCfg.textColor}:` +
+      `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize}:fontcolor=${styleCfg.textColor}:` +
       `borderw=4:bordercolor=black:x=(w-text_w)/2:y=h*0.40`,
     ].join("");
 
     if (escapedPrice) {
-      ctaFilter += `,drawtext=text='${escapedPrice}':fontsize=46:fontcolor=yellow:` +
+      ctaFilter += `,drawtext=${fontFileParam}text='${escapedPrice}':fontsize=46:fontcolor=yellow:` +
         `borderw=3:bordercolor=black:x=(w-text_w)/2:y=h*0.48`;
     }
 
-    ctaFilter += `,drawtext=text='${escapedCta}':fontsize=42:fontcolor=${styleCfg.textColor}:` +
+    ctaFilter += `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=42:fontcolor=${styleCfg.textColor}:` +
       `borderw=2:bordercolor=black:x=(w-text_w)/2:y=h*0.55`;
 
     await execFileAsync("ffmpeg", [
@@ -353,7 +373,7 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
         const wmText = esc(input.watermarkText);
         await execFileAsync("ffmpeg", [
           "-y", "-i", src,
-          "-vf", `drawtext=text='${wmText}':fontsize=22:fontcolor=white@0.35:x=w-text_w-24:y=24`,
+          "-vf", `drawtext=${fontFileParam}text='${wmText}':fontsize=22:fontcolor=white@0.35:x=w-text_w-24:y=24`,
           "-c:v", "libx264", "-preset", "fast", "-crf", "22",
           "-pix_fmt", "yuv420p",
           dst,
