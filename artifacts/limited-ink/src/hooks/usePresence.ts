@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { robloxHeadshot } from "@/lib/roblox";
+import { getAuthCredentials } from "@workspace/api-client-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -10,9 +11,23 @@ export interface OnlineUser {
   avatarUrl?: string;
 }
 
+export interface UserPresenceStatus {
+  online: boolean;
+  lastSeen: string | null;
+}
+
+function authHeaders(): Record<string, string> {
+  const { token, fingerprint } = getAuthCredentials();
+  const h: Record<string, string> = {};
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  if (fingerprint) h["X-Device-Fingerprint"] = fingerprint;
+  return h;
+}
+
 export function usePresence() {
   const { profile } = useAuth();
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [presenceMap, setPresenceMap] = useState<Record<number, UserPresenceStatus>>({});
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(false);
@@ -62,9 +77,11 @@ export function usePresence() {
             if (prev.some(u => u.userId === msg.userId)) return prev;
             return [...prev, { userId: msg.userId, displayName: msg.displayName, avatarUrl: msg.avatarUrl }];
           });
+          setPresenceMap(prev => ({ ...prev, [msg.userId]: { online: true, lastSeen: null } }));
           break;
         case "user-offline":
           setOnlineUsers(prev => prev.filter(u => u.userId !== msg.userId));
+          setPresenceMap(prev => ({ ...prev, [msg.userId]: { online: false, lastSeen: new Date().toISOString() } }));
           break;
       }
     };
@@ -109,7 +126,42 @@ export function usePresence() {
     };
   }, [profile?.id, connect]);
 
+  const fetchPresenceFor = useCallback(async (userIds: number[]) => {
+    if (userIds.length === 0) return;
+    try {
+      const r = await fetch(`${BASE}/api/presence/status`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ userIds }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        if (data.statuses) {
+          setPresenceMap(prev => ({ ...prev, ...data.statuses }));
+        }
+      }
+    } catch {}
+  }, []);
+
+  const onlineUserIds = new Set(onlineUsers.map(u => u.userId));
+
+  const isOnline = useCallback((userId: number): boolean => {
+    return onlineUserIds.has(userId) || presenceMap[userId]?.online === true;
+  }, [onlineUserIds, presenceMap]);
+
+  const getLastSeen = useCallback((userId: number): string | null => {
+    return presenceMap[userId]?.lastSeen || null;
+  }, [presenceMap]);
+
   const otherUsers = onlineUsers.filter(u => u.userId !== profile?.id);
 
-  return { onlineUsers: otherUsers, totalOnline: onlineUsers.length };
+  return {
+    onlineUsers: otherUsers,
+    totalOnline: onlineUsers.length,
+    isOnline,
+    getLastSeen,
+    fetchPresenceFor,
+    presenceMap,
+  };
 }

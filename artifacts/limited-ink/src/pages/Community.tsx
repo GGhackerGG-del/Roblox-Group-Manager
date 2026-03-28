@@ -28,6 +28,7 @@ import AccessoriesTab, { UserEquippedAccessories } from "@/components/Accessorie
 import CallOverlay from "@/components/CallOverlay";
 import ScreenPicker from "@/components/ScreenPicker";
 import { Sparkles, Gamepad2 } from "lucide-react";
+import { usePresenceContext } from "@/contexts/PresenceContext";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -1149,6 +1150,19 @@ type ActiveChatTarget =
   | { kind: "dm"; user: PlatformUser }
   | { kind: "group"; chat: any };
 
+function formatLastSeen(isoStr: string | null, t: (k: string) => string): string {
+  if (!isoStr) return "";
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return t("presence.justNow") || "just now";
+  if (mins < 60) return `${mins}${t("presence.minAgo") || "m ago"}`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}${t("presence.hrAgo") || "h ago"}`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}${t("presence.dayAgo") || "d ago"}`;
+  return new Date(isoStr).toLocaleDateString();
+}
+
 function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   myUser: PlatformUser | null;
   initialChatUser: PlatformUser | null;
@@ -1157,6 +1171,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const { toast } = useToast();
   const { t } = useLanguage();
   const { data: groupsData } = useGetRobloxGroups();
+  const { isOnline, getLastSeen, fetchPresenceFor } = usePresenceContext();
   const [conversations, setConversations] = useState<DmConversation[]>([]);
   const [groupChats, setGroupChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1213,10 +1228,16 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
         apiFetch<{ conversations: DmConversation[] }>("/api/social/messages").catch(() => null),
         apiFetch<{ chats: any[] }>("/api/community/group-chats").catch(() => null),
       ]);
-      if (dmData) setConversations(dmData.conversations);
+      if (dmData) {
+        setConversations(dmData.conversations);
+        const userIds = dmData.conversations
+          .map(c => c.otherUser?.robloxUserId)
+          .filter((id): id is number => !!id);
+        if (userIds.length > 0) fetchPresenceFor(userIds);
+      }
       if (gcData) setGroupChats(gcData.chats);
     } catch {} finally { if (!silent) setLoading(false); }
-  }, []);
+  }, [fetchPresenceFor]);
 
   useEffect(() => {
     if (!robloxGroupChatCreated && groupsData?.groups?.length && myUser) {
@@ -1683,7 +1704,10 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                         const tb = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
                         return tb - ta;
                       })
-                      .map(({ conversation, otherUser, lastMessage, unreadCount }) => (
+                      .map(({ conversation, otherUser, lastMessage, unreadCount }) => {
+                        const userOnline = otherUser?.robloxUserId ? isOnline(otherUser.robloxUserId) : false;
+                        const userLastSeen = otherUser?.robloxUserId ? getLastSeen(otherUser.robloxUserId) : null;
+                        return (
                       <div
                         key={`dm-${conversation.id}`}
                         onClick={() => openDm(otherUser)}
@@ -1694,19 +1718,29 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                             <AvatarImage src={otherUser?.avatarUrl || robloxHeadshot(otherUser?.robloxUserId || 0)} />
                             <AvatarFallback className="text-xs font-bold">{otherUser?.displayName?.charAt(0)}</AvatarFallback>
                           </Avatar>
-                          {unreadCount > 0 && (
+                          {unreadCount > 0 ? (
                             <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-black rounded-full flex items-center justify-center text-[9px] text-white font-bold">
                               {unreadCount}
                             </div>
+                          ) : (
+                            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${userOnline ? "bg-green-500" : "bg-gray-400"}`} />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{otherUser?.displayName}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-semibold truncate">{otherUser?.displayName}</p>
+                            {userOnline ? (
+                              <span className="text-[9px] text-green-500 font-medium shrink-0">online</span>
+                            ) : userLastSeen ? (
+                              <span className="text-[9px] text-muted-foreground/60 shrink-0">{formatLastSeen(userLastSeen, t)}</span>
+                            ) : null}
+                          </div>
                           {lastMessage && <p className="text-[10px] text-muted-foreground truncate">{lastMessage.content && isCallMsg(lastMessage.content) ? <span className="inline-flex items-center gap-1">{parseCallMsg(lastMessage.content).type === "missed" ? <><PhoneOff className="w-3 h-3 text-red-400 inline" /> {t("com.callMissed")}</> : <><Phone className="w-3 h-3 text-green-400 inline" /> {t("com.callOutgoing")}</>}</span> : lastMessage.content && isVoiceMsg(lastMessage.content) ? <span className="inline-flex items-center gap-1"><Mic className="w-3 h-3 inline" /> {t("com.voiceMessage")}</span> : lastMessage.content}</p>}
                         </div>
                         {lastMessage && <span className="text-[9px] text-muted-foreground shrink-0">{timeAgoShort(lastMessage.createdAt)}</span>}
                       </div>
-                    ))}
+                        );
+                    })}
                   </div>
                 )}
 
@@ -1809,7 +1843,16 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{active.user.displayName}</p>
-                  <p className="text-xs text-muted-foreground">@{active.user.robloxUsername}</p>
+                  {isOnline(active.user.robloxUserId) ? (
+                    <p className="text-xs text-green-500 font-medium">online</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      @{active.user.robloxUsername}
+                      {getLastSeen(active.user.robloxUserId) && (
+                        <span className="ml-1.5 text-muted-foreground/60">· {formatLastSeen(getLastSeen(active.user.robloxUserId), t)}</span>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" onClick={voiceCall.callActive ? handleEndCall : handleStartCall} disabled={voiceCall.callConnecting} title={t("com.voiceCall")}>
                   {voiceCall.callConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : voiceCall.callActive ? <PhoneOff className="w-4 h-4 text-red-500" /> : <Phone className="w-4 h-4" />}

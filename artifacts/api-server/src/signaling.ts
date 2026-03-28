@@ -1,5 +1,8 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server as HttpServer } from "http";
+import { db } from "@workspace/db";
+import { platformUsers } from "@workspace/db/schema";
+import { eq, inArray } from "drizzle-orm";
 
 interface ConnectedSocket {
   ws: WebSocket;
@@ -9,6 +12,7 @@ interface ConnectedSocket {
 }
 
 const sockets = new Set<ConnectedSocket>();
+const lastSeenCache = new Map<number, Date>();
 
 function userSockets(userId: number): ConnectedSocket[] {
   return [...sockets].filter(s => s.userId === userId);
@@ -28,6 +32,58 @@ export function getOnlineUsers(): { userId: number; displayName: string; avatarU
     }
   }
   return [...seen.values()];
+}
+
+export function isUserOnline(userId: number): boolean {
+  return userSockets(userId).length > 0;
+}
+
+export function getOnlineUserIds(): number[] {
+  return [...uniqueOnlineUserIds()];
+}
+
+export async function getLastSeenForUsers(userIds: number[]): Promise<Map<number, Date | null>> {
+  const result = new Map<number, Date | null>();
+  if (userIds.length === 0) return result;
+
+  for (const id of userIds) {
+    if (isUserOnline(id)) {
+      result.set(id, null);
+      continue;
+    }
+    const cached = lastSeenCache.get(id);
+    if (cached) {
+      result.set(id, cached);
+    }
+  }
+
+  const uncached = userIds.filter(id => !result.has(id));
+  if (uncached.length > 0) {
+    try {
+      const rows = await db
+        .select({ robloxUserId: platformUsers.robloxUserId, lastSeen: platformUsers.lastSeen })
+        .from(platformUsers)
+        .where(inArray(platformUsers.robloxUserId, uncached));
+      for (const row of rows) {
+        const ls = row.lastSeen || null;
+        result.set(row.robloxUserId, ls);
+        if (ls) lastSeenCache.set(row.robloxUserId, ls);
+      }
+    } catch (e) {
+      console.error("[Signaling] Failed to fetch lastSeen:", e);
+    }
+  }
+
+  return result;
+}
+
+function updateLastSeen(userId: number) {
+  const now = new Date();
+  lastSeenCache.set(userId, now);
+  db.update(platformUsers)
+    .set({ lastSeen: now })
+    .where(eq(platformUsers.robloxUserId, userId))
+    .catch(e => console.error("[Signaling] Failed to update lastSeen:", e));
 }
 
 function broadcastPresence(type: "user-online" | "user-offline", userId: number, displayName: string, avatarUrl?: string) {
@@ -185,6 +241,7 @@ export function setupSignaling(server: HttpServer) {
         const stillOnline = userSockets(userId).length > 0;
         if (!stillOnline) {
           console.log(`[Signaling] User ${userId} disconnected. Online: ${uniqueOnlineUserIds().size}`);
+          updateLastSeen(userId);
           broadcastPresence("user-offline", userId, displayName, avatarUrl);
         }
       }

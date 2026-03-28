@@ -10,7 +10,7 @@ import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-re
 
 import { playHover, playClick } from "@/hooks/useSounds";
 import { usePageCache } from "@/contexts/PageCacheContext";
-import { usePresence } from "@/hooks/usePresence";
+import { PresenceProvider, usePresenceContext } from "@/contexts/PresenceContext";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -66,6 +66,14 @@ function NavItem({ href, icon, label, isActive, badge }: NavItemProps) {
 }
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
+  return (
+    <PresenceProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </PresenceProvider>
+  );
+}
+
+function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { profile, logoutRoblox, logoutLicense, licenseDetails } = useAuth();
   const { t } = useLanguage();
@@ -91,7 +99,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, [location]);
 
-  const { onlineUsers, totalOnline } = usePresence();
+  const { onlineUsers, totalOnline } = usePresenceContext();
   const { data: groupsData, isLoading: isLoadingGroups } = useGetRobloxGroups();
 
   useEffect(() => {
