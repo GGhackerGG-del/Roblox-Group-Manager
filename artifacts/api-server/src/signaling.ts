@@ -1,19 +1,56 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server as HttpServer } from "http";
 
-interface ConnectedUser {
+interface ConnectedSocket {
   ws: WebSocket;
   userId: number;
   displayName: string;
+  avatarUrl?: string;
 }
 
-const users = new Map<number, ConnectedUser>();
+const sockets = new Set<ConnectedSocket>();
+
+function userSockets(userId: number): ConnectedSocket[] {
+  return [...sockets].filter(s => s.userId === userId);
+}
+
+function uniqueOnlineUserIds(): Set<number> {
+  const ids = new Set<number>();
+  for (const s of sockets) ids.add(s.userId);
+  return ids;
+}
+
+export function getOnlineUsers(): { userId: number; displayName: string; avatarUrl?: string }[] {
+  const seen = new Map<number, { userId: number; displayName: string; avatarUrl?: string }>();
+  for (const s of sockets) {
+    if (!seen.has(s.userId)) {
+      seen.set(s.userId, { userId: s.userId, displayName: s.displayName, avatarUrl: s.avatarUrl });
+    }
+  }
+  return [...seen.values()];
+}
+
+function broadcastPresence(type: "user-online" | "user-offline", userId: number, displayName: string, avatarUrl?: string) {
+  const payload = JSON.stringify({ type, userId, displayName, avatarUrl });
+  for (const s of sockets) {
+    if (s.ws.readyState === WebSocket.OPEN) {
+      s.ws.send(payload);
+    }
+  }
+}
+
+function findSocketForUser(userId: number): WebSocket | undefined {
+  for (const s of sockets) {
+    if (s.userId === userId && s.ws.readyState === WebSocket.OPEN) return s.ws;
+  }
+  return undefined;
+}
 
 export function setupSignaling(server: HttpServer) {
   const wss = new WebSocketServer({ server, path: "/ws/signaling" });
 
   wss.on("connection", (ws) => {
-    let currentUserId: number | null = null;
+    let currentEntry: ConnectedSocket | null = null;
 
     ws.on("message", (raw) => {
       let msg: any;
@@ -25,21 +62,35 @@ export function setupSignaling(server: HttpServer) {
 
       switch (msg.type) {
         case "register": {
-          currentUserId = msg.userId;
-          users.set(msg.userId, { ws, userId: msg.userId, displayName: msg.displayName || "User" });
-          console.log(`[Signaling] User ${msg.userId} (${msg.displayName}) connected. Online: ${users.size}`);
+          const displayName = msg.displayName || "User";
+          const avatarUrl = msg.avatarUrl || undefined;
+          if (currentEntry) {
+            sockets.delete(currentEntry);
+          }
+          currentEntry = { ws, userId: msg.userId, displayName, avatarUrl };
+          const wasOnline = userSockets(msg.userId).length > 0;
+          sockets.add(currentEntry);
+          console.log(`[Signaling] User ${msg.userId} (${displayName}) connected. Online: ${uniqueOnlineUserIds().size}`);
+          if (!wasOnline) {
+            broadcastPresence("user-online", msg.userId, displayName, avatarUrl);
+          }
+          break;
+        }
+
+        case "get-online-users": {
+          const list = getOnlineUsers();
+          ws.send(JSON.stringify({ type: "online-users", users: list }));
           break;
         }
 
         case "call-offer": {
-          if (currentUserId === null) break;
-          const target = users.get(msg.targetUserId);
-          if (target && target.ws.readyState === WebSocket.OPEN) {
-            const senderInfo = users.get(currentUserId);
-            target.ws.send(JSON.stringify({
+          if (!currentEntry) break;
+          const targetWs = findSocketForUser(msg.targetUserId);
+          if (targetWs) {
+            targetWs.send(JSON.stringify({
               type: "incoming-call",
-              callerId: currentUserId,
-              callerName: senderInfo?.displayName || "User",
+              callerId: currentEntry.userId,
+              callerName: currentEntry.displayName,
               callerAvatar: msg.callerAvatar,
               offer: msg.offer,
             }));
@@ -50,12 +101,12 @@ export function setupSignaling(server: HttpServer) {
         }
 
         case "call-answer": {
-          if (currentUserId === null) break;
-          const caller = users.get(msg.callerId);
-          if (caller && caller.ws.readyState === WebSocket.OPEN) {
-            caller.ws.send(JSON.stringify({
+          if (!currentEntry) break;
+          const callerWs = findSocketForUser(msg.callerId);
+          if (callerWs) {
+            callerWs.send(JSON.stringify({
               type: "call-accepted",
-              answererId: currentUserId,
+              answererId: currentEntry.userId,
               answer: msg.answer,
             }));
           }
@@ -63,77 +114,77 @@ export function setupSignaling(server: HttpServer) {
         }
 
         case "call-reject": {
-          if (currentUserId === null) break;
-          const caller = users.get(msg.callerId);
-          if (caller && caller.ws.readyState === WebSocket.OPEN) {
-            caller.ws.send(JSON.stringify({
+          if (!currentEntry) break;
+          const callerWs = findSocketForUser(msg.callerId);
+          if (callerWs) {
+            callerWs.send(JSON.stringify({
               type: "call-rejected",
-              rejecterId: currentUserId,
+              rejecterId: currentEntry.userId,
             }));
           }
           break;
         }
 
         case "call-end": {
-          if (currentUserId === null) break;
-          const peer = users.get(msg.targetUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(JSON.stringify({
+          if (!currentEntry) break;
+          const peerWs = findSocketForUser(msg.targetUserId);
+          if (peerWs) {
+            peerWs.send(JSON.stringify({
               type: "call-ended",
-              userId: currentUserId,
+              userId: currentEntry.userId,
             }));
           }
           break;
         }
 
         case "ice-candidate": {
-          if (currentUserId === null) break;
-          const peer = users.get(msg.targetUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(JSON.stringify({
+          if (!currentEntry) break;
+          const peerWs = findSocketForUser(msg.targetUserId);
+          if (peerWs) {
+            peerWs.send(JSON.stringify({
               type: "ice-candidate",
               candidate: msg.candidate,
-              fromUserId: currentUserId,
+              fromUserId: currentEntry.userId,
             }));
           }
           break;
         }
 
         case "renegotiate-offer": {
-          if (currentUserId === null) break;
-          const peer = users.get(msg.targetUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(JSON.stringify({
+          if (!currentEntry) break;
+          const peerWs = findSocketForUser(msg.targetUserId);
+          if (peerWs) {
+            peerWs.send(JSON.stringify({
               type: "renegotiate-offer",
               offer: msg.offer,
-              fromUserId: currentUserId,
+              fromUserId: currentEntry.userId,
             }));
           }
           break;
         }
 
         case "renegotiate-answer": {
-          if (currentUserId === null) break;
-          const peer = users.get(msg.targetUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(JSON.stringify({
+          if (!currentEntry) break;
+          const peerWs = findSocketForUser(msg.targetUserId);
+          if (peerWs) {
+            peerWs.send(JSON.stringify({
               type: "renegotiate-answer",
               answer: msg.answer,
-              fromUserId: currentUserId,
+              fromUserId: currentEntry.userId,
             }));
           }
           break;
         }
 
         case "track-state": {
-          if (currentUserId === null) break;
-          const peer = users.get(msg.targetUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(JSON.stringify({
+          if (!currentEntry) break;
+          const peerWs = findSocketForUser(msg.targetUserId);
+          if (peerWs) {
+            peerWs.send(JSON.stringify({
               type: "track-state",
               track: msg.track,
               enabled: msg.enabled,
-              fromUserId: currentUserId,
+              fromUserId: currentEntry.userId,
             }));
           }
           break;
@@ -144,24 +195,21 @@ export function setupSignaling(server: HttpServer) {
       }
     });
 
-    ws.on("close", () => {
-      if (currentUserId !== null) {
-        const existing = users.get(currentUserId);
-        if (existing && existing.ws === ws) {
-          users.delete(currentUserId);
-          console.log(`[Signaling] User ${currentUserId} disconnected. Online: ${users.size}`);
+    const removeSocket = () => {
+      if (currentEntry) {
+        const { userId, displayName, avatarUrl } = currentEntry;
+        sockets.delete(currentEntry);
+        currentEntry = null;
+        const stillOnline = userSockets(userId).length > 0;
+        if (!stillOnline) {
+          console.log(`[Signaling] User ${userId} disconnected. Online: ${uniqueOnlineUserIds().size}`);
+          broadcastPresence("user-offline", userId, displayName, avatarUrl);
         }
       }
-    });
+    };
 
-    ws.on("error", () => {
-      if (currentUserId !== null) {
-        const existing = users.get(currentUserId);
-        if (existing && existing.ws === ws) {
-          users.delete(currentUserId);
-        }
-      }
-    });
+    ws.on("close", removeSocket);
+    ws.on("error", removeSocket);
   });
 
   console.log("[Signaling] WebSocket signaling server ready on /ws/signaling");

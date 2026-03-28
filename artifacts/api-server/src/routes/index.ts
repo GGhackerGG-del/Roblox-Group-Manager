@@ -27,6 +27,7 @@ import teamRouter from "./team";
 import qualityRouter from "./quality";
 import accessoriesRouter from "./accessories";
 import shortsRouter from "./shorts";
+import presenceRouter from "./presence";
 
 const router: IRouter = Router();
 
@@ -72,6 +73,7 @@ router.use("/integrations", requireLicense);
 router.use("/team", requireLicense);
 router.use("/accessories", requireLicense);
 router.use("/shorts", requireLicense);
+router.use("/presence", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
@@ -95,5 +97,6 @@ router.use(integrationsRouter);
 router.use(teamRouter);
 router.use(accessoriesRouter);
 router.use(shortsRouter);
+router.use(presenceRouter);
 
 export default router;
