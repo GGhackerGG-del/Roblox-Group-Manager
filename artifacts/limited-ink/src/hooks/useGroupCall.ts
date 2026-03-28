@@ -454,8 +454,10 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
     }
   }, [sendWs, getLocalStream]);
 
-  const leaveCall = useCallback(() => {
+  const leaveCall = useCallback((): number => {
+    const elapsed = stateRef.current.timer;
     cleanupCall();
+    return elapsed;
   }, [cleanupCall]);
 
   const toggleMute = useCallback(() => {

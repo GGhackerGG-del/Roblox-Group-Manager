@@ -162,6 +162,15 @@ function timeAgo(date: string, t: (k: string) => string): string {
   return `${Math.floor(hours / 24)} ${t("community.timeDayAgo")}`;
 }
 
+const isVoiceMsg = (content: string) => content.startsWith("[voice:") && content.endsWith("]");
+const getVoiceSrc = (content: string) => content.slice(7, -1);
+const isCallMsg = (content: string) => content.startsWith("[call:") && content.endsWith("]");
+const parseCallMsg = (content: string) => {
+  const inner = content.slice(6, -1);
+  const [type, ...rest] = inner.split(":");
+  return { type: type as "outgoing" | "missed" | "declined", duration: rest.join(":") };
+};
+
 // ── User Profile Modal ────────────────────────────────────────────────────────
 
 function UserProfileModal({ userId, myUser, onClose, onChat }: {
@@ -1215,10 +1224,28 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : ""),
   );
 
+  const handleGroupCallLeave = useCallback(async () => {
+    const gid = groupCall.groupChatId;
+    const elapsed = groupCall.leaveCall();
+    if (gid && elapsed > 0) {
+      const m = Math.floor(elapsed / 60);
+      const s = elapsed % 60;
+      const duration = `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+      try {
+        const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${gid}/messages`, {
+          method: "POST", body: JSON.stringify({ content: `[call:outgoing:${duration}]` }),
+        });
+        if (active?.kind === "group" && active.chat.id === gid) {
+          setMessages(prev => [...prev, message]);
+        }
+      } catch {}
+    }
+  }, [groupCall, active]);
+
   const handleGroupCallToggle = useCallback(() => {
     if (!active || active.kind !== "group") return;
     if (groupCall.active && groupCall.groupChatId === active.chat.id) {
-      groupCall.leaveCall();
+      handleGroupCallLeave();
     } else if (!groupCall.active) {
       groupCall.joinCall(active.chat.id);
     }
@@ -1732,16 +1759,6 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     return `${Math.floor(h / 24)}д`;
   };
 
-  const isVoiceMsg = (content: string) => content.startsWith("[voice:") && content.endsWith("]");
-  const getVoiceSrc = (content: string) => content.slice(7, -1);
-
-  const isCallMsg = (content: string) => content.startsWith("[call:") && content.endsWith("]");
-  const parseCallMsg = (content: string) => {
-    const inner = content.slice(6, -1);
-    const [type, duration] = inner.split(":");
-    return { type: type as "outgoing" | "missed" | "declined", duration: duration || "" };
-  };
-
   const VoicePlayer = ({ src, isOwn }: { src: string; isOwn: boolean }) => {
     const [playing, setPlaying] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -1972,6 +1989,18 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 ) : (
                   messages.map(msg => {
                     const isOwn = myUser && msg.senderId === myUser.id;
+                    if (isCallMsg(msg.content)) {
+                      const c = parseCallMsg(msg.content);
+                      return (
+                        <div key={msg.id} className="flex justify-center">
+                          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/60 border border-border/50">
+                            {c.type === "missed" ? <PhoneOff className="w-4 h-4 text-red-400" /> : <Phone className="w-4 h-4 text-green-400" />}
+                            <span className="text-xs text-muted-foreground">{c.type === "missed" ? t("com.callMissed") : `${t("com.callStarted")} ${c.duration}`}</span>
+                            <span className="text-[10px] text-muted-foreground/60">{timeAgo(msg.createdAt, t)}</span>
+                          </div>
+                        </div>
+                      );
+                    }
                     const msgAtts = parseAttachments(msg.imageUrl || null);
                     const msgImages = msgAtts.filter(a => isImageType(a.type));
                     const msgFiles = msgAtts.filter(a => !isImageType(a.type));
@@ -1996,7 +2025,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                               ))}
                             </div>
                           )}
-                          {isCallMsg(msg.content) ? (() => { const c = parseCallMsg(msg.content); return (<span className="flex items-center gap-1.5 text-xs"><span>{c.type === "missed" ? <PhoneOff className="w-3.5 h-3.5 text-red-400 inline" /> : <Phone className="w-3.5 h-3.5 text-green-400 inline" />}</span><span>{c.type === "missed" ? t("com.callMissed") : `${t("com.callOutgoing")} ${c.duration}`}</span></span>); })() : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isOwn} /> : msg.content ? msg.content : null}
+                          {isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isOwn} /> : msg.content ? msg.content : null}
                           <p className={`text-[10px] mt-1 ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>{timeAgo(msg.createdAt, t)}</p>
                         </div>
                       </div>
@@ -2229,6 +2258,18 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   messages.map(msg => {
                     const isMe = myUser && msg.senderId === myUser.id;
                     const deleted = msg.isDeleted;
+                    if (!deleted && isCallMsg(msg.content)) {
+                      const c = parseCallMsg(msg.content);
+                      return (
+                        <div key={msg.id} className="flex justify-center">
+                          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/60 border border-border/50">
+                            {c.type === "missed" ? <PhoneOff className="w-4 h-4 text-red-400" /> : <Phone className="w-4 h-4 text-green-400" />}
+                            <span className="text-xs text-muted-foreground">{msg.sender?.displayName || (isMe ? myUser?.displayName : "")} {c.type === "missed" ? t("com.callMissed").toLowerCase() : `${t("com.callStarted")} ${c.duration}`}</span>
+                            <span className="text-[10px] text-muted-foreground/60">{timeAgoShort(msg.createdAt)}</span>
+                          </div>
+                        </div>
+                      );
+                    }
                     return (
                       <div key={msg.id} className={`flex items-end gap-2 group/msg ${isMe ? "flex-row-reverse" : "flex-row"}`}>
                         {!isMe && <AvatarWithFrame src={msg.sender?.avatarUrl} robloxId={msg.sender?.robloxUserId || 0} fallbackText={msg.sender?.displayName?.charAt(0) || "?"} frameId={msg.sender?.avatarFrame || "none"} size={28} className="shrink-0 mb-0.5" />}
@@ -2257,7 +2298,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                             )}
                             <div className={`rounded-2xl px-3 py-2 text-sm ${deleted ? "bg-secondary/50 border border-dashed border-border" : isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>
                               {!deleted && (() => { const mAtts = parseAttachments(msg.imageUrl || null); const mImgs = mAtts.filter(a => isImageType(a.type)); const mFls = mAtts.filter(a => !isImageType(a.type)); return (<>{mImgs.length > 0 && <div className={`grid gap-1 mb-1 ${mImgs.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>{mImgs.map((a, i) => <a key={i} href={a.dataUrl} target="_blank" rel="noopener noreferrer"><img src={a.dataUrl} alt={a.name} className="rounded-lg max-h-48 w-full object-cover cursor-pointer hover:opacity-80 transition-opacity" /></a>)}</div>}{mFls.length > 0 && <div className="space-y-1 mb-1">{mFls.map((a, i) => <a key={i} href={a.dataUrl} download={a.name} className={`flex items-center gap-1.5 text-xs ${isMe ? "text-white/80 hover:text-white" : "text-muted-foreground hover:text-foreground"}`}><FileText className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{a.name}</span></a>)}</div>}</>); })()}
-                              {deleted ? <span className="italic text-muted-foreground text-xs">{t("com.deletedMessage")}</span> : isCallMsg(msg.content) ? (() => { const c = parseCallMsg(msg.content); return (<span className="flex items-center gap-1.5 text-xs"><span>{c.type === "missed" ? <PhoneOff className="w-3.5 h-3.5 text-red-400 inline" /> : <Phone className="w-3.5 h-3.5 text-green-400 inline" />}</span><span>{c.type === "missed" ? t("com.callMissed") : `${t("com.callOutgoing")} ${c.duration}`}</span></span>); })() : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isMe} /> : msg.content ? msg.content : null}
+                              {deleted ? <span className="italic text-muted-foreground text-xs">{t("com.deletedMessage")}</span> : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isMe} /> : msg.content ? msg.content : null}
                             </div>
                             
                           </div>
@@ -2341,7 +2382,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
         myAvatar={myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : "")}
         localScreenVideoRef={groupCall.localScreenVideoRef}
         incomingRing={groupCall.incomingRing}
-        onLeave={groupCall.leaveCall}
+        onLeave={handleGroupCallLeave}
         onToggleMute={groupCall.toggleMute}
         onToggleDeafen={groupCall.toggleDeafen}
         onToggleScreenShare={groupCall.toggleScreenShare}
@@ -3230,6 +3271,24 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
   const [editAvatarColor, setEditAvatarColor] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
+  const handleGroupCallLeaveGC = useCallback(async () => {
+    const gid = groupCall.groupChatId;
+    const elapsed = groupCall.leaveCall();
+    if (gid && elapsed > 0) {
+      const m = Math.floor(elapsed / 60);
+      const s = elapsed % 60;
+      const duration = `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+      try {
+        const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${gid}/messages`, {
+          method: "POST", body: JSON.stringify({ content: `[call:outgoing:${duration}]` }),
+        });
+        if (activeChat?.id === gid) {
+          setMessages(prev => [...prev, message]);
+        }
+      } catch {}
+    }
+  }, [groupCall, activeChat]);
+
   const myMembership = chatMembers.find((m: any) => m.userId === myUser?.id);
   const isAdmin = myMembership?.role === "admin";
 
@@ -3431,7 +3490,7 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
           <p className="font-semibold text-sm">{activeChat.name}</p>
           <p className="text-[10px] text-muted-foreground">{activeChat.memberCount || chatMembers.length} {t("com.members")}</p>
         </div>
-        <Button size="sm" variant="ghost" className={`rounded-xl h-8 w-8 p-0 ${groupCall.active && groupCall.groupChatId === activeChat.id ? "text-red-500" : ""}`} onClick={() => { if (groupCall.active && groupCall.groupChatId === activeChat.id) groupCall.leaveCall(); else if (!groupCall.active) groupCall.joinCall(activeChat.id); }} title={t("com.groupCall")}>
+        <Button size="sm" variant="ghost" className={`rounded-xl h-8 w-8 p-0 ${groupCall.active && groupCall.groupChatId === activeChat.id ? "text-red-500" : ""}`} onClick={() => { if (groupCall.active && groupCall.groupChatId === activeChat.id) handleGroupCallLeaveGC(); else if (!groupCall.active) groupCall.joinCall(activeChat.id); }} title={t("com.groupCall")}>
           {groupCall.active && groupCall.groupChatId === activeChat.id ? <PhoneOff className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
         </Button>
         <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
@@ -3485,6 +3544,18 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
           <p className="text-center text-muted-foreground text-sm py-8">{t("com.noMessagesStart")}</p>
         ) : messages.map(msg => {
           const isMe = msg.senderId === myUser.id;
+          if (isCallMsg(msg.content)) {
+            const c = parseCallMsg(msg.content);
+            return (
+              <div key={msg.id} className="flex justify-center">
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/60 border border-border/50">
+                  {c.type === "missed" ? <PhoneOff className="w-4 h-4 text-red-400" /> : <Phone className="w-4 h-4 text-green-400" />}
+                  <span className="text-xs text-muted-foreground">{msg.sender?.displayName || (isMe ? myUser?.displayName : "")} {c.type === "missed" ? t("com.callMissed").toLowerCase() : `${t("com.callStarted")} ${c.duration}`}</span>
+                  <span className="text-[10px] text-muted-foreground/60">{timeAgoShort(msg.createdAt)}</span>
+                </div>
+              </div>
+            );
+          }
           return (
             <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
               {!isMe && <AvatarWithFrame src={msg.sender?.avatarUrl} robloxId={msg.sender?.robloxUserId || 0} fallbackText={msg.sender?.displayName?.charAt(0) || "?"} frameId={msg.sender?.avatarFrame || "none"} size={28} className="shrink-0 mb-0.5" />}
@@ -3606,6 +3677,24 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
 // ── CollabTab ──────────────────────────────────────────────────────────────────
 function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
+  const groupCall = useGroupCall(
+    myUser?.robloxUserId ?? null,
+    myUser?.displayName ?? "",
+    myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : ""),
+  );
+  const handleCollabCallLeave = useCallback(async () => {
+    const gid = groupCall.groupChatId;
+    const elapsed = groupCall.leaveCall();
+    if (gid && elapsed > 0) {
+      const m = Math.floor(elapsed / 60);
+      const s = elapsed % 60;
+      const dur = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      try {
+        await apiFetch(`/api/community/group-chats/${gid}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `[call:outgoing:${dur}]` }) });
+      } catch {}
+    }
+  }, [groupCall]);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [selectedWs, setSelectedWs] = useState<string>("");
   const [projects, setProjects] = useState<any[]>([]);
@@ -3846,7 +3935,7 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
         myAvatar={myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : "")}
         localScreenVideoRef={groupCall.localScreenVideoRef}
         incomingRing={groupCall.incomingRing}
-        onLeave={groupCall.leaveCall}
+        onLeave={handleCollabCallLeave}
         onToggleMute={groupCall.toggleMute}
         onToggleDeafen={groupCall.toggleDeafen}
         onToggleScreenShare={groupCall.toggleScreenShare}
