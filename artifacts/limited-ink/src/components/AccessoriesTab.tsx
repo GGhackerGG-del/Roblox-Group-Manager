@@ -205,14 +205,19 @@ export default function AccessoriesTab() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [cat, inv, duels] = await Promise.all([
+      const results = await Promise.allSettled([
         apiFetch<Accessory[]>("/api/accessories/catalog"),
         apiFetch<Accessory[]>("/api/accessories/my"),
         apiFetch<any>("/api/accessories/duels"),
       ]);
-      setCatalog(cat);
-      setInventory(inv);
-      setDuelsData(duels);
+      if (results[0].status === "fulfilled") setCatalog(results[0].value);
+      else console.error("[Accessories] catalog load failed:", results[0].reason);
+      if (results[1].status === "fulfilled") setInventory(results[1].value);
+      else console.error("[Accessories] inventory load failed:", results[1].reason);
+      if (results[2].status === "fulfilled") setDuelsData(results[2].value);
+      else console.error("[Accessories] duels load failed:", results[2].reason);
+      const anyFailed = results.some(r => r.status === "rejected");
+      if (anyFailed) toast({ variant: "destructive", title: t("assistant.error") });
     } catch {
       toast({ variant: "destructive", title: t("assistant.error") });
     } finally { setLoading(false); }
@@ -759,6 +764,13 @@ export default function AccessoriesTab() {
 
       {subTab === "catalog" && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {filteredCatalog.length === 0 && !loading && (
+            <div className="col-span-full text-center py-12 text-muted-foreground">
+              <Star className="w-10 h-10 mx-auto mb-3 opacity-30" strokeWidth={1} />
+              <p className="text-sm font-medium">{language === "ru" ? "Каталог пуст" : "Catalog is empty"}</p>
+              <p className="text-xs mt-1">{language === "ru" ? "Попробуйте обновить страницу" : "Try refreshing the page"}</p>
+            </div>
+          )}
           {filteredCatalog.map(acc => {
             const owned = ownedIds.has(acc.id);
             return (
