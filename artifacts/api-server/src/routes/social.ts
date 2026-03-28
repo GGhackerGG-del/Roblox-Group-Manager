@@ -467,12 +467,15 @@ router.post("/social/posts/:postId/comments", async (req, res): Promise<void> =>
 
 router.get("/social/unread-count", async (req, res): Promise<void> => {
   const robloxUserId = req.session.robloxUserId;
-  if (!robloxUserId) { res.json({ count: 0 }); return; }
+  if (!robloxUserId) { res.json({ count: 0, people: 0 }); return; }
   const myUser = await db.query.platformUsers.findFirst({ where: eq(platformUsers.robloxUserId, robloxUserId) });
-  if (!myUser) { res.json({ count: 0 }); return; }
+  if (!myUser) { res.json({ count: 0, people: 0 }); return; }
 
   const result = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({
+      count: sql<number>`count(*)`,
+      people: sql<number>`count(distinct case when ${dmConversations.user1Id} = ${myUser.id} then ${dmConversations.user2Id} else ${dmConversations.user1Id} end)`,
+    })
     .from(dmMessages)
     .innerJoin(dmConversations, eq(dmMessages.conversationId, dmConversations.id))
     .where(
@@ -482,7 +485,7 @@ router.get("/social/unread-count", async (req, res): Promise<void> => {
         ne(dmMessages.senderId, myUser.id)
       )
     );
-  res.json({ count: Number(result[0]?.count ?? 0) });
+  res.json({ count: Number(result[0]?.count ?? 0), people: Number(result[0]?.people ?? 0) });
 });
 
 router.get("/social/messages", async (req, res): Promise<void> => {

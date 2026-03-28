@@ -4464,6 +4464,7 @@ export default function Community() {
   const [editingBio, setEditingBio] = useState(false);
   const [bioText, setBioText] = useState("");
   const [savingBio, setSavingBio] = useState(false);
+  const [totalUnread, setTotalUnread] = useState(0);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -4476,6 +4477,18 @@ export default function Community() {
       .catch(() => {})
       .finally(() => setRegistering(false));
   }, []);
+
+  useEffect(() => {
+    if (!myUser) return;
+    const fetchUnread = () => {
+      apiFetch<{ count: number; people: number }>("/api/social/unread-count")
+        .then(d => setTotalUnread(d.people))
+        .catch(() => {});
+    };
+    fetchUnread();
+    const iv = setInterval(fetchUnread, 15000);
+    return () => clearInterval(iv);
+  }, [myUser]);
 
   const handleChatUser = (user: PlatformUser) => {
     setChatInitUser(user);
@@ -4554,7 +4567,14 @@ export default function Community() {
                     : "text-muted-foreground hover:text-foreground hover:bg-card"
                 }`}
               >
-                <Icon className={`w-[20px] h-[20px] shrink-0 ${isActive ? "text-[#5B88BD]" : ""}`} />
+                <div className="relative shrink-0">
+                  <Icon className={`w-[20px] h-[20px] ${isActive ? "text-[#5B88BD]" : ""}`} />
+                  {item.id === "chat" && totalUnread > 0 && (
+                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                      {totalUnread > 99 ? "99+" : totalUnread}
+                    </span>
+                  )}
+                </div>
                 <span className="truncate">{item.label}</span>
               </button>
             );
