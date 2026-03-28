@@ -4260,7 +4260,7 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
                 {myUser.bio && <p className="text-[13px] text-muted-foreground mt-2 line-clamp-2">{myUser.bio}</p>}
               </div>
               <div className="flex gap-2 pb-1">
-                <button onClick={onEditBio} className="px-4 py-2 bg-secondary hover:bg-accent text-[13px] text-white rounded-lg transition-colors flex items-center gap-2">
+                <button onClick={onEditBio} className="px-4 py-2 bg-secondary hover:bg-accent text-[13px] text-secondary-foreground rounded-lg transition-colors flex items-center gap-2">
                   <Pencil className="w-3.5 h-3.5" /> Edit profile
                 </button>
               </div>
