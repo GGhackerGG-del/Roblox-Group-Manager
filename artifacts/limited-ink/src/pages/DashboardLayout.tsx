@@ -11,6 +11,7 @@ import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-re
 import { playHover, playClick } from "@/hooks/useSounds";
 import { usePageCache } from "@/contexts/PageCacheContext";
 import { PresenceProvider } from "@/contexts/PresenceContext";
+import { VoiceCallProvider } from "@/contexts/VoiceCallContext";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -68,7 +69,9 @@ function NavItem({ href, icon, label, isActive, badge }: NavItemProps) {
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <PresenceProvider>
-      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      <VoiceCallProvider>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      </VoiceCallProvider>
     </PresenceProvider>
   );
 }

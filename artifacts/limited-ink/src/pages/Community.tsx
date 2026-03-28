@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { getAuthCredentials, useGetRobloxGroups } from "@workspace/api-client-react";
 import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useVoiceCall } from "@/hooks/useVoiceCall";
+import { useVoiceCallContext } from "@/contexts/VoiceCallContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,8 +25,6 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AccessoriesTab, { UserEquippedAccessories } from "@/components/AccessoriesTab";
-import CallOverlay from "@/components/CallOverlay";
-import ScreenPicker from "@/components/ScreenPicker";
 import { Sparkles, Gamepad2 } from "lucide-react";
 import { usePresenceContext } from "@/contexts/PresenceContext";
 
@@ -1211,11 +1209,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [dmSectionOpen, setDmSectionOpen] = useState(true);
   const [gcSectionOpen, setGcSectionOpen] = useState(true);
 
-  const voiceCall = useVoiceCall(
-    myUser?.id ?? null,
-    myUser?.displayName ?? "",
-    myUser?.avatarUrl || robloxHeadshot(myUser?.robloxUserId || 0),
-  );
+  const voiceCall = useVoiceCallContext();
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -1651,45 +1645,6 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 
   return (
     <div className="space-y-3 relative">
-      <CallOverlay
-        callActive={voiceCall.callActive}
-        callConnecting={voiceCall.callConnecting}
-        callMuted={voiceCall.callMuted}
-        callDeafened={voiceCall.callDeafened}
-        callTimer={voiceCall.callTimer}
-        videoEnabled={voiceCall.videoEnabled}
-        screenSharing={voiceCall.screenSharing}
-        remoteVideoEnabled={voiceCall.remoteVideoEnabled}
-        remoteScreenSharing={voiceCall.remoteScreenSharing}
-        remoteStreamActive={voiceCall.remoteStreamActive}
-        incomingCall={voiceCall.incomingCall}
-        peerName={voiceCall.callPeer?.name || ""}
-        peerAvatar={voiceCall.callPeer?.avatar || ""}
-        myName={myUser?.displayName || ""}
-        myAvatar={myUser?.avatarUrl || robloxHeadshot(myUser?.robloxUserId || 0)}
-        onAccept={voiceCall.acceptCall}
-        onReject={voiceCall.rejectCall}
-        onEndCall={handleEndCall}
-        onToggleMute={voiceCall.toggleMute}
-        onToggleDeafen={voiceCall.toggleDeafen}
-        onToggleVideo={voiceCall.toggleVideo}
-        onToggleScreenShare={voiceCall.toggleScreenShare}
-        localVideoRef={voiceCall.localVideoRef}
-        remoteVideoRef={voiceCall.remoteVideoRef}
-        screenVideoRef={voiceCall.screenVideoRef}
-        remoteScreenStream={voiceCall.remoteScreenStreamRef}
-      />
-      <ScreenPicker
-        open={voiceCall.showScreenPicker}
-        onSelect={(sourceId) => voiceCall.startScreenStream(sourceId)}
-        onClose={voiceCall.dismissScreenPicker}
-      />
-      {voiceCall.callError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-destructive/90 text-destructive-foreground px-5 py-3 rounded-xl shadow-2xl text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300 flex items-center gap-2">
-          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          {voiceCall.callError}
-        </div>
-      )}
       <div className="flex gap-4 h-[620px]">
         {/* Sidebar */}
         <div className="w-72 shrink-0 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
