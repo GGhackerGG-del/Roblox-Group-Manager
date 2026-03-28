@@ -109,8 +109,9 @@ export async function generateScriptAI(input: {
     const openai = new OpenAI({ baseURL, apiKey });
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       max_completion_tokens: 600,
+      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
@@ -137,6 +138,10 @@ Return JSON with fields:
 
     const content = response.choices?.[0]?.message?.content || "";
     const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    if (!cleaned || cleaned.length < 10) {
+      console.warn("[ShortsAI] AI returned empty or too-short response, falling back to template");
+      return null;
+    }
     const parsed = JSON.parse(cleaned);
 
     if (parsed.hook && parsed.subtitles && parsed.ctaLine && parsed.caption && parsed.hashtags) {

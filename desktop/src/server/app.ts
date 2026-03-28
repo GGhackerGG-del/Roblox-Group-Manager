@@ -489,7 +489,14 @@ async function proxyToRemote(
     if (hasBody) {
       if (isMultipart) {
         headers["Content-Type"] = contentType;
-        body = req;
+        const chunks: Buffer[] = [];
+        await new Promise<void>((resolve, reject) => {
+          req.on("data", (chunk: Buffer) => chunks.push(chunk));
+          req.on("end", () => resolve());
+          req.on("error", reject);
+        });
+        body = Buffer.concat(chunks);
+        headers["Content-Length"] = String(body.length);
       } else if (req.body != null && Object.keys(req.body).length > 0) {
         headers["Content-Type"] = "application/json";
         body = JSON.stringify(req.body);
@@ -497,14 +504,13 @@ async function proxyToRemote(
     }
 
     const url = `${REMOTE_API}${remotePath}`;
-    console.log(`[Proxy] ${req.method} ${url} (${isMultipart ? "multipart" : "json"})`);
+    console.log(`[Proxy] ${req.method} ${url} (${isMultipart ? `multipart, ${body?.length || 0} bytes` : "json"})`);
 
     const response = await fetchFn(url, {
       method: req.method,
       headers,
       body,
       redirect: "manual",
-      ...(isMultipart ? { duplex: "half" } : {}),
     });
 
     const setCookieHeaders = response.headers.getSetCookie
