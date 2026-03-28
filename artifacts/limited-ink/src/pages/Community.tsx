@@ -2114,8 +2114,30 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                         <label className="text-xs text-muted-foreground font-medium mb-1 block">{t("gc.info")}</label>
                         <div className="text-xs text-muted-foreground space-y-1">
                           <p>{t("gc.createdAt")}: {new Date(active.chat.createdAt).toLocaleDateString()}</p>
-                          <p>{t("com.members")}: {chatMembers.length}</p>
                           {active.chat.robloxGroupId && <p>Roblox Group ID: {active.chat.robloxGroupId}</p>}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground font-medium mb-1.5 block">{t("com.members")} ({chatMembers.length})</label>
+                        <div className="max-h-[180px] overflow-y-auto space-y-1 rounded-xl bg-secondary/30 p-2">
+                          {chatMembers
+                            .sort((a: any, b: any) => { const order: Record<string, number> = { admin: 0, moderator: 1, member: 2 }; return (order[a.role] ?? 2) - (order[b.role] ?? 2); })
+                            .map((m: any) => {
+                              const u = m.user;
+                              const isMe = u?.id === myUser?.id;
+                              return (
+                                <div key={m.id} className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-secondary/60 transition-colors">
+                                  <AvatarWithFrame src={u?.avatarUrl} robloxId={u?.robloxUserId || 0} fallbackText={u?.displayName?.charAt(0) || "?"} frameId={u?.avatarFrame || "none"} size="xs" className="shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium truncate">{u?.displayName || "?"}{isMe && <span className="text-muted-foreground ml-1">({t("com.you")})</span>}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {getRoleIcon(m.role)}
+                                    <span className="text-[9px] text-muted-foreground">{getRoleLabel(m.role)}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
                     </div>
