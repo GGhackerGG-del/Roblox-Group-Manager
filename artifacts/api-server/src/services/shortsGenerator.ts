@@ -347,24 +347,40 @@ async function renderScene(opts: {
   let filterParts: string[];
 
   if (isIntro) {
+    const introSlide = `'if(lt(t,0.5),-text_h+(text_h+h*0.42)*t/0.5,h*0.42)'`;
     filterParts = [
       `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
       `[scaled]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
       `[zp]setsar=1,format=yuv420p,${eq},vignette=angle=${vignetteAngle},` +
       `fade=t=in:st=0:d=0.3,fade=t=out:st=${(duration - 0.4).toFixed(2)}:d=0.4,` +
-      `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.25:t=fill,` +
+      `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.2:t=fill,` +
+
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize + 8}:fontcolor=0x4488FF@0.12:` +
+      `borderw=14:bordercolor=0x4488FF@0.06:x=(w-text_w)/2:y=${introSlide}:` +
+      `enable='between(t,${textAppear},${textEnd})',` +
+
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize + 4}:fontcolor=0x88AAFF@0.2:` +
+      `borderw=9:bordercolor=0x5577DD@0.1:x=(w-text_w)/2:y=${introSlide}:` +
+      `enable='between(t,${textAppear},${textEnd})',` +
+
       `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize}:fontcolor=${styleCfg.textColor}:` +
-      `borderw=${borderW}:bordercolor=black:x=(w-text_w)/2:y=${textY}:` +
+      `borderw=${borderW}:bordercolor=0x111111:x=(w-text_w)/2:y=${introSlide}:` +
       `enable='between(t,${textAppear},${textEnd})'`,
     ];
   } else {
+    const sceneSlide = `'if(lt(t,0.35),-text_w+(text_w+60)*t/0.35,60)'`;
     filterParts = [
       `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
       `[scaled]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
       `[zp]setsar=1,format=yuv420p,${eq},vignette=angle=${vignetteAngle},` +
       `fade=t=in:st=0:d=0.2,fade=t=out:st=${(duration - 0.35).toFixed(2)}:d=0.35,` +
+
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize + 4}:fontcolor=0x000000@0.4:` +
+      `borderw=8:bordercolor=0x000000@0.15:x=${sceneSlide}:y=${textY}:` +
+      `enable='between(t,${textAppear},${textEnd})',` +
+
       `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize}:fontcolor=${styleCfg.textColor}:` +
-      `borderw=${borderW}:bordercolor=black:x=60:y=${textY}:` +
+      `borderw=${borderW}:bordercolor=0x111111:x=${sceneSlide}:y=${textY}:` +
       `enable='between(t,${textAppear},${textEnd})'`,
     ];
   }
@@ -402,30 +418,60 @@ async function renderCtaScene(opts: {
   const escapedPrice = price ? esc(price) : "";
   const escapedCta = esc(ctaLine);
 
-  const eq = `eq=contrast=${styleCfg.contrast}:brightness=${styleCfg.brightness - 0.05}:saturation=${styleCfg.saturation * 0.8}`;
+  const eq = `eq=contrast=${styleCfg.contrast}:brightness=${styleCfg.brightness - 0.06}:saturation=${styleCfg.saturation * 0.7}`;
 
-  let filterParts = [
-    `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
-    `[scaled]zoompan=z='1.06':x='(iw-ow)/2':y='(ih-oh)/2':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
-    `[zp]setsar=1,format=yuv420p,${eq},vignette=angle=0.5,gblur=sigma=3,` +
-    `fade=t=in:st=0:d=0.4,` +
-    `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.5:t=fill,` +
-    `drawbox=x=iw*0.08:y=ih*0.34:w=iw*0.84:h=ih*0.32:color=0x000000@0.6:t=fill,` +
-    `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize}:fontcolor=${styleCfg.textColor}:` +
-    `borderw=5:bordercolor=black:x=(w-text_w)/2:y=h*0.38`,
+  const slideIn = `'if(lt(t,0.6),w+50-(w+50)*t/0.6,(w-text_w)/2)'`;
+  const slideInPrice = `'if(lt(t,0.8),w+50-(w+50)*(t-0.15)/0.65,(w-text_w)/2)'`;
+  const slideInCta = `'if(lt(t,1.0),w+50-(w+50)*(t-0.3)/0.7,(w-text_w)/2)'`;
+
+  const productGlowLayers = [
+    `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize + 6}:fontcolor=0x4488FF@0.15:` +
+    `borderw=12:bordercolor=0x4488FF@0.08:x=${slideIn}:y=h*0.36:enable='gte(t,0.3)'`,
+
+    `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize + 2}:fontcolor=0xAABBFF@0.25:` +
+    `borderw=8:bordercolor=0x6699FF@0.12:x=${slideIn}:y=h*0.36+2:enable='gte(t,0.3)'`,
+
+    `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize}:fontcolor=white:` +
+    `borderw=5:bordercolor=0x111111:x=${slideIn}:y=h*0.36+4:enable='gte(t,0.3)'`,
   ];
 
-  let lastFilter = filterParts[filterParts.length - 1];
-
+  let priceLayers = "";
+  let priceYBase = "h*0.46";
   if (escapedPrice) {
-    lastFilter += `,drawtext=${fontFileParam}text='${escapedPrice}':fontsize=50:fontcolor=yellow:` +
-      `borderw=3:bordercolor=black:x=(w-text_w)/2:y=h*0.47`;
+    priceLayers = `,drawtext=${fontFileParam}text='${escapedPrice}':fontsize=54:fontcolor=0xFFD700@0.3:` +
+      `borderw=8:bordercolor=0xFFAA00@0.1:x=${slideInPrice}:y=${priceYBase}:enable='gte(t,0.5)'` +
+      `,drawtext=${fontFileParam}text='${escapedPrice}':fontsize=52:fontcolor=0xFFD700:` +
+      `borderw=4:bordercolor=0x332200:x=${slideInPrice}:y=${priceYBase}:enable='gte(t,0.5)'`;
   }
 
-  lastFilter += `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=46:fontcolor=${styleCfg.textColor}:` +
-    `borderw=3:bordercolor=black:x=(w-text_w)/2:y=h*0.56`;
+  const ctaYBase = escapedPrice ? "h*0.55" : "h*0.48";
+  const ctaLayers =
+    `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=44:fontcolor=0xCCDDFF@0.2:` +
+    `borderw=6:bordercolor=0x3366CC@0.08:x=${slideInCta}:y=${ctaYBase}:enable='gte(t,0.6)'` +
+    `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=42:fontcolor=0xDDEEFF:` +
+    `borderw=3:bordercolor=0x111122:x=${slideInCta}:y=${ctaYBase}:enable='gte(t,0.6)'`;
 
-  filterParts[filterParts.length - 1] = lastFilter;
+  const accentLineY = "ih*0.34";
+  const accentLineBot = escapedPrice ? "ih*0.60" : "ih*0.54";
+
+  const filterParts = [
+    `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
+    `[scaled]zoompan=z='1.04+0.02*sin(on/${fps}*0.4)':x='(iw-ow)/2':y='(ih-oh)/2':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
+    `[zp]setsar=1,format=yuv420p,${eq},gblur=sigma=6,vignette=angle=0.55,` +
+
+    `fade=t=in:st=0:d=0.5,` +
+
+    `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.45:t=fill,` +
+
+    `drawbox=x=iw*0.06:y=${accentLineY}:w=iw*0.88:h=3:color=0x4488FF@0.5:t=fill:enable='gte(t,0.2)',` +
+    `drawbox=x=iw*0.06:y=${accentLineBot}:w=iw*0.88:h=3:color=0x4488FF@0.5:t=fill:enable='gte(t,0.2)',` +
+    `drawbox=x=iw*0.06:y=${accentLineY}:w=3:h=${accentLineBot}-${accentLineY}:color=0x4488FF@0.3:t=fill:enable='gte(t,0.2)',` +
+    `drawbox=x=iw*0.94:y=${accentLineY}:w=3:h=${accentLineBot}-${accentLineY}:color=0x4488FF@0.3:t=fill:enable='gte(t,0.2)',` +
+
+    productGlowLayers.join(",") +
+    priceLayers +
+    ctaLayers,
+  ];
 
   const filter = filterParts.join(";");
 
