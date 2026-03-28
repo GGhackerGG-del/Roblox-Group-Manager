@@ -5,6 +5,24 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 
+function getAutoLaunchEnabled(): boolean {
+  try {
+    const { getStoreValue } = require("./db/index.js");
+    return getStoreValue("auto_launch_enabled") === "true";
+  } catch { return false; }
+}
+
+function setAutoLaunchEnabled(enabled: boolean): void {
+  try {
+    const { setStoreValue } = require("./db/index.js");
+    setStoreValue("auto_launch_enabled", enabled ? "true" : "false");
+  } catch {}
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    path: app.isPackaged ? process.execPath : undefined,
+  });
+}
+
 function getTrayIconPath(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "icon.png");
@@ -18,25 +36,38 @@ function createTray(): void {
   tray = new Tray(icon);
   tray.setToolTip("Limited.Ink");
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: "Open Limited.Ink",
-      click: () => {
-        mainWindow?.show();
-        mainWindow?.focus();
+  const buildTrayMenu = () => {
+    const autoLaunch = getAutoLaunchEnabled();
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: "Open Limited.Ink",
+        click: () => {
+          mainWindow?.show();
+          mainWindow?.focus();
+        },
       },
-    },
-    { type: "separator" },
-    {
-      label: "Exit",
-      click: () => {
-        isQuitting = true;
-        app.quit();
+      { type: "separator" },
+      {
+        label: "Run at Startup",
+        type: "checkbox",
+        checked: autoLaunch,
+        click: (menuItem) => {
+          setAutoLaunchEnabled(menuItem.checked);
+          buildTrayMenu();
+        },
       },
-    },
-  ]);
-
-  tray.setContextMenu(contextMenu);
+      { type: "separator" },
+      {
+        label: "Exit",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
+    tray?.setContextMenu(contextMenu);
+  };
+  buildTrayMenu();
 
   tray.on("double-click", () => {
     mainWindow?.show();
@@ -114,6 +145,12 @@ app.whenReady().then(async () => {
     const { startServer } = require("./server/start.js");
     const port = await startServer();
     console.log(`[Limited.Ink] Server running on http://localhost:${port}`);
+
+    const savedAutoLaunch = getAutoLaunchEnabled();
+    app.setLoginItemSettings({
+      openAtLogin: savedAutoLaunch,
+      path: app.isPackaged ? process.execPath : undefined,
+    });
 
     createTray();
     createWindow(port);
