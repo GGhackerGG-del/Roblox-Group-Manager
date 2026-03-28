@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, pool } from "@workspace/db";
-import { accessories, userAccessories, minigamePlays, platformUsers, gameChallenges } from "@workspace/db";
+import { accessories, userAccessories, minigamePlays, platformUsers, gameChallenges, quests, userQuests } from "@workspace/db";
 import { eq, and, desc, sql, or, ne, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@workspace/db/schema";
@@ -838,5 +838,209 @@ router.get("/accessories/minigame/stats", async (req, res): Promise<void> => {
     res.status(500).json({ error: "Failed to fetch stats" });
   }
 });
+
+router.get("/accessories/quests", async (req, res): Promise<void> => {
+  try {
+    const allQuests = await db.select().from(quests).where(eq(quests.isActive, true));
+
+    const robloxUserId = req.session.robloxUserId;
+    let userProgress: any[] = [];
+    let ownedAccessoryIds: number[] = [];
+
+    if (robloxUserId) {
+      const user = await getPlatformUser(robloxUserId);
+      if (user) {
+        userProgress = await db.select().from(userQuests).where(eq(userQuests.userId, user.id));
+        ownedAccessoryIds = (await db.select({ accessoryId: userAccessories.accessoryId })
+          .from(userAccessories)
+          .where(eq(userAccessories.userId, user.id))).map(r => r.accessoryId);
+      }
+    }
+
+    const allAccessories = await db.select().from(accessories).where(eq(accessories.isActive, true));
+    const accessoryMap = Object.fromEntries(allAccessories.map(a => [a.id, a]));
+
+    const userId = robloxUserId ? (await getPlatformUser(robloxUserId))?.id : undefined;
+
+    const questsWithProgress = await Promise.all(allQuests.map(async (q) => {
+      const up = userProgress.find(p => p.questId === q.id);
+      const reward = accessoryMap[q.rewardAccessoryId];
+      let progress = up?.progress || 0;
+      let completed = up?.completed || false;
+      if (up && !up.claimedAt && userId) {
+        progress = Math.min(await computeQuestProgress(userId, q.type), q.target);
+        completed = progress >= q.target;
+      }
+      return {
+        ...q,
+        progress,
+        completed,
+        claimed: !!up?.claimedAt,
+        started: !!up,
+        alreadyOwned: ownedAccessoryIds.includes(q.rewardAccessoryId),
+        reward: reward ? { id: reward.id, name: reward.name, icon: reward.icon, rarity: reward.rarity, category: reward.category } : null,
+      };
+    }));
+
+    res.json({ quests: questsWithProgress });
+  } catch (err) {
+    console.error("Quest fetch error:", err);
+    res.status(500).json({ error: "Failed to fetch quests" });
+  }
+});
+
+router.post("/accessories/quests/:questId/start", async (req, res): Promise<void> => {
+  const robloxUserId = req.session.robloxUserId;
+  if (!robloxUserId) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const questId = parseInt(req.params.questId);
+  if (isNaN(questId)) { res.status(400).json({ error: "Invalid quest ID" }); return; }
+
+  try {
+    const user = await getPlatformUser(robloxUserId);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    const quest = await db.select().from(quests).where(and(eq(quests.id, questId), eq(quests.isActive, true))).limit(1);
+    if (quest.length === 0) { res.status(404).json({ error: "Quest not found" }); return; }
+
+    const existing = await db.select().from(userQuests).where(and(eq(userQuests.userId, user.id), eq(userQuests.questId, questId))).limit(1);
+    if (existing.length > 0) { res.status(400).json({ error: "Quest already started" }); return; }
+
+    const owned = await db.select().from(userAccessories)
+      .where(and(eq(userAccessories.userId, user.id), eq(userAccessories.accessoryId, quest[0].rewardAccessoryId))).limit(1);
+    if (owned.length > 0) { res.status(400).json({ error: "You already own this reward" }); return; }
+
+    const currentProgress = await computeQuestProgress(user.id, quest[0].type);
+
+    await db.insert(userQuests).values({
+      userId: user.id,
+      questId,
+      progress: Math.min(currentProgress, quest[0].target),
+      completed: currentProgress >= quest[0].target,
+    });
+
+    res.json({ success: true, progress: Math.min(currentProgress, quest[0].target), target: quest[0].target });
+  } catch (err) {
+    console.error("Quest start error:", err);
+    res.status(500).json({ error: "Failed to start quest" });
+  }
+});
+
+router.post("/accessories/quests/:questId/claim", async (req, res): Promise<void> => {
+  const robloxUserId = req.session.robloxUserId;
+  if (!robloxUserId) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const questId = parseInt(req.params.questId);
+  if (isNaN(questId)) { res.status(400).json({ error: "Invalid quest ID" }); return; }
+
+  try {
+    const user = await getPlatformUser(robloxUserId);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    const quest = await db.select().from(quests).where(and(eq(quests.id, questId), eq(quests.isActive, true))).limit(1);
+    if (quest.length === 0) { res.status(404).json({ error: "Quest not found" }); return; }
+
+    const uq = await db.select().from(userQuests).where(and(eq(userQuests.userId, user.id), eq(userQuests.questId, questId))).limit(1);
+    if (uq.length === 0) { res.status(400).json({ error: "Quest not started" }); return; }
+    if (uq[0].claimedAt) { res.status(400).json({ error: "Already claimed" }); return; }
+
+    const currentProgress = await computeQuestProgress(user.id, quest[0].type);
+    if (currentProgress < quest[0].target) {
+      await db.update(userQuests).set({ progress: currentProgress }).where(eq(userQuests.id, uq[0].id));
+      res.status(400).json({ error: "Quest not complete", progress: currentProgress, target: quest[0].target });
+      return;
+    }
+
+    await db.update(userQuests).set({
+      progress: quest[0].target,
+      completed: true,
+      claimedAt: new Date(),
+    }).where(eq(userQuests.id, uq[0].id));
+
+    await db.insert(userAccessories).values({
+      userId: user.id,
+      accessoryId: quest[0].rewardAccessoryId,
+    }).onConflictDoNothing();
+
+    const reward = await db.select().from(accessories).where(eq(accessories.id, quest[0].rewardAccessoryId)).limit(1);
+
+    res.json({ success: true, reward: reward[0] || null });
+  } catch (err) {
+    console.error("Quest claim error:", err);
+    res.status(500).json({ error: "Failed to claim quest" });
+  }
+});
+
+router.post("/accessories/quests/refresh", async (req, res): Promise<void> => {
+  const robloxUserId = req.session.robloxUserId;
+  if (!robloxUserId) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  try {
+    const user = await getPlatformUser(robloxUserId);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    const activeUserQuests = await db.select().from(userQuests)
+      .where(and(eq(userQuests.userId, user.id), eq(userQuests.completed, false)));
+
+    for (const uq of activeUserQuests) {
+      const quest = await db.select().from(quests).where(eq(quests.id, uq.questId)).limit(1);
+      if (quest.length === 0) continue;
+
+      const currentProgress = await computeQuestProgress(user[0].id, quest[0].type);
+      const capped = Math.min(currentProgress, quest[0].target);
+
+      if (capped !== uq.progress) {
+        await db.update(userQuests).set({
+          progress: capped,
+          completed: capped >= quest[0].target,
+        }).where(eq(userQuests.id, uq.id));
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Quest refresh error:", err);
+    res.status(500).json({ error: "Failed to refresh quests" });
+  }
+});
+
+async function computeQuestProgress(userId: number, questType: string): Promise<number> {
+  try {
+    switch (questType) {
+      case "send_messages": {
+        const result = await db.execute(sql`
+          SELECT (COALESCE((SELECT COUNT(*)::int FROM dm_messages WHERE sender_id = ${userId}), 0) +
+                  COALESCE((SELECT COUNT(*)::int FROM group_chat_messages WHERE sender_id = ${userId}), 0)) as count
+        `);
+        return (result as any).rows?.[0]?.count || 0;
+      }
+      case "add_friends": {
+        const result = await db.execute(sql`SELECT COUNT(*)::int as count FROM friendships WHERE (requester_id = ${userId} OR addressee_id = ${userId}) AND status = 'accepted'`);
+        return (result as any).rows?.[0]?.count || 0;
+      }
+      case "create_posts": {
+        const result = await db.execute(sql`SELECT COUNT(*)::int as count FROM posts WHERE author_id = ${userId}`);
+        return (result as any).rows?.[0]?.count || 0;
+      }
+      case "get_likes": {
+        const result = await db.execute(sql`SELECT COUNT(*)::int as count FROM post_likes pl JOIN posts p ON pl.post_id = p.id WHERE p.author_id = ${userId}`);
+        return (result as any).rows?.[0]?.count || 0;
+      }
+      case "win_minigames": {
+        const result = await db.execute(sql`SELECT COUNT(*)::int as count FROM minigame_plays WHERE user_id = ${userId} AND won = true`);
+        return (result as any).rows?.[0]?.count || 0;
+      }
+      case "win_duels": {
+        const result = await db.execute(sql`SELECT COUNT(*)::int as count FROM game_challenges WHERE winner_id = ${userId} AND status = 'completed'`);
+        return (result as any).rows?.[0]?.count || 0;
+      }
+      default:
+        return 0;
+    }
+  } catch (err) {
+    console.error(`Quest progress compute error for type ${questType}:`, err);
+    return 0;
+  }
+}
 
 export default router;

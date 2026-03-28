@@ -150,7 +150,7 @@ export function UserEquippedAccessories({ userId, accessories }: { userId?: numb
 export default function AccessoriesTab() {
   const { t, language } = useLanguage();
   const { toast } = useToast();
-  const [subTab, setSubTab] = useState<"inventory" | "catalog" | "duels" | "leaderboard">("duels");
+  const [subTab, setSubTab] = useState<"inventory" | "catalog" | "duels" | "leaderboard" | "quests">("quests");
   const [catalog, setCatalog] = useState<Accessory[]>([]);
   const [inventory, setInventory] = useState<Accessory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,6 +167,9 @@ export default function AccessoriesTab() {
   const [triviaQuestions, setTriviaQuestions] = useState<any[]>([]);
   const [triviaQuestionIds, setTriviaQuestionIds] = useState<number[]>([]);
   const [triviaAnswers, setTriviaAnswers] = useState<number[]>([]);
+  const [questsList, setQuestsList] = useState<any[]>([]);
+  const [questsLoading, setQuestsLoading] = useState(false);
+  const [questRarityFilter, setQuestRarityFilter] = useState<string>("all");
 
   const getName = useCallback((acc: Accessory) => {
     if (language === "ru" && acc.nameRu) return acc.nameRu;
@@ -241,6 +244,47 @@ export default function AccessoriesTab() {
       return () => clearInterval(iv);
     }
   }, [subTab, loadDuels]);
+
+  const loadQuests = useCallback(async () => {
+    setQuestsLoading(true);
+    try {
+      await apiFetch("/api/accessories/quests/refresh", { method: "POST" });
+      const data = await apiFetch<{ quests: any[] }>("/api/accessories/quests");
+      setQuestsList(data.quests || []);
+    } catch { }
+    setQuestsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (subTab === "quests") loadQuests();
+  }, [subTab, loadQuests]);
+
+  const startQuest = async (questId: number) => {
+    setBusyAction(true);
+    try {
+      await apiFetch(`/api/accessories/quests/${questId}/start`, { method: "POST" });
+      toast({ title: language === "ru" ? "Квест начат!" : language === "es" ? "Misión iniciada!" : "Quest started!" });
+      await loadQuests();
+    } catch (err: any) {
+      toast({ title: language === "ru" ? "Ошибка" : "Error", description: err.message, variant: "destructive" });
+    }
+    setBusyAction(false);
+  };
+
+  const claimQuest = async (questId: number) => {
+    setBusyAction(true);
+    try {
+      const res = await apiFetch<{ success: boolean; reward: any }>(`/api/accessories/quests/${questId}/claim`, { method: "POST" });
+      if (res.reward) {
+        toast({ title: language === "ru" ? "Награда получена!" : language === "es" ? "Recompensa obtenida!" : "Reward claimed!", description: `${res.reward.icon} ${res.reward.name}` });
+      }
+      await loadQuests();
+      await loadAll();
+    } catch (err: any) {
+      toast({ title: language === "ru" ? "Ошибка" : "Error", description: err.message, variant: "destructive" });
+    }
+    setBusyAction(false);
+  };
 
   const equip = async (accId: number) => {
     try {
@@ -540,7 +584,7 @@ export default function AccessoriesTab() {
       </div>
 
       <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl">
-        {(["duels", "inventory", "catalog", "leaderboard"] as const).map(tab => (
+        {(["quests", "duels", "inventory", "catalog", "leaderboard"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setSubTab(tab)}
@@ -548,11 +592,13 @@ export default function AccessoriesTab() {
               subTab === tab ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
+            {tab === "quests" && <Target className="w-3.5 h-3.5" />}
             {tab === "duels" && <Swords className="w-3.5 h-3.5" />}
             {tab === "inventory" && <Package className="w-3.5 h-3.5" />}
             {tab === "catalog" && <Star className="w-3.5 h-3.5" />}
             {tab === "leaderboard" && <Trophy className="w-3.5 h-3.5" />}
-            {tab === "duels" ? (language === "ru" ? "Дуэли" : language === "es" ? "Duelos" : "Duels")
+            {tab === "quests" ? (language === "ru" ? "Квесты" : language === "es" ? "Misiones" : "Quests")
+              : tab === "duels" ? (language === "ru" ? "Дуэли" : language === "es" ? "Duelos" : "Duels")
               : tab === "inventory" ? (t("acc.inventory") || "Inventory")
               : tab === "catalog" ? (t("acc.catalog") || "Catalog")
               : (language === "ru" ? "Рейтинг" : language === "es" ? "Ranking" : "Leaderboard")}
@@ -744,6 +790,148 @@ export default function AccessoriesTab() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {subTab === "quests" && (
+        <div className="space-y-3">
+          <div className="flex gap-1 flex-wrap">
+            {["all", "common", "rare", "epic", "legendary"].map(r => (
+              <button
+                key={r}
+                onClick={() => setQuestRarityFilter(r)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                  questRarityFilter === r
+                    ? r === "common" ? "bg-zinc-500 text-white" : r === "rare" ? "bg-blue-500 text-white" : r === "epic" ? "bg-purple-500 text-white" : r === "legendary" ? "bg-amber-500 text-white" : "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {r === "all" ? (language === "ru" ? "Все" : language === "es" ? "Todos" : "All")
+                  : r === "common" ? (language === "ru" ? "Обычные" : language === "es" ? "Comunes" : "Common")
+                  : r === "rare" ? (language === "ru" ? "Редкие" : language === "es" ? "Raros" : "Rare")
+                  : r === "epic" ? (language === "ru" ? "Эпические" : language === "es" ? "Épicos" : "Epic")
+                  : (language === "ru" ? "Легендарные" : language === "es" ? "Legendarios" : "Legendary")}
+              </button>
+            ))}
+          </div>
+
+          {questsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : questsList.filter(q => questRarityFilter === "all" || q.rarity === questRarityFilter).length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Target className="w-10 h-10 mx-auto mb-3 opacity-30" strokeWidth={1} />
+              <p className="text-sm font-medium">{language === "ru" ? "Нет квестов" : "No quests available"}</p>
+            </div>
+          ) : (
+            questsList
+              .filter(q => questRarityFilter === "all" || q.rarity === questRarityFilter)
+              .sort((a, b) => {
+                if (a.claimed && !b.claimed) return 1;
+                if (!a.claimed && b.claimed) return -1;
+                if (a.completed && !a.claimed && !(b.completed && !b.claimed)) return -1;
+                if (!(a.completed && !a.claimed) && b.completed && !b.claimed) return 1;
+                if (a.started && !b.started) return -1;
+                return 0;
+              })
+              .map(quest => {
+                const rarityColor = quest.rarity === "legendary" ? "border-amber-500/40 bg-amber-500/5"
+                  : quest.rarity === "epic" ? "border-purple-500/40 bg-purple-500/5"
+                  : quest.rarity === "rare" ? "border-blue-500/40 bg-blue-500/5"
+                  : "border-border bg-card";
+                const rarityBadge = quest.rarity === "legendary" ? "bg-amber-500/20 text-amber-500"
+                  : quest.rarity === "epic" ? "bg-purple-500/20 text-purple-500"
+                  : quest.rarity === "rare" ? "bg-blue-500/20 text-blue-500"
+                  : "bg-zinc-500/20 text-zinc-400";
+                const progressPct = quest.target > 0 ? Math.min(100, Math.round((quest.progress / quest.target) * 100)) : 0;
+                const questName = language === "ru" && quest.nameRu ? quest.nameRu : language === "es" && quest.nameEs ? quest.nameEs : quest.name;
+                const questDesc = language === "ru" && quest.descriptionRu ? quest.descriptionRu : language === "es" && quest.descriptionEs ? quest.descriptionEs : quest.description;
+
+                return (
+                  <motion.div
+                    key={quest.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`rounded-xl border p-3 transition-all ${rarityColor} ${quest.claimed ? "opacity-60" : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="text-2xl flex-shrink-0">{quest.icon}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm font-bold truncate">{questName}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${rarityBadge}`}>
+                            {quest.rarity}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mb-2">{questDesc}</p>
+
+                        {quest.reward && (
+                          <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg bg-secondary/50 w-fit">
+                            <Gift className="w-3 h-3 text-amber-500" />
+                            <span className="text-[10px] font-medium">{quest.reward.icon} {quest.reward.name}</span>
+                          </div>
+                        )}
+
+                        {(quest.started || quest.alreadyOwned) && (
+                          <div className="mb-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-muted-foreground">
+                                {quest.progress}/{quest.target}
+                              </span>
+                              <span className="text-[10px] font-semibold">{progressPct}%</span>
+                            </div>
+                            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                              <motion.div
+                                className={`h-full rounded-full ${quest.completed ? "bg-green-500" : "bg-primary"}`}
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progressPct}%` }}
+                                transition={{ duration: 0.5 }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-shrink-0">
+                        {quest.claimed || quest.alreadyOwned ? (
+                          <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-500/10 text-green-500">
+                            <Check className="w-3.5 h-3.5" />
+                            <span className="text-[10px] font-semibold">{language === "ru" ? "Получено" : "Claimed"}</span>
+                          </div>
+                        ) : quest.completed && !quest.claimed ? (
+                          <Button
+                            size="sm"
+                            className="h-7 text-[10px] bg-green-600 hover:bg-green-700"
+                            onClick={() => claimQuest(quest.id)}
+                            disabled={busyAction}
+                          >
+                            {busyAction ? <Loader2 className="w-3 h-3 animate-spin" /> : <Gift className="w-3 h-3 mr-1" />}
+                            {language === "ru" ? "Забрать" : "Claim"}
+                          </Button>
+                        ) : quest.started ? (
+                          <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/10 text-blue-500">
+                            <Clock className="w-3 h-3" />
+                            <span className="text-[10px] font-semibold">{language === "ru" ? "В работе" : "Active"}</span>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[10px]"
+                            onClick={() => startQuest(quest.id)}
+                            disabled={busyAction}
+                          >
+                            {busyAction ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRight className="w-3 h-3 mr-1" />}
+                            {language === "ru" ? "Начать" : "Start"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })
+          )}
         </div>
       )}
 

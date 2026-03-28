@@ -61,6 +61,38 @@ export const gameChallenges = pgTable("game_challenges", {
   index("game_challenges_status_idx").on(t.status),
 ]);
 
+export const quests = pgTable("quests", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  nameRu: text("name_ru"),
+  nameEs: text("name_es"),
+  description: text("description").notNull(),
+  descriptionRu: text("description_ru"),
+  descriptionEs: text("description_es"),
+  icon: text("icon").notNull().default("⭐"),
+  type: text("type").notNull(),
+  target: integer("target").notNull(),
+  rewardAccessoryId: integer("reward_accessory_id").notNull().references(() => accessories.id, { onDelete: "cascade" }),
+  rarity: text("rarity").notNull().default("common"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const userQuests = pgTable("user_quests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  questId: integer("quest_id").notNull().references(() => quests.id, { onDelete: "cascade" }),
+  progress: integer("progress").notNull().default(0),
+  completed: boolean("completed").notNull().default(false),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("user_quests_user_idx").on(t.userId),
+  uniqueIndex("user_quests_unique_idx").on(t.userId, t.questId),
+]);
+
 export type Accessory = typeof accessories.$inferSelect;
 export type UserAccessory = typeof userAccessories.$inferSelect;
 export type GameChallenge = typeof gameChallenges.$inferSelect;
+export type Quest = typeof quests.$inferSelect;
+export type UserQuest = typeof userQuests.$inferSelect;
