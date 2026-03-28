@@ -7,7 +7,9 @@ import { generateScript, generateScriptAI, startGeneration, getJob } from "../se
 const router: IRouter = Router();
 
 const uploadsDir = path.join(process.cwd(), "uploads", "shorts");
-fs.mkdir(uploadsDir, { recursive: true }).catch(() => {});
+fs.mkdir(uploadsDir, { recursive: true }).catch((e) =>
+  console.error("[Shorts] failed to create uploads dir:", e)
+);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
@@ -58,17 +60,33 @@ router.post("/shorts/generate-script", async (req, res): Promise<void> => {
   res.json({ script, source: "template" });
 });
 
+const uploadMiddleware = upload.fields([
+  { name: "images", maxCount: 8 },
+  { name: "music", maxCount: 1 },
+  { name: "logo", maxCount: 1 },
+]);
+
 router.post(
   "/shorts/generate",
-  upload.fields([
-    { name: "images", maxCount: 8 },
-    { name: "music", maxCount: 1 },
-    { name: "logo", maxCount: 1 },
-  ]),
+  (req, res, next) => {
+    uploadMiddleware(req, res, (err) => {
+      if (err) {
+        const msg = err instanceof multer.MulterError
+          ? `Upload error: ${err.code} – ${err.message}`
+          : err.message || "File upload failed";
+        console.error("[Shorts] multer error:", msg);
+        res.status(400).json({ error: msg });
+        return;
+      }
+      next();
+    });
+  },
   async (req, res): Promise<void> => {
     try {
       const files = req.files as Record<string, Express.Multer.File[]> | undefined;
       const images = files?.images?.map((f) => f.path) || [];
+
+      console.log(`[Shorts] generate – received ${images.length} image(s), content-type: ${req.headers["content-type"]?.slice(0, 40)}`);
 
       if (images.length === 0) {
         res.status(400).json({ error: "At least one image is required" });

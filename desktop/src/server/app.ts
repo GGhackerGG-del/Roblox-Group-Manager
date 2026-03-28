@@ -477,23 +477,34 @@ async function proxyToRemote(
       headers["X-Device-Fingerprint"] = req.headers["x-device-fingerprint"] as string;
     }
 
-    const hasBody = req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE";
-    if (hasBody && req.body != null) {
-      headers["Content-Type"] = "application/json";
-    }
-
     if (remoteSessionCookie) {
       headers["Cookie"] = remoteSessionCookie;
     }
 
+    const hasBody = req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE";
+    const contentType = (req.headers["content-type"] || "").toLowerCase();
+    const isMultipart = contentType.startsWith("multipart/form-data");
+
+    let body: any = undefined;
+    if (hasBody) {
+      if (isMultipart) {
+        headers["Content-Type"] = contentType;
+        body = req;
+      } else if (req.body != null && Object.keys(req.body).length > 0) {
+        headers["Content-Type"] = "application/json";
+        body = JSON.stringify(req.body);
+      }
+    }
+
     const url = `${REMOTE_API}${remotePath}`;
-    console.log(`[Proxy] ${req.method} ${url}`);
+    console.log(`[Proxy] ${req.method} ${url} (${isMultipart ? "multipart" : "json"})`);
 
     const response = await fetchFn(url, {
       method: req.method,
       headers,
-      body: hasBody && req.body != null ? JSON.stringify(req.body) : undefined,
+      body,
       redirect: "manual",
+      ...(isMultipart ? { duplex: "half" } : {}),
     });
 
     const setCookieHeaders = response.headers.getSetCookie
@@ -510,15 +521,26 @@ async function proxyToRemote(
       }
     }
 
-    const contentType = response.headers.get("content-type") || "";
+    const respContentType = response.headers.get("content-type") || "";
     const status = response.status;
 
-    if (contentType.includes("application/json")) {
+    if (respContentType.includes("application/json")) {
       const data = await response.json();
       res.status(status).json(data);
+    } else if (
+      respContentType.includes("application/octet-stream") ||
+      respContentType.includes("video/") ||
+      respContentType.includes("audio/") ||
+      respContentType.includes("image/")
+    ) {
+      res.status(status).type(respContentType.split(";")[0]);
+      const cd = response.headers.get("content-disposition");
+      if (cd) res.setHeader("content-disposition", cd);
+      const arrayBuf = await response.arrayBuffer();
+      res.send(Buffer.from(arrayBuf));
     } else {
       const text = await response.text();
-      res.status(status).type(contentType.split(";")[0] || "text/plain").send(text);
+      res.status(status).type(respContentType.split(";")[0] || "text/plain").send(text);
     }
   } catch (err: any) {
     console.error("[Proxy] Error:", err.message);
@@ -535,8 +557,16 @@ export function createApp(): express.Express {
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "X-Device-Fingerprint"],
   }));
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+  app.use((req, _res, next) => {
+    const ct = (req.headers["content-type"] || "").toLowerCase();
+    if (ct.startsWith("multipart/form-data")) return next();
+    express.json({ limit: "50mb" })(req, _res, next);
+  });
+  app.use((req, _res, next) => {
+    const ct = (req.headers["content-type"] || "").toLowerCase();
+    if (ct.startsWith("multipart/form-data")) return next();
+    express.urlencoded({ extended: true, limit: "50mb" })(req, _res, next);
+  });
 
   const sessionStore = new MemorySessionStore();
 

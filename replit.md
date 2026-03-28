@@ -195,6 +195,7 @@ CREATE TABLE gamification_profiles (
 - Build scripts use `fileURLToPath(import.meta.url)` with `__dirname` fallback
 - esbuild uses `nodePaths` pointing to `desktop/node_modules/` so `zod` resolves correctly
 - Telegram bot in api-server only runs in production/desktop (skipped in development to avoid conflicts)
+- Desktop proxy streams multipart/form-data requests to remote API (express.json/urlencoded parsers skipped for multipart; raw request piped through with original Content-Type and boundary)
 
 ### Deployment
 - API server deployed as VM (`deploymentTarget = "vm"`) for always-running Telegram bot
