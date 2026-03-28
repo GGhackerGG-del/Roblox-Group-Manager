@@ -1212,6 +1212,10 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [memberActionId, setMemberActionId] = useState<number | null>(null);
   const [dmSectionOpen, setDmSectionOpen] = useState(true);
   const [gcSectionOpen, setGcSectionOpen] = useState(true);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [editChatName, setEditChatName] = useState("");
+  const [editAvatarColor, setEditAvatarColor] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const voiceCall = useVoiceCallContext();
 
@@ -1623,6 +1627,41 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
   };
 
+  const openGroupSettings = () => {
+    if (!active || active.kind !== "group") return;
+    setEditChatName(active.chat.name);
+    setEditAvatarColor(active.chat.avatarColor || "#6366f1");
+    setShowGroupSettings(true);
+  };
+
+  const saveGroupSettings = async () => {
+    if (!active || active.kind !== "group") return;
+    setSavingSettings(true);
+    try {
+      await apiFetch(`/api/community/group-chats/${active.chat.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: editChatName, avatarColor: editAvatarColor }),
+      });
+      setActive({ kind: "group", chat: { ...active.chat, name: editChatName, avatarColor: editAvatarColor } });
+      setShowGroupSettings(false);
+      fetchAll(true);
+      toast({ title: t("gc.settingsSaved") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
+    finally { setSavingSettings(false); }
+  };
+
+  const deleteGroupChat = async () => {
+    if (!active || active.kind !== "group") return;
+    if (!window.confirm(t("gc.confirmDelete"))) return;
+    try {
+      await apiFetch(`/api/community/group-chats/${active.chat.id}`, { method: "DELETE" });
+      setActive(null);
+      setShowGroupSettings(false);
+      fetchAll();
+      toast({ title: t("gc.chatDeleted") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
+  };
+
   const getRoleIcon = (role: string) => {
     if (role === "admin") return <Crown className="w-3 h-3 text-yellow-500" />;
     if (role === "moderator") return <Shield className="w-3 h-3 text-blue-500" />;
@@ -2001,6 +2040,9 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 </Button>
                 <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
                 <Button size="sm" variant="ghost" className={`rounded-xl gap-1 h-8 text-xs ${showMembersPanel ? "bg-secondary" : ""}`} onClick={() => setShowMembersPanel(p => !p)}><Users className="w-3.5 h-3.5" /></Button>
+                <Button size="sm" variant="ghost" className={`rounded-xl h-8 w-8 p-0 ${showGroupSettings ? "bg-secondary" : ""}`} onClick={openGroupSettings} title={t("gc.settings")}>
+                  <Settings2 className="w-3.5 h-3.5" />
+                </Button>
                 {!isAdmin && (
                   <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10" onClick={() => myUser && removeMember(myUser.id)} title={t("com.leaveChat")}>
                     <LogOut className="w-3.5 h-3.5" />
@@ -2062,6 +2104,60 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   </motion.div>
                 )}
               </AnimatePresence>
+              {showGroupSettings && active?.kind === "group" && (
+                <div className="border-b border-border bg-secondary/20">
+                  <div className="p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold">{t("gc.settings")}</h4>
+                      <Button size="sm" variant="ghost" className="rounded-xl h-7 w-7 p-0" onClick={() => setShowGroupSettings(false)}><X className="w-4 h-4" /></Button>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground font-medium mb-1 block">{t("gc.chatName")}</label>
+                        <Input
+                          value={editChatName}
+                          onChange={e => setEditChatName(e.target.value)}
+                          className="rounded-xl text-sm h-9"
+                          disabled={!isAdmin}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground font-medium mb-1.5 block">{t("gc.avatarColor")}</label>
+                        <div className="flex gap-2 flex-wrap">
+                          {["#6366f1", "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#8b5cf6", "#ec4899", "#000000", "#64748b"].map(color => (
+                            <button
+                              key={color}
+                              className={`w-7 h-7 rounded-full border-2 transition-all ${editAvatarColor === color ? "border-foreground scale-110" : "border-transparent"}`}
+                              style={{ background: color }}
+                              onClick={() => setEditAvatarColor(color)}
+                              disabled={!isAdmin}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground font-medium mb-1 block">{t("gc.info")}</label>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <p>{t("gc.createdAt")}: {new Date(active.chat.createdAt).toLocaleDateString()}</p>
+                          <p>{t("com.members")}: {chatMembers.length}</p>
+                          {active.chat.robloxGroupId && <p>Roblox Group ID: {active.chat.robloxGroupId}</p>}
+                        </div>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-2 pt-2 border-t border-border">
+                        <Button size="sm" className="rounded-xl flex-1 h-8 text-xs" onClick={saveGroupSettings} disabled={savingSettings || !editChatName.trim()}>
+                          {savingSettings ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
+                          {t("gc.save")}
+                        </Button>
+                        <Button size="sm" variant="destructive" className="rounded-xl h-8 text-xs px-3" onClick={deleteGroupChat}>
+                          <Trash2 className="w-3.5 h-3.5 mr-1.5" /> {t("gc.deleteChat")}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 overflow-y-auto p-4 space-y-3">
                 {loadingMsgs ? (
                   <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
@@ -3072,6 +3168,13 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
   const gcFileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [editChatName, setEditChatName] = useState("");
+  const [editAvatarColor, setEditAvatarColor] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const myMembership = chatMembers.find((m: any) => m.userId === myUser?.id);
+  const isAdmin = myMembership?.role === "admin";
 
   const loadChats = async (silent = false) => {
     try {
@@ -3220,6 +3323,34 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
     } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
   };
 
+  const saveGroupSettings = async () => {
+    if (!activeChat) return;
+    setSavingSettings(true);
+    try {
+      await apiFetch(`/api/community/group-chats/${activeChat.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: editChatName, avatarColor: editAvatarColor }),
+      });
+      setActiveChat({ ...activeChat, name: editChatName, avatarColor: editAvatarColor });
+      setShowGroupSettings(false);
+      loadChats(true);
+      toast({ title: t("gc.settingsSaved") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
+    finally { setSavingSettings(false); }
+  };
+
+  const deleteGroupChat = async () => {
+    if (!activeChat) return;
+    if (!window.confirm(t("gc.confirmDelete"))) return;
+    try {
+      await apiFetch(`/api/community/group-chats/${activeChat.id}`, { method: "DELETE" });
+      setActiveChat(null);
+      setShowGroupSettings(false);
+      loadChats();
+      toast({ title: t("gc.chatDeleted") });
+    } catch (e) { toast({ variant: "destructive", title: t("com.error"), description: e instanceof Error ? e.message : "" }); }
+  };
+
   const timeAgoShort = (date: string) => {
     const d = Date.now() - new Date(date).getTime();
     const m = Math.floor(d / 60000);
@@ -3247,11 +3378,49 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
           {groupCall.active && groupCall.groupChatId === activeChat.id ? <PhoneOff className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
         </Button>
         <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
+        <Button size="sm" variant="ghost" className={`rounded-xl h-8 w-8 p-0 ${showGroupSettings ? "bg-secondary" : ""}`} onClick={() => { setEditChatName(activeChat.name); setEditAvatarColor(activeChat.avatarColor || "#6366f1"); setShowGroupSettings(p => !p); }} title={t("gc.settings")}>
+          <Settings2 className="w-3.5 h-3.5" />
+        </Button>
       </div>
       {showAddMember && (
         <div className="flex gap-2 py-2 border-b border-border">
           <Input placeholder={t("com.addMember")} value={addMemberInput} onChange={e => setAddMemberInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addMemberToChat()} className="rounded-xl flex-1 text-xs h-8" />
           <Button size="sm" className="rounded-xl h-8" onClick={addMemberToChat}><Check className="w-3.5 h-3.5" /></Button>
+        </div>
+      )}
+      {showGroupSettings && (
+        <div className="border-b border-border bg-secondary/20 p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold">{t("gc.settings")}</h4>
+            <Button size="sm" variant="ghost" className="rounded-xl h-7 w-7 p-0" onClick={() => setShowGroupSettings(false)}><X className="w-4 h-4" /></Button>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground font-medium mb-1 block">{t("gc.chatName")}</label>
+            <Input value={editChatName} onChange={e => setEditChatName(e.target.value)} className="rounded-xl text-sm h-9" disabled={!isAdmin} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground font-medium mb-1.5 block">{t("gc.avatarColor")}</label>
+            <div className="flex gap-2 flex-wrap">
+              {["#6366f1", "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#8b5cf6", "#ec4899", "#000000", "#64748b"].map(color => (
+                <button key={color} className={`w-7 h-7 rounded-full border-2 transition-all ${editAvatarColor === color ? "border-foreground scale-110" : "border-transparent"}`} style={{ background: color }} onClick={() => setEditAvatarColor(color)} disabled={!isAdmin} />
+              ))}
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            <p>{t("gc.createdAt")}: {new Date(activeChat.createdAt).toLocaleDateString()}</p>
+            <p>{t("com.members")}: {chatMembers.length}</p>
+          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2 pt-2 border-t border-border">
+              <Button size="sm" className="rounded-xl flex-1 h-8 text-xs" onClick={saveGroupSettings} disabled={savingSettings || !editChatName.trim()}>
+                {savingSettings ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
+                {t("gc.save")}
+              </Button>
+              <Button size="sm" variant="destructive" className="rounded-xl h-8 text-xs px-3" onClick={deleteGroupChat}>
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> {t("gc.deleteChat")}
+              </Button>
+            </div>
+          )}
         </div>
       )}
       <div ref={gcContainerRef} onScroll={handleGcScroll} className="flex-1 overflow-y-auto py-3 space-y-3 min-h-0">

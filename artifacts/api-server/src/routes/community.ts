@@ -388,6 +388,50 @@ router.patch("/community/group-chats/:id/members/:memberId/role", async (req, re
   res.json({ ok: true });
 });
 
+const ALLOWED_AVATAR_COLORS = new Set(["#6366f1", "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#8b5cf6", "#ec4899", "#000000", "#64748b"]);
+
+router.patch("/community/group-chats/:id", async (req, res): Promise<void> => {
+  const me = await getMyUser(req);
+  if (!me) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const chatId = parseInt(req.params.id);
+  if (isNaN(chatId)) { res.status(400).json({ error: "Invalid chat ID" }); return; }
+  const { name, avatarColor } = req.body as { name?: string; avatarColor?: string };
+  const chat = await db.query.groupChats.findFirst({ where: eq(groupChats.id, chatId) });
+  if (!chat) { res.status(404).json({ error: "Chat not found" }); return; }
+  const myM = await db.query.groupChatMembers.findFirst({
+    where: and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, me.id)),
+  });
+  if (!myM || myM.role !== "admin") { res.status(403).json({ error: "Only admin can edit chat settings" }); return; }
+  const updates: Record<string, any> = {};
+  if (name && name.trim()) {
+    const trimmed = name.trim();
+    if (trimmed.length > 64) { res.status(400).json({ error: "Name too long (max 64)" }); return; }
+    updates.name = trimmed;
+  }
+  if (avatarColor) {
+    if (!ALLOWED_AVATAR_COLORS.has(avatarColor)) { res.status(400).json({ error: "Invalid avatar color" }); return; }
+    updates.avatarColor = avatarColor;
+  }
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+  await db.update(groupChats).set(updates).where(eq(groupChats.id, chatId));
+  res.json({ ok: true });
+});
+
+router.delete("/community/group-chats/:id", async (req, res): Promise<void> => {
+  const me = await getMyUser(req);
+  if (!me) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const chatId = parseInt(req.params.id);
+  if (isNaN(chatId)) { res.status(400).json({ error: "Invalid chat ID" }); return; }
+  const chat = await db.query.groupChats.findFirst({ where: eq(groupChats.id, chatId) });
+  if (!chat) { res.status(404).json({ error: "Chat not found" }); return; }
+  const myM = await db.query.groupChatMembers.findFirst({
+    where: and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, me.id)),
+  });
+  if (!myM || myM.role !== "admin") { res.status(403).json({ error: "Only admin can delete the chat" }); return; }
+  await db.delete(groupChats).where(eq(groupChats.id, chatId));
+  res.json({ ok: true });
+});
+
 // ── Roblox Group Chat (auto-created) ──────────────────────────────────────────
 
 router.post("/community/roblox-group-chat", async (req, res): Promise<void> => {
