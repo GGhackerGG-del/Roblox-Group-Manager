@@ -25,8 +25,16 @@ app.use(cors({
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "X-Device-Fingerprint"],
 }));
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use((req, _res, next) => {
+  const ct = (req.headers["content-type"] || "").toLowerCase();
+  if (ct.startsWith("multipart/form-data")) return next();
+  express.json({ limit: "50mb" })(req, _res, next);
+});
+app.use((req, _res, next) => {
+  const ct = (req.headers["content-type"] || "").toLowerCase();
+  if (ct.startsWith("multipart/form-data")) return next();
+  express.urlencoded({ extended: true, limit: "50mb" })(req, _res, next);
+});
 
 app.use(session({
   store: new PgStore({
@@ -36,7 +44,7 @@ app.use(session({
   }),
   secret: SESSION_SECRET,
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false,
   cookie: {
     httpOnly: true,
     secure: true,

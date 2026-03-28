@@ -13,14 +13,17 @@ export function robloxHeaders(cookie: string, extra: Record<string, string> = {}
   };
 }
 
-export async function verifyRobloxCookie(cookie: string): Promise<boolean> {
+export async function verifyRobloxCookie(cookie: string): Promise<"valid" | "dead" | "unknown"> {
   try {
     const resp = await fetch("https://users.roblox.com/v1/users/authenticated", {
       headers: robloxHeaders(cookie),
+      signal: AbortSignal.timeout(10000),
     });
-    return resp.ok;
+    if (resp.ok) return "valid";
+    if (resp.status === 401) return "dead";
+    return "unknown";
   } catch {
-    return true;
+    return "unknown";
   }
 }
 
@@ -79,8 +82,9 @@ export async function clearSessionIfCookieDead(req: Request): Promise<boolean> {
   const cookie = req.session.robloxCookie;
   if (!cookie) return true;
 
-  const isValid = await verifyRobloxCookie(cookie);
-  if (!isValid) {
+  const result = await verifyRobloxCookie(cookie);
+  if (result === "dead") {
+    console.log("[Session] Cookie confirmed dead by Roblox 401, clearing session");
     delete req.session.robloxCookie;
     delete req.session.robloxProfile;
     delete (req.session as any).robloxUserId;

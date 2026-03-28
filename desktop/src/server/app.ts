@@ -517,12 +517,16 @@ async function proxyToRemote(
       ? response.headers.getSetCookie()
       : (response.headers.raw?.()?.["set-cookie"] || []);
 
-    if (setCookieHeaders && setCookieHeaders.length > 0) {
+    if (setCookieHeaders && setCookieHeaders.length > 0 && response.status < 500) {
       for (const sc of setCookieHeaders) {
         const match = sc.match(/^(connect\.sid=[^;]+)/);
         if (match && match[1] !== remoteSessionCookie) {
-          persistCookie(match[1]);
-          console.log("[Proxy] Session cookie updated from", remotePath);
+          if (remoteSessionCookie && response.status >= 400) {
+            console.log("[Proxy] Ignoring new session cookie from error response", remotePath);
+          } else {
+            persistCookie(match[1]);
+            console.log("[Proxy] Session cookie updated from", remotePath);
+          }
         }
       }
     }
