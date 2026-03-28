@@ -26,93 +26,96 @@ async function solveChefChallenge(
   metadata: any,
   cookie: string,
 ): Promise<{ redemptionToken: string; nonce: string } | null> {
-  try {
-    console.log(`[ChefPoW] Metadata received: ${JSON.stringify(metadata)}`);
-    const sessionId = metadata.sessionId || metadata.challengeId;
+  const chefHeaders = {
+    "Cookie": `.ROBLOSECURITY=${cookie}`,
+    "User-Agent": UA,
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "Origin": "https://www.roblox.com",
+    "Referer": "https://www.roblox.com/",
+  };
 
-    if (!sessionId) {
-      console.error(`[ChefPoW] No sessionId in metadata`);
-      return null;
-    }
+  for (let round = 0; round < 3; round++) {
+    try {
+      console.log(`[ChefPoW] Round ${round + 1}, metadata: ${JSON.stringify(metadata).slice(0, 300)}`);
+      const sessionId = metadata.sessionId || metadata.challengeId || challengeId;
 
-    const powResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge", {
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "User-Agent": UA,
-        "Content-Type": "application/json",
-      },
-    });
-    if (!powResp.ok) {
-      console.error(`[ChefPoW] pow-challenge GET failed: status=${powResp.status}`);
-      const errText = await powResp.text().catch(() => "");
-      console.error(`[ChefPoW] pow-challenge response: ${errText.slice(0, 500)}`);
-      return null;
-    }
-    const powData = await powResp.json() as any;
-    console.log(`[ChefPoW] pow-challenge response: ${JSON.stringify(powData).slice(0, 500)}`);
+      const powResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge", {
+        headers: chefHeaders,
+      });
+      const powText = await powResp.text();
+      console.log(`[ChefPoW] pow-challenge GET: status=${powResp.status} body=${powText.slice(0, 500)}`);
+      if (!powResp.ok) {
+        console.error(`[ChefPoW] pow-challenge GET failed, retrying...`);
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
 
-    const artifact = powData.artifact || powData.prefix || powData.sessionToken;
-    const difficulty = powData.difficulty ?? metadata.difficulty;
-    const powSessionId = powData.sessionId || sessionId;
+      let powData: any;
+      try { powData = JSON.parse(powText); } catch { console.error(`[ChefPoW] Failed to parse pow response`); continue; }
 
-    if (!artifact || difficulty === undefined) {
-      console.error(`[ChefPoW] Missing artifact/difficulty. artifact=${artifact} difficulty=${difficulty}`);
-      console.error(`[ChefPoW] Full powData: ${JSON.stringify(powData)}`);
-      return null;
-    }
+      const artifact = powData.artifact || powData.prefix || powData.sessionToken || powData.challenge;
+      const difficulty = powData.difficulty ?? metadata.difficulty ?? 5;
+      const powSessionId = powData.sessionId || sessionId;
 
-    console.log(`[ChefPoW] Solving: artifact=${artifact.slice(0, 30)}..., difficulty=${difficulty}`);
-    const start = Date.now();
-    const nonce = solveChefPoW(artifact, difficulty);
-    console.log(`[ChefPoW] Solved in ${Date.now() - start}ms, nonce=${nonce}`);
+      if (!artifact) {
+        console.error(`[ChefPoW] No artifact found. Full response: ${JSON.stringify(powData)}`);
+        continue;
+      }
 
-    const answerResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge/answer", {
-      method: "POST",
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "User-Agent": UA,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        sessionId: powSessionId,
-        answer: nonce,
-      }),
-    });
-    const answerData = await answerResp.json().catch(() => ({})) as any;
-    console.log(`[ChefPoW] answer response: status=${answerResp.status} data=${JSON.stringify(answerData).slice(0, 500)}`);
+      console.log(`[ChefPoW] Solving: artifact=${String(artifact).slice(0, 40)}..., difficulty=${difficulty}, sessionId=${powSessionId}`);
+      const start = Date.now();
+      const nonce = solveChefPoW(String(artifact), Number(difficulty));
+      console.log(`[ChefPoW] Solved in ${Date.now() - start}ms, nonce=${nonce}`);
 
-    if (!answerResp.ok) {
-      console.error(`[ChefPoW] answer endpoint failed: ${answerResp.status}`);
-      return null;
-    }
+      const answerResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge/answer", {
+        method: "POST",
+        headers: chefHeaders,
+        body: JSON.stringify({ sessionId: powSessionId, answer: nonce }),
+      });
+      const answerText = await answerResp.text();
+      console.log(`[ChefPoW] answer: status=${answerResp.status} body=${answerText.slice(0, 500)}`);
 
-    const redemptionToken = answerData.redemptionToken || answerData.token || "";
+      let answerData: any = {};
+      try { answerData = JSON.parse(answerText); } catch {}
 
-    const continueResp = await fetch("https://apis.roblox.com/challenge/v1/continue", {
-      method: "POST",
-      headers: {
-        "Cookie": `.ROBLOSECURITY=${cookie}`,
-        "User-Agent": UA,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        challengeId,
-        challengeType: "chef",
-        challengeMetadata: JSON.stringify({
-          sessionId: powSessionId,
-          redemptionToken,
-          answer: nonce,
+      if (!answerResp.ok) {
+        console.error(`[ChefPoW] answer failed (${answerResp.status}), retrying round...`);
+        await new Promise(r => setTimeout(r, 500));
+        continue;
+      }
+
+      const redemptionToken = answerData.redemptionToken || answerData.token || answerData.exchangeBlob || "";
+
+      const continueResp = await fetch("https://apis.roblox.com/challenge/v1/continue", {
+        method: "POST",
+        headers: chefHeaders,
+        body: JSON.stringify({
+          challengeId,
+          challengeType: "chef",
+          challengeMetadata: JSON.stringify({
+            sessionId: powSessionId,
+            redemptionToken,
+            answer: nonce,
+          }),
         }),
-      }),
-    });
-    const continueData = await continueResp.json().catch(() => ({})) as any;
-    console.log(`[ChefPoW] continue response: status=${continueResp.status} data=${JSON.stringify(continueData).slice(0, 500)}`);
+      });
+      const continueText = await continueResp.text();
+      console.log(`[ChefPoW] continue: status=${continueResp.status} body=${continueText.slice(0, 500)}`);
 
-    return { redemptionToken, nonce };
-  } catch (err: any) {
-    console.error("[ChefPoW] Error:", err.message);
-    return null;
+      if (!continueResp.ok) {
+        console.error(`[ChefPoW] continue failed, retrying round...`);
+        await new Promise(r => setTimeout(r, 500));
+        continue;
+      }
+
+      return { redemptionToken, nonce };
+    } catch (err: any) {
+      console.error(`[ChefPoW] Round ${round + 1} error:`, err.message);
+    }
   }
+  console.error("[ChefPoW] All rounds exhausted");
+  return null;
 }
 
 function rHeaders(cookie: string, extra: Record<string, string> = {}): Record<string, string> {
