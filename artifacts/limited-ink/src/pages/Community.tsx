@@ -1167,16 +1167,16 @@ type ActiveChatTarget =
   | { kind: "dm"; user: PlatformUser }
   | { kind: "group"; chat: any };
 
-function formatLastSeen(isoStr: string | null, _t: (k: string) => string): string {
+function formatLastSeen(isoStr: string | null, t: (k: string) => string): string {
   if (!isoStr) return "";
   const diff = Date.now() - new Date(isoStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t("presence.justNow");
+  if (mins < 60) return t("presence.minsAgo").replace("{n}", String(mins));
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("presence.hoursAgo").replace("{n}", String(hours));
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
+  if (days < 7) return t("presence.daysAgo").replace("{n}", String(days));
   return new Date(isoStr).toLocaleDateString();
 }
 
@@ -1755,7 +1755,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                           <div className="flex items-center gap-1.5">
                             <p className="text-xs font-semibold truncate">{otherUser?.displayName}</p>
                             {userOnline ? (
-                              <span className="text-[9px] text-green-500 font-medium shrink-0">online</span>
+                              <span className="text-[9px] text-green-500 font-medium shrink-0">{t("presence.online")}</span>
                             ) : userLastSeen ? (
                               <span className="text-[9px] text-muted-foreground/60 shrink-0">{formatLastSeen(userLastSeen, t)}</span>
                             ) : null}
@@ -1869,7 +1869,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{active.user.displayName}</p>
                   {isOnline(active.user.robloxUserId) ? (
-                    <p className="text-xs text-green-500 font-medium">online</p>
+                    <p className="text-xs text-green-500 font-medium">{t("presence.online")}</p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
                       @{active.user.robloxUsername}

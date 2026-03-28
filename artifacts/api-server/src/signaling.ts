@@ -201,7 +201,10 @@ export function setupSignaling(server: HttpServer) {
             callerAvatar: msg.callerAvatar,
             offer: msg.offer,
           });
-          sendToUser(msg.targetUserId, payload);
+          const delivered = sendToUser(msg.targetUserId, payload);
+          if (!delivered) {
+            ws.send(JSON.stringify({ type: "call-unavailable", targetUserId: msg.targetUserId }));
+          }
           break;
         }
 
