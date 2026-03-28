@@ -482,13 +482,14 @@ async function proxyToRemote(
     }
 
     const hasBody = req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE";
-    const contentType = (req.headers["content-type"] || "").toLowerCase();
-    const isMultipart = contentType.startsWith("multipart/form-data");
+    const contentTypeLower = (req.headers["content-type"] || "").toLowerCase();
+    const isMultipart = contentTypeLower.startsWith("multipart/form-data");
+    const contentTypeOriginal = req.headers["content-type"] || "";
 
     let body: any = undefined;
     if (hasBody) {
       if (isMultipart) {
-        headers["Content-Type"] = contentType;
+        headers["Content-Type"] = contentTypeOriginal;
         const chunks: Buffer[] = [];
         await new Promise<void>((resolve, reject) => {
           req.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -504,7 +505,11 @@ async function proxyToRemote(
     }
 
     const url = `${REMOTE_API}${remotePath}`;
-    console.log(`[Proxy] ${req.method} ${url} (${isMultipart ? `multipart, ${body?.length || 0} bytes` : "json"})`);
+    if (isMultipart) {
+      console.log(`[Proxy] ${req.method} ${url} (multipart, ${body?.length || 0} bytes, ct=${contentTypeOriginal.slice(0, 80)})`);
+    } else {
+      console.log(`[Proxy] ${req.method} ${url} (json)`);
+    }
 
     const response = await fetchFn(url, {
       method: req.method,
