@@ -1165,16 +1165,16 @@ type ActiveChatTarget =
   | { kind: "dm"; user: PlatformUser }
   | { kind: "group"; chat: any };
 
-function formatLastSeen(isoStr: string | null, t: (k: string) => string): string {
+function formatLastSeen(isoStr: string | null, _t: (k: string) => string): string {
   if (!isoStr) return "";
   const diff = Date.now() - new Date(isoStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return t("presence.justNow") || "just now";
-  if (mins < 60) return `${mins}${t("presence.minAgo") || "m ago"}`;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}${t("presence.hrAgo") || "h ago"}`;
+  if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}${t("presence.dayAgo") || "d ago"}`;
+  if (days < 7) return `${days}d ago`;
   return new Date(isoStr).toLocaleDateString();
 }
 
