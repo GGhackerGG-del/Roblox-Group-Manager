@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server as HttpServer } from "http";
 import { db } from "@workspace/db";
-import { platformUsers } from "@workspace/db/schema";
+import { platformUsers, groupChatMembers } from "@workspace/db/schema";
 import { eq, inArray } from "drizzle-orm";
 
 interface ConnectedSocket {
@@ -295,6 +295,33 @@ export function setupSignaling(server: HttpServer) {
               avatarUrl: currentEntry.avatarUrl,
             }));
           }
+
+          (async () => {
+            try {
+              const members = await db.select({
+                  platformUserId: groupChatMembers.userId,
+                  robloxUserId: platformUsers.robloxUserId,
+                })
+                .from(groupChatMembers)
+                .innerJoin(platformUsers, eq(platformUsers.id, groupChatMembers.userId))
+                .where(eq(groupChatMembers.chatId, gid));
+              const room = groupCallRooms.get(gid);
+              const inCall = room ? [...room] : [];
+              for (const m of members) {
+                if (inCall.includes(m.robloxUserId)) continue;
+                sendToUser(m.robloxUserId, JSON.stringify({
+                  type: "group-call-ring",
+                  groupChatId: gid,
+                  callerId: currentEntry!.userId,
+                  callerName: currentEntry!.displayName,
+                  callerAvatar: currentEntry!.avatarUrl || "",
+                  participants: inCall.length,
+                }));
+              }
+            } catch (err) {
+              console.error("[Signaling] Failed to send group call ring:", err);
+            }
+          })();
           break;
         }
 
@@ -349,6 +376,25 @@ export function setupSignaling(server: HttpServer) {
             candidate: msg.candidate,
             fromUserId: currentEntry.userId,
           }));
+          break;
+        }
+
+        case "group-track-state": {
+          if (!currentEntry) break;
+          const gid = msg.groupChatId as number;
+          const room = groupCallRooms.get(gid);
+          if (room) {
+            for (const peerId of room) {
+              if (peerId === currentEntry.userId) continue;
+              sendToUser(peerId, JSON.stringify({
+                type: "group-track-state",
+                groupChatId: gid,
+                fromUserId: currentEntry.userId,
+                track: msg.track,
+                enabled: msg.enabled,
+              }));
+            }
+          }
           break;
         }
 

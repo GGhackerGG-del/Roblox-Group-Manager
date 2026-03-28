@@ -19,7 +19,18 @@ export interface GroupCallPeer {
   avatarUrl: string;
   pc: RTCPeerConnection;
   audioStream: MediaStream | null;
+  screenStream: MediaStream | null;
+  screenSharing: boolean;
   speaking: boolean;
+}
+
+export interface GroupCallRing {
+  groupChatId: number;
+  callerId: number;
+  callerName: string;
+  callerAvatar: string;
+  participants: number;
+  timestamp: number;
 }
 
 export interface GroupCallState {
@@ -27,29 +38,40 @@ export interface GroupCallState {
   groupChatId: number | null;
   muted: boolean;
   deafened: boolean;
+  screenSharing: boolean;
+  showScreenPicker: boolean;
   timer: number;
   peers: Map<number, GroupCallPeer>;
   error: string | null;
+  incomingRing: GroupCallRing | null;
 }
 
 export function useGroupCall(myUserId: number | null, myDisplayName: string, myAvatar: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const screenSendersRef = useRef<Map<number, RTCRtpSender>>(new Map());
+  const localScreenVideoRef = useRef<HTMLVideoElement | null>(null);
   const peersRef = useRef<Map<number, GroupCallPeer>>(new Map());
   const audioElementsRef = useRef<Map<number, HTMLAudioElement>>(new Map());
+  const screenVideoElementsRef = useRef<Map<number, HTMLVideoElement>>(new Map());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const unmountedRef = useRef(false);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const groupChatIdRef = useRef<number | null>(null);
+  const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [state, setState] = useState<GroupCallState>({
     active: false,
     groupChatId: null,
     muted: false,
     deafened: false,
+    screenSharing: false,
+    showScreenPicker: false,
     timer: 0,
     peers: new Map(),
     error: null,
+    incomingRing: null,
   });
 
   const stateRef = useRef(state);
@@ -96,6 +118,16 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null;
 
+    screenStreamRef.current?.getTracks().forEach(t => t.stop());
+    screenStreamRef.current = null;
+    screenSendersRef.current.clear();
+
+    for (const [, el] of screenVideoElementsRef.current) {
+      el.pause();
+      el.srcObject = null;
+    }
+    screenVideoElementsRef.current.clear();
+
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
 
@@ -111,6 +143,7 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
       groupChatId: null,
       muted: false,
       deafened: false,
+      screenSharing: false,
       timer: 0,
       peers: new Map(),
     }));
@@ -136,21 +169,29 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
 
     pc.ontrack = (e) => {
       const stream = e.streams[0];
-      if (!stream || e.track.kind !== "audio") return;
-
-      let audioEl = audioElementsRef.current.get(peerId);
-      if (!audioEl) {
-        audioEl = new Audio();
-        audioEl.autoplay = true;
-        audioElementsRef.current.set(peerId, audioEl);
-      }
-      audioEl.srcObject = stream;
-      audioEl.play().catch(() => {});
+      if (!stream) return;
 
       const peer = peersRef.current.get(peerId);
-      if (peer) {
-        peer.audioStream = stream;
-        syncPeersToState();
+      if (e.track.kind === "audio") {
+        let audioEl = audioElementsRef.current.get(peerId);
+        if (!audioEl) {
+          audioEl = new Audio();
+          audioEl.autoplay = true;
+          audioElementsRef.current.set(peerId, audioEl);
+        }
+        audioEl.srcObject = stream;
+        audioEl.play().catch(() => {});
+
+        if (peer) {
+          peer.audioStream = stream;
+          syncPeersToState();
+        }
+      } else if (e.track.kind === "video") {
+        if (peer) {
+          peer.screenStream = stream;
+          peer.screenSharing = true;
+          syncPeersToState();
+        }
       }
     };
 
@@ -160,12 +201,21 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
       }
     };
 
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getVideoTracks().forEach(track => {
+        const sender = pc.addTrack(track, screenStreamRef.current!);
+        screenSendersRef.current.set(peerId, sender);
+      });
+    }
+
     const peer: GroupCallPeer = {
       userId: peerId,
       displayName: peerDisplayName,
       avatarUrl: peerAvatarUrl,
       pc,
       audioStream: null,
+      screenStream: null,
+      screenSharing: false,
       speaking: false,
     };
     peersRef.current.set(peerId, peer);
@@ -185,6 +235,13 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
       audioEl.pause();
       audioEl.srcObject = null;
       audioElementsRef.current.delete(peerId);
+    }
+    screenSendersRef.current.delete(peerId);
+    const screenEl = screenVideoElementsRef.current.get(peerId);
+    if (screenEl) {
+      screenEl.pause();
+      screenEl.srcObject = null;
+      screenVideoElementsRef.current.delete(peerId);
     }
     syncPeersToState();
   }, [syncPeersToState]);
@@ -226,7 +283,13 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
       case "group-call-offer": {
         try {
           const stream = await getLocalStream();
-          const pc = createPeerConnection(msg.fromUserId, msg.fromDisplayName || "", msg.fromAvatarUrl || "");
+          const existingPeer = peersRef.current.get(msg.fromUserId);
+          let pc: RTCPeerConnection;
+          if (existingPeer) {
+            pc = existingPeer.pc;
+          } else {
+            pc = createPeerConnection(msg.fromUserId, msg.fromDisplayName || "", msg.fromAvatarUrl || "");
+          }
           await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
@@ -270,8 +333,42 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
       case "group-call-participants": {
         break;
       }
+
+      case "group-call-ring": {
+        if (stateRef.current.active) break;
+        setState(s => ({
+          ...s,
+          incomingRing: {
+            groupChatId: msg.groupChatId,
+            callerId: msg.callerId,
+            callerName: msg.callerName,
+            callerAvatar: msg.callerAvatar,
+            participants: msg.participants,
+            timestamp: Date.now(),
+          },
+        }));
+        if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+        ringTimeoutRef.current = setTimeout(() => {
+          setState(s => ({ ...s, incomingRing: null }));
+        }, 30000);
+        break;
+      }
+
+      case "group-track-state": {
+        const peer = peersRef.current.get(msg.fromUserId);
+        if (peer) {
+          if (msg.track === "screen") {
+            peer.screenSharing = msg.enabled;
+            if (!msg.enabled) {
+              peer.screenStream = null;
+            }
+            syncPeersToState();
+          }
+        }
+        break;
+      }
     }
-  }, [myUserId, sendWs, getLocalStream, createPeerConnection, removePeer]);
+  }, [myUserId, sendWs, getLocalStream, createPeerConnection, removePeer, syncPeersToState]);
 
   const connectWs = useCallback(() => {
     if (!myUserId || unmountedRef.current) return;
@@ -311,6 +408,7 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
     return () => {
       unmountedRef.current = true;
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
       if (stateRef.current.active) cleanupCall();
       wsRef.current?.close();
     };
@@ -369,16 +467,121 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
     setState(s => ({ ...s, deafened: willDeafen }));
   }, []);
 
+  const toggleScreenShare = useCallback(async () => {
+    if (!stateRef.current.active || !groupChatIdRef.current) return;
+
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(t => t.stop());
+      screenStreamRef.current = null;
+
+      for (const [peerId, sender] of screenSendersRef.current) {
+        const peer = peersRef.current.get(peerId);
+        if (peer) {
+          peer.pc.removeTrack(sender);
+        }
+      }
+      screenSendersRef.current.clear();
+
+      if (localScreenVideoRef.current) {
+        localScreenVideoRef.current.srcObject = null;
+      }
+
+      sendWs({
+        type: "group-track-state",
+        groupChatId: groupChatIdRef.current,
+        track: "screen",
+        enabled: false,
+      });
+
+      setState(s => ({ ...s, screenSharing: false }));
+
+      for (const [peerId, peer] of peersRef.current) {
+        try {
+          const offer = await peer.pc.createOffer();
+          await peer.pc.setLocalDescription(offer);
+          sendWs({
+            type: "group-call-offer",
+            targetUserId: peerId,
+            groupChatId: groupChatIdRef.current,
+            offer,
+          });
+        } catch {}
+      }
+      return;
+    }
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      });
+      screenStreamRef.current = screenStream;
+
+      if (localScreenVideoRef.current) {
+        localScreenVideoRef.current.srcObject = screenStream;
+      }
+
+      const videoTrack = screenStream.getVideoTracks()[0];
+      for (const [peerId, peer] of peersRef.current) {
+        const sender = peer.pc.addTrack(videoTrack, screenStream);
+        screenSendersRef.current.set(peerId, sender);
+        try {
+          const offer = await peer.pc.createOffer();
+          await peer.pc.setLocalDescription(offer);
+          sendWs({
+            type: "group-call-offer",
+            targetUserId: peerId,
+            groupChatId: groupChatIdRef.current,
+            offer,
+          });
+        } catch {}
+      }
+
+      sendWs({
+        type: "group-track-state",
+        groupChatId: groupChatIdRef.current,
+        track: "screen",
+        enabled: true,
+      });
+
+      setState(s => ({ ...s, screenSharing: true }));
+
+      videoTrack.onended = () => {
+        toggleScreenShare();
+      };
+    } catch (err: any) {
+      if (err?.name !== "NotAllowedError") {
+        setState(s => ({ ...s, error: "Failed to share screen" }));
+        setTimeout(() => setState(s => ({ ...s, error: null })), 5000);
+      }
+    }
+  }, [sendWs, syncPeersToState]);
+
+  const dismissRing = useCallback(() => {
+    if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+    setState(s => ({ ...s, incomingRing: null }));
+  }, []);
+
+  const acceptRing = useCallback((groupChatId: number) => {
+    if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+    setState(s => ({ ...s, incomingRing: null }));
+    joinCall(groupChatId);
+  }, [joinCall]);
+
   const getParticipants = useCallback((groupChatId: number) => {
     sendWs({ type: "group-call-participants", groupChatId });
   }, [sendWs]);
 
   return {
     ...state,
+    localScreenVideoRef,
     joinCall,
     leaveCall,
     toggleMute,
     toggleDeafen,
+    toggleScreenShare,
     getParticipants,
+    dismissRing,
+    acceptRing,
   };
 }

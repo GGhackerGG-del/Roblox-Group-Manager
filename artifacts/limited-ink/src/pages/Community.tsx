@@ -2268,13 +2268,19 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
         groupName={active?.kind === "group" ? active.chat.name : ""}
         muted={groupCall.muted}
         deafened={groupCall.deafened}
+        screenSharing={groupCall.screenSharing}
         timer={groupCall.timer}
         peers={groupCall.peers}
         myName={myUser?.displayName ?? ""}
         myAvatar={myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : "")}
+        localScreenVideoRef={groupCall.localScreenVideoRef}
+        incomingRing={groupCall.incomingRing}
         onLeave={groupCall.leaveCall}
         onToggleMute={groupCall.toggleMute}
         onToggleDeafen={groupCall.toggleDeafen}
+        onToggleScreenShare={groupCall.toggleScreenShare}
+        onAcceptRing={groupCall.acceptRing}
+        onDismissRing={groupCall.dismissRing}
       />
     </div>
   );
@@ -3766,13 +3772,19 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
         groupName={activeChat?.name ?? ""}
         muted={groupCall.muted}
         deafened={groupCall.deafened}
+        screenSharing={groupCall.screenSharing}
         timer={groupCall.timer}
         peers={groupCall.peers}
         myName={myUser?.displayName ?? ""}
         myAvatar={myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : "")}
+        localScreenVideoRef={groupCall.localScreenVideoRef}
+        incomingRing={groupCall.incomingRing}
         onLeave={groupCall.leaveCall}
         onToggleMute={groupCall.toggleMute}
         onToggleDeafen={groupCall.toggleDeafen}
+        onToggleScreenShare={groupCall.toggleScreenShare}
+        onAcceptRing={groupCall.acceptRing}
+        onDismissRing={groupCall.dismissRing}
       />
     </div>
   );
