@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import { RobloxAuthBody } from "@workspace/api-zod";
 import { db, featuredGroups } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { clearSessionIfCookieDead } from "../lib/robloxSafe.js";
 
 const router: IRouter = Router();
 
@@ -305,9 +304,6 @@ router.get("/roblox/groups", async (req, res): Promise<void> => {
     break;
   }
   if (!userResp || !userResp.ok) {
-    if (userResp && userResp.status === 401) {
-      clearSessionIfCookieDead(req).catch(() => {});
-    }
     res.status(502).json({ error: "Roblox API temporarily unavailable. Please try again." });
     return;
   }
@@ -428,9 +424,6 @@ router.get("/roblox/groups/:groupId/stats", async (req, res): Promise<void> => {
     break;
   }
   if (!meResp || !meResp.ok) {
-    if (meResp && meResp.status === 401) {
-      clearSessionIfCookieDead(req).catch(() => {});
-    }
     res.status(502).json({ error: "Roblox API temporarily unavailable. Please try again." });
     return;
   }
