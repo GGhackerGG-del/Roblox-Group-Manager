@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useRef, useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { robloxHeadshot } from "@/lib/roblox";
@@ -42,9 +42,10 @@ interface NavItemProps {
   label: string;
   isActive: boolean;
   badge?: string;
+  unreadCount?: number;
 }
 
-function NavItem({ href, icon, label, isActive, badge }: NavItemProps) {
+function NavItem({ href, icon, label, isActive, badge, unreadCount }: NavItemProps) {
   return (
     <Link href={href}>
       <div
@@ -52,8 +53,13 @@ function NavItem({ href, icon, label, isActive, badge }: NavItemProps) {
         onClick={playClick}
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isActive ? "bg-black text-white shadow-md shadow-black/10 font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground font-medium"}`}
       >
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isActive ? "bg-white/15" : "bg-secondary/70 border border-border"}`}>
+        <div className={`relative w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isActive ? "bg-white/15" : "bg-secondary/70 border border-border"}`}>
           {icon}
+          {!!unreadCount && unreadCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 shadow-sm">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </div>
         <span className="text-sm flex-1">{label}</span>
         {badge && (
@@ -83,6 +89,28 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const cache = usePageCache();
   const prefetchedRef = useRef<Set<string>>(new Set());
   const trackedSectionsRef = useRef<Set<string>>(new Set());
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnread = useCallback(async () => {
+    try {
+      const { token, fingerprint } = getAuthCredentials();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
+      const res = await fetch(`${BASE}/api/social/unread-count`, { credentials: "include", headers });
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadCount(data.count || 0);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (location === "/community") return;
+    fetchUnread();
+    const iv = setInterval(fetchUnread, 15000);
+    return () => clearInterval(iv);
+  }, [fetchUnread, location]);
 
   useEffect(() => {
     const section = SECTION_MAP[location] || (location.startsWith("/group/") ? "groups" : null);
@@ -143,7 +171,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
         <div className="flex-1 overflow-y-auto px-4 pb-4 custom-scrollbar">
         <div className="pt-4 space-y-1">
           <NavItem href="/profile" icon={<UserCircle className="w-4 h-4" />} label={t("nav.profile")} isActive={location === "/profile"} />
-          <NavItem href="/community" icon={<MessageSquare className="w-4 h-4" />} label={t("nav.community")} isActive={location === "/community"} />
+          <NavItem href="/community" icon={<MessageSquare className="w-4 h-4" />} label={t("nav.community")} isActive={location === "/community"} unreadCount={unreadCount} />
         </div>
 
         <div className="pt-3 space-y-1">

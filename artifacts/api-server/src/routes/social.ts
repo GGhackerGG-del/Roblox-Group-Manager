@@ -375,6 +375,26 @@ router.post("/social/posts/:postId/comments", async (req, res): Promise<void> =>
   res.json({ comment: { ...comment, author: myUser } });
 });
 
+router.get("/social/unread-count", async (req, res): Promise<void> => {
+  const robloxUserId = req.session.robloxUserId;
+  if (!robloxUserId) { res.json({ count: 0 }); return; }
+  const myUser = await db.query.platformUsers.findFirst({ where: eq(platformUsers.robloxUserId, robloxUserId) });
+  if (!myUser) { res.json({ count: 0 }); return; }
+
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(dmMessages)
+    .innerJoin(dmConversations, eq(dmMessages.conversationId, dmConversations.id))
+    .where(
+      and(
+        or(eq(dmConversations.user1Id, myUser.id), eq(dmConversations.user2Id, myUser.id)),
+        eq(dmMessages.isRead, false),
+        ne(dmMessages.senderId, myUser.id)
+      )
+    );
+  res.json({ count: Number(result[0]?.count ?? 0) });
+});
+
 router.get("/social/messages", async (req, res): Promise<void> => {
   const robloxUserId = req.session.robloxUserId;
   if (!robloxUserId) { res.status(401).json({ error: "Not authenticated" }); return; }
