@@ -190,15 +190,16 @@ interface AvatarWithFrameProps {
   robloxId?: number;
   fallbackText?: string;
   frameId?: string;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "xs" | "sm" | "md" | "lg" | "xl" | number;
   className?: string;
 }
 
-const SIZE_MAP = {
-  sm: { outer: "w-10 h-10", avatar: "w-full h-full", text: "text-xs" },
-  md: { outer: "w-14 h-14", avatar: "w-full h-full", text: "text-sm" },
-  lg: { outer: "w-20 h-20", avatar: "w-full h-full", text: "text-xl" },
-  xl: { outer: "w-28 h-28", avatar: "w-full h-full", text: "text-3xl" },
+const SIZE_MAP: Record<string, { outer: string; avatar: string; text: string }> = {
+  xs: { outer: "w-6 h-6", avatar: "w-full h-full", text: "text-[8px]" },
+  sm: { outer: "w-8 h-8", avatar: "w-full h-full", text: "text-[10px]" },
+  md: { outer: "w-10 h-10", avatar: "w-full h-full", text: "text-xs" },
+  lg: { outer: "w-14 h-14", avatar: "w-full h-full", text: "text-sm" },
+  xl: { outer: "w-20 h-20", avatar: "w-full h-full", text: "text-xl" },
 };
 
 export default function AvatarWithFrame({
@@ -210,14 +211,17 @@ export default function AvatarWithFrame({
   className = "",
 }: AvatarWithFrameProps) {
   const frame = AVATAR_FRAMES[frameId] || AVATAR_FRAMES.none;
-  const sizeClasses = SIZE_MAP[size];
+  const isNumeric = typeof size === "number";
+  const sizeClasses = isNumeric ? null : SIZE_MAP[size] || SIZE_MAP.md;
+  const pxStyle = isNumeric ? { width: size, height: size } : undefined;
+  const textClass = isNumeric ? (size <= 24 ? "text-[8px]" : size <= 32 ? "text-[10px]" : size <= 48 ? "text-xs" : "text-sm") : sizeClasses!.text;
   const imgSrc = src || (robloxId ? robloxHeadshot(robloxId) : undefined);
 
   if (frameId === "none" || !AVATAR_FRAMES[frameId]) {
     return (
-      <Avatar className={`${sizeClasses.outer} border-2 border-border ${className}`}>
+      <Avatar className={`${sizeClasses?.outer || ""} border border-border ${className}`} style={pxStyle}>
         {imgSrc && <AvatarImage src={imgSrc} />}
-        <AvatarFallback className={`${sizeClasses.text} font-bold bg-secondary`}>
+        <AvatarFallback className={`${textClass} font-bold bg-secondary`}>
           {fallbackText}
         </AvatarFallback>
       </Avatar>
@@ -226,12 +230,12 @@ export default function AvatarWithFrame({
 
   return (
     <div
-      className={`${sizeClasses.outer} rounded-full ${frame.className} ${className}`}
-      style={frame.style}
+      className={`${sizeClasses?.outer || ""} rounded-full shrink-0 ${frame.className} ${className}`}
+      style={{ ...frame.style, ...pxStyle }}
     >
-      <Avatar className={`${sizeClasses.avatar} rounded-full border-2 border-background`}>
+      <Avatar className="w-full h-full rounded-full border-2 border-background">
         {imgSrc && <AvatarImage src={imgSrc} className="rounded-full" />}
-        <AvatarFallback className={`${sizeClasses.text} font-bold bg-secondary rounded-full`}>
+        <AvatarFallback className={`${textClass} font-bold bg-secondary rounded-full`}>
           {fallbackText}
         </AvatarFallback>
       </Avatar>
