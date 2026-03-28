@@ -184,6 +184,22 @@ router.get("/social/users", async (req, res): Promise<void> => {
   res.json({ users: usersWithMeta, page, hasMore: allUsers.length === limit, myUserId: myUser?.id || null });
 });
 
+router.get("/social/users/search", async (req, res): Promise<void> => {
+  const q = String(req.query.q || "").trim();
+  if (!q) { res.json([]); return; }
+  const qLower = q.toLowerCase();
+
+  const results = await db.query.platformUsers.findMany({
+    where: or(
+      sql`lower(${platformUsers.robloxUsername}) LIKE ${'%' + qLower + '%'}`,
+      sql`lower(${platformUsers.displayName}) LIKE ${'%' + qLower + '%'}`
+    ),
+    limit: 20,
+  });
+
+  res.json(results);
+});
+
 router.get("/social/users/:userId", async (req, res): Promise<void> => {
   const userId = parseInt(req.params.userId, 10);
   const user = await db.query.platformUsers.findFirst({ where: eq(platformUsers.id, userId) });

@@ -1526,8 +1526,11 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const searchUser = async (username: string) => {
     if (!username.trim()) return null;
     try {
-      const users = await apiFetch<any[]>(`/api/social/users/search?q=${encodeURIComponent(username)}`);
-      return (users as any[]).find((u: any) => u.robloxUsername.toLowerCase() === username.toLowerCase() || u.displayName.toLowerCase() === username.toLowerCase());
+      const users = await apiFetch<any[]>(`/api/social/users/search?q=${encodeURIComponent(username.trim())}`);
+      if (!users || users.length === 0) return null;
+      const q = username.trim().toLowerCase();
+      const exact = users.find((u: any) => u.robloxUsername.toLowerCase() === q || u.displayName.toLowerCase() === q);
+      return exact || users[0];
     } catch { return null; }
   };
 
@@ -3131,8 +3134,11 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
   const searchUser = async (username: string) => {
     if (!username.trim()) return null;
     try {
-      const users = await apiFetch<any[]>(`/api/social/users/search?q=${encodeURIComponent(username)}`);
-      return (users as any[]).find((u: any) => u.robloxUsername.toLowerCase() === username.toLowerCase() || u.displayName.toLowerCase() === username.toLowerCase());
+      const users = await apiFetch<any[]>(`/api/social/users/search?q=${encodeURIComponent(username.trim())}`);
+      if (!users || users.length === 0) return null;
+      const q = username.trim().toLowerCase();
+      const exact = users.find((u: any) => u.robloxUsername.toLowerCase() === q || u.displayName.toLowerCase() === q);
+      return exact || users[0];
     } catch { return null; }
   };
 
