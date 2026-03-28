@@ -93,6 +93,7 @@ A full-stack React web app for managing Roblox groups. Monetized via license cod
 - Roblox cookie stored in encrypted server session (PostgreSQL-backed, 7-day TTL)
 - License JWT stored in **localStorage** (key: `limitedink_token`)
 - All new API routes protected by `requireLicense` middleware
+- **Roblox API error isolation**: Backend NEVER forwards raw Roblox 401/403 status codes to the frontend. All Roblox API errors are mapped via `mapRobloxError()` (in `lib/robloxSafe.ts`) to 502 (Bad Gateway) or 429. Session cookie is only cleared after verification via `clearSessionIfCookieDead()` which re-checks `/v1/users/authenticated` before wiping. Transient 401s from Roblox are retried once before deciding failure.
 
 ### Auth Flow
 1. Check localStorage for JWT → POST /api/license/status to validate

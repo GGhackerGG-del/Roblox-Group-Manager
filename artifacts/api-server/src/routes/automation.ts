@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
+import { mapRobloxError } from "../lib/robloxSafe.js";
 
 const router: IRouter = Router();
 
@@ -180,7 +181,7 @@ router.get("/automation/join-requests/:groupId", async (req, res): Promise<void>
   const { groupId } = req.params;
   try {
     const resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/join-requests?limit=100&sortOrder=Asc`, { headers: rHeaders(cookie) });
-    if (!resp.ok) { res.status(resp.status).json({ error: `Roblox API ${resp.status}` }); return; }
+    if (!resp.ok) { const e = mapRobloxError(resp.status, "Failed to fetch join requests"); res.status(e.status).json({ error: e.error }); return; }
     const data = await resp.json() as { data: Array<{ requester: { userId: number; username: string; displayName: string }; created: string }> };
     res.json({ requests: data.data || [] });
   } catch (err) {
@@ -219,7 +220,7 @@ router.delete("/automation/join-requests/:groupId/:userId", async (req, res): Pr
   const { groupId, userId } = req.params;
   try {
     const resp = await fetchWithCsrfRetry(`${GROUPS_API}/v1/groups/${groupId}/join-requests/users/${userId}`, cookie, { method: "DELETE" });
-    if (!resp.ok) { res.status(resp.status).json({ error: "Failed to decline request." }); return; }
+    if (!resp.ok) { const e = mapRobloxError(resp.status, "Failed to decline request"); res.status(e.status).json({ error: e.error }); return; }
     res.json({ success: true });
   } catch (err) {
     res.status(502).json({ error: "Failed to decline join request." });
@@ -232,7 +233,7 @@ router.get("/automation/roles/:groupId", async (req, res): Promise<void> => {
   const { groupId } = req.params;
   try {
     const resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}/roles`, { headers: rHeaders(cookie) });
-    if (!resp.ok) { res.status(resp.status).json({ error: `Roblox API ${resp.status}` }); return; }
+    if (!resp.ok) { const e = mapRobloxError(resp.status, "Failed to fetch roles"); res.status(e.status).json({ error: e.error }); return; }
     const data = await resp.json() as { roles: Array<{ id: number; name: string; rank: number; memberCount: number }> };
     res.json({ roles: data.roles || [] });
   } catch (err) {
@@ -252,7 +253,7 @@ router.get("/automation/members/:groupId", async (req, res): Promise<void> => {
     if (roleId) url += `&roleId=${roleId}`;
     if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
     const resp = await fetch(url, { headers: rHeaders(cookie) });
-    if (!resp.ok) { res.status(resp.status).json({ error: `Roblox API ${resp.status}` }); return; }
+    if (!resp.ok) { const e = mapRobloxError(resp.status, "Failed to fetch members"); res.status(e.status).json({ error: e.error }); return; }
     const data = await resp.json() as {
       data: Array<{ user: { userId: number; username: string; displayName: string }; role: { id: number; name: string; rank: number } }>;
       nextPageCursor?: string;
@@ -276,7 +277,7 @@ router.get("/automation/search-member/:groupId", async (req, res): Promise<void>
       headers: { "Content-Type": "application/json", "User-Agent": UA },
       body: JSON.stringify({ usernames: [username], excludeBannedUsers: false }),
     });
-    if (!userResp.ok) { res.status(userResp.status).json({ error: `Roblox Users API ${userResp.status}` }); return; }
+    if (!userResp.ok) { const e = mapRobloxError(userResp.status, "Failed to search user"); res.status(e.status).json({ error: e.error }); return; }
     const userData = await userResp.json() as { data: Array<{ requestedUsername: string; id: number; name: string; displayName: string }> };
     if (!userData.data?.length) { res.json({ members: [] }); return; }
 
@@ -315,7 +316,7 @@ router.patch("/automation/rank/:groupId/:userId", async (req, res): Promise<void
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({})) as { errors?: Array<{ message: string }> };
-      res.status(resp.status).json({ error: err.errors?.[0]?.message || "Failed to change rank." }); return;
+      const e = mapRobloxError(resp.status, err.errors?.[0]?.message || "Failed to change rank"); res.status(e.status).json({ error: e.error }); return;
     }
     res.json({ success: true, message: "Ранг успешно изменён" });
   } catch (err) {
@@ -331,7 +332,7 @@ router.delete("/automation/exile/:groupId/:userId", async (req, res): Promise<vo
     const resp = await fetchWithCsrfRetry(`${GROUPS_API}/v1/groups/${groupId}/users/${userId}`, cookie, { method: "DELETE" });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({})) as { errors?: Array<{ message: string }> };
-      res.status(resp.status).json({ error: err.errors?.[0]?.message || "Failed to exile." }); return;
+      const e = mapRobloxError(resp.status, err.errors?.[0]?.message || "Failed to exile"); res.status(e.status).json({ error: e.error }); return;
     }
     res.json({ success: true, message: "Участник удалён из группы" });
   } catch (err) {
@@ -348,7 +349,7 @@ router.get("/automation/wall/:groupId", async (req, res): Promise<void> => {
     let url = `${GROUPS_API}/v2/groups/${groupId}/wall/posts?limit=100&sortOrder=Desc`;
     if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
     const resp = await fetch(url, { headers: rHeaders(cookie) });
-    if (!resp.ok) { res.status(resp.status).json({ error: `Roblox API ${resp.status}` }); return; }
+    if (!resp.ok) { const e = mapRobloxError(resp.status, "Failed to fetch wall posts"); res.status(e.status).json({ error: e.error }); return; }
     const data = await resp.json() as {
       data: Array<{ id: number; body: string; created: string; updated: string; poster: { user: { userId: number; username: string; displayName: string } } | null }>;
       nextPageCursor?: string;
@@ -365,7 +366,7 @@ router.delete("/automation/wall/:groupId/:postId", async (req, res): Promise<voi
   const { groupId, postId } = req.params;
   try {
     const resp = await fetchWithCsrfRetry(`${GROUPS_API}/v2/groups/${groupId}/wall/posts/${postId}`, cookie, { method: "DELETE" });
-    if (!resp.ok) { res.status(resp.status).json({ error: "Failed to delete post." }); return; }
+    if (!resp.ok) { const e = mapRobloxError(resp.status, "Failed to delete post"); res.status(e.status).json({ error: e.error }); return; }
     res.json({ success: true });
   } catch (err) {
     res.status(502).json({ error: "Failed to delete post." });
@@ -380,7 +381,7 @@ router.post("/automation/wall/:groupId/moderate", async (req, res): Promise<void
   if (!keywords.length) { res.status(400).json({ error: "keywords required." }); return; }
   try {
     const wallResp = await fetch(`${GROUPS_API}/v2/groups/${groupId}/wall/posts?limit=100&sortOrder=Desc`, { headers: rHeaders(cookie) });
-    if (!wallResp.ok) { res.status(wallResp.status).json({ error: "Failed to fetch wall." }); return; }
+    if (!wallResp.ok) { const e = mapRobloxError(wallResp.status, "Failed to fetch wall"); res.status(e.status).json({ error: e.error }); return; }
     const data = await wallResp.json() as { data: Array<{ id: number; body: string }> };
     const lc = keywords.map(k => k.toLowerCase());
     const toDelete = (data.data || []).filter(p => lc.some(kw => p.body.toLowerCase().includes(kw)));
@@ -402,7 +403,7 @@ router.get("/automation/shout/:groupId", async (req, res): Promise<void> => {
   const { groupId } = req.params;
   try {
     const resp = await fetch(`${GROUPS_API}/v1/groups/${groupId}`, { headers: rHeaders(cookie) });
-    if (!resp.ok) { res.status(resp.status).json({ error: `Roblox API ${resp.status}` }); return; }
+    if (!resp.ok) { const e = mapRobloxError(resp.status, "Failed to fetch shout"); res.status(e.status).json({ error: e.error }); return; }
     const data = await resp.json() as { shout?: { body: string; poster: { userId: number; username: string }; created: string; updated: string } | null };
     const scheduled = scheduledShouts.filter(s => s.groupId === groupId && !s.posted);
     res.json({ shout: data.shout || null, scheduled });
@@ -424,7 +425,7 @@ router.patch("/automation/shout/:groupId", async (req, res): Promise<void> => {
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({})) as { errors?: Array<{ message: string }> };
-      res.status(resp.status).json({ error: err.errors?.[0]?.message || "Failed to post shout." }); return;
+      const e = mapRobloxError(resp.status, err.errors?.[0]?.message || "Failed to post shout"); res.status(e.status).json({ error: e.error }); return;
     }
     res.json({ success: true, message: "Shout опубликован" });
   } catch (err) {
@@ -477,7 +478,7 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
     });
     console.log(`[Payout] Cookie verify: status=${verifyResp.status}, cookie_len=${cookie.length}`);
     if (!verifyResp.ok) {
-      res.status(401).json({ error: "Roblox cookie expired. Please re-login." });
+      res.status(502).json({ error: "Roblox API unavailable. Please try again." });
       return;
     }
     const verifyData = await verifyResp.json() as { id?: number; name?: string };
@@ -616,10 +617,10 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
       } catch {}
       if (!errMsg) {
         if (resp.status === 429) errMsg = "Rate limited by Roblox. Try again in a few seconds.";
-        else if (resp.status === 401) errMsg = "Roblox session expired. Please re-login.";
         else errMsg = `Roblox API error (HTTP ${resp.status})`;
       }
-      res.status(resp.status).json({ error: errMsg }); return;
+      const mappedStatus = resp.status === 429 ? 429 : 502;
+      res.status(mappedStatus).json({ error: errMsg }); return;
     }
     res.json({ success: true, message: `Выплата отправлена ${payouts.length} участникам` });
   } catch (err) {
@@ -640,7 +641,7 @@ router.post("/automation/payout/:groupId/verify-2fa", async (req, res): Promise<
     const meResp = await fetch(`${USERS_API}/v1/users/authenticated`, {
       headers: { Cookie: `.ROBLOSECURITY=${cookie}`, "User-Agent": UA },
     });
-    if (!meResp.ok) { res.status(401).json({ error: "Could not resolve Roblox user." }); return; }
+    if (!meResp.ok) { res.status(502).json({ error: "Could not resolve Roblox user." }); return; }
     const me = await meResp.json() as { id: number };
     const verifyMethod = mediaType === "Email" ? "email" : mediaType === "SMS" ? "sms" : "authenticator";
     const verifyResp = await fetch(`${TWO_STEP_API}/v1/users/${me.id}/challenges/${verifyMethod}/verify`, {
@@ -652,7 +653,9 @@ router.post("/automation/payout/:groupId/verify-2fa", async (req, res): Promise<
     if (!verifyResp.ok) {
       const err = await verifyResp.json().catch(() => ({})) as any;
       console.error(`[Payout 2FA] Verify error:`, JSON.stringify(err));
-      res.status(verifyResp.status).json({ error: err.errors?.[0]?.message || "Invalid 2FA code." }); return;
+      const userMsg = err.errors?.[0]?.message || "Invalid 2FA code.";
+      const safeStatus = (verifyResp.status === 400 || verifyResp.status === 422) ? 400 : 502;
+      res.status(safeStatus).json({ error: userMsg }); return;
     }
     const verifyData = await verifyResp.json() as { verificationToken?: string };
     if (!verifyData.verificationToken) {
@@ -695,7 +698,7 @@ router.get("/automation/activity/:groupId", async (req, res): Promise<void> => {
     let url = `${GROUPS_API}/v1/groups/${groupId}/users?limit=100&sortOrder=Desc`;
     if (roleId) url += `&roleId=${roleId}`;
     const resp = await fetch(url, { headers: rHeaders(cookie) });
-    if (!resp.ok) { res.status(resp.status).json({ error: `Roblox API ${resp.status}` }); return; }
+    if (!resp.ok) { const e = mapRobloxError(resp.status, "Failed to fetch activity"); res.status(e.status).json({ error: e.error }); return; }
     const data = await resp.json() as {
       data: Array<{ user: { userId: number; username: string; displayName: string }; role: { id: number; name: string; rank: number } }>;
       nextPageCursor?: string;

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { RobloxAuthBody } from "@workspace/api-zod";
 import { db, featuredGroups } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { clearSessionIfCookieDead } from "../lib/robloxSafe.js";
 
 const router: IRouter = Router();
 
@@ -238,14 +239,16 @@ router.get("/roblox/groups", async (req, res): Promise<void> => {
     return;
   }
 
-  const userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+  let userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+  if (userResp.status === 401 || userResp.status === 403) {
+    await new Promise(r => setTimeout(r, 1000));
+    userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+  }
   if (!userResp.ok) {
     if (userResp.status === 401 || userResp.status === 403) {
-      delete req.session.robloxCookie;
-      delete req.session.robloxProfile;
-      delete (req.session as any).robloxUserId;
+      await clearSessionIfCookieDead(req);
     }
-    res.status(401).json({ error: "Roblox session expired. Please sign in again." });
+    res.status(502).json({ error: "Roblox API unavailable. Please try again." });
     return;
   }
 
@@ -346,14 +349,16 @@ router.get("/roblox/groups/:groupId/stats", async (req, res): Promise<void> => {
     return;
   }
 
-  const meResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+  let meResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+  if (meResp.status === 401 || meResp.status === 403) {
+    await new Promise(r => setTimeout(r, 1000));
+    meResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+  }
   if (!meResp.ok) {
     if (meResp.status === 401 || meResp.status === 403) {
-      delete req.session.robloxCookie;
-      delete req.session.robloxProfile;
-      delete (req.session as any).robloxUserId;
+      await clearSessionIfCookieDead(req);
     }
-    res.status(401).json({ error: "Roblox session expired. Please sign in again." });
+    res.status(502).json({ error: "Roblox API unavailable. Please try again." });
     return;
   }
   const meData = await meResp.json() as { id: number };
