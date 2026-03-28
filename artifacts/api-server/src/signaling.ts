@@ -14,6 +14,55 @@ interface ConnectedSocket {
 const sockets = new Set<ConnectedSocket>();
 const lastSeenCache = new Map<number, Date>();
 
+const groupCallRooms = new Map<number, Set<number>>();
+const groupCallSocketMap = new Map<WebSocket, number>();
+
+export function getGroupCallParticipants(groupChatId: number): number[] {
+  const room = groupCallRooms.get(groupChatId);
+  return room ? [...room] : [];
+}
+
+function joinGroupCall(groupChatId: number, userId: number, ws: WebSocket): number[] {
+  let room = groupCallRooms.get(groupChatId);
+  if (!room) {
+    room = new Set();
+    groupCallRooms.set(groupChatId, room);
+  }
+  const existing = [...room].filter(id => id !== userId);
+  room.add(userId);
+  groupCallSocketMap.set(ws, groupChatId);
+  return existing;
+}
+
+function leaveGroupCall(groupChatId: number, userId: number, ws: WebSocket): boolean {
+  const room = groupCallRooms.get(groupChatId);
+  if (!room) return false;
+  groupCallSocketMap.delete(ws);
+  const hasOtherSocket = [...sockets].some(s => s.userId === userId && s.ws !== ws && groupCallSocketMap.get(s.ws) === groupChatId);
+  if (!hasOtherSocket) {
+    room.delete(userId);
+    if (room.size === 0) groupCallRooms.delete(groupChatId);
+    return true;
+  }
+  return false;
+}
+
+function leaveAllGroupCallsForSocket(userId: number, ws: WebSocket) {
+  const gid = groupCallSocketMap.get(ws);
+  groupCallSocketMap.delete(ws);
+  if (gid === undefined) return;
+  const room = groupCallRooms.get(gid);
+  if (!room || !room.has(userId)) return;
+  const hasOtherSocket = [...sockets].some(s => s.userId === userId && s.ws !== ws && groupCallSocketMap.get(s.ws) === gid);
+  if (!hasOtherSocket) {
+    room.delete(userId);
+    for (const peerId of room) {
+      sendToUser(peerId, JSON.stringify({ type: "group-call-peer-left", groupChatId: gid, userId }));
+    }
+    if (room.size === 0) groupCallRooms.delete(gid);
+  }
+}
+
 function userSockets(userId: number): ConnectedSocket[] {
   return [...sockets].filter(s => s.userId === userId);
 }
@@ -225,6 +274,92 @@ export function setupSignaling(server: HttpServer) {
           break;
         }
 
+        case "group-call-join": {
+          if (!currentEntry) break;
+          const gid = msg.groupChatId as number;
+          const existingPeers = joinGroupCall(gid, currentEntry.userId, ws);
+          ws.send(JSON.stringify({
+            type: "group-call-peers",
+            groupChatId: gid,
+            peers: existingPeers,
+          }));
+          for (const peerId of existingPeers) {
+            sendToUser(peerId, JSON.stringify({
+              type: "group-call-peer-joined",
+              groupChatId: gid,
+              userId: currentEntry.userId,
+              displayName: currentEntry.displayName,
+              avatarUrl: currentEntry.avatarUrl,
+            }));
+          }
+          break;
+        }
+
+        case "group-call-leave": {
+          if (!currentEntry) break;
+          const gid = msg.groupChatId as number;
+          const didLeave = leaveGroupCall(gid, currentEntry.userId, ws);
+          if (didLeave) {
+            const room = groupCallRooms.get(gid);
+            if (room) {
+              for (const peerId of room) {
+                sendToUser(peerId, JSON.stringify({
+                  type: "group-call-peer-left",
+                  groupChatId: gid,
+                  userId: currentEntry.userId,
+                }));
+              }
+            }
+          }
+          break;
+        }
+
+        case "group-call-offer": {
+          if (!currentEntry) break;
+          sendToUser(msg.targetUserId, JSON.stringify({
+            type: "group-call-offer",
+            groupChatId: msg.groupChatId,
+            offer: msg.offer,
+            fromUserId: currentEntry.userId,
+            fromDisplayName: currentEntry.displayName,
+            fromAvatarUrl: currentEntry.avatarUrl,
+          }));
+          break;
+        }
+
+        case "group-call-answer": {
+          if (!currentEntry) break;
+          sendToUser(msg.targetUserId, JSON.stringify({
+            type: "group-call-answer",
+            groupChatId: msg.groupChatId,
+            answer: msg.answer,
+            fromUserId: currentEntry.userId,
+          }));
+          break;
+        }
+
+        case "group-ice-candidate": {
+          if (!currentEntry) break;
+          sendToUser(msg.targetUserId, JSON.stringify({
+            type: "group-ice-candidate",
+            groupChatId: msg.groupChatId,
+            candidate: msg.candidate,
+            fromUserId: currentEntry.userId,
+          }));
+          break;
+        }
+
+        case "group-call-participants": {
+          if (!currentEntry) break;
+          const participants = getGroupCallParticipants(msg.groupChatId);
+          ws.send(JSON.stringify({
+            type: "group-call-participants",
+            groupChatId: msg.groupChatId,
+            participants,
+          }));
+          break;
+        }
+
         default:
           break;
       }
@@ -233,6 +368,7 @@ export function setupSignaling(server: HttpServer) {
     const removeSocket = () => {
       if (currentEntry) {
         const { userId, displayName, avatarUrl } = currentEntry;
+        leaveAllGroupCallsForSocket(userId, ws);
         sockets.delete(currentEntry);
         currentEntry = null;
         const stillOnline = userSockets(userId).length > 0;

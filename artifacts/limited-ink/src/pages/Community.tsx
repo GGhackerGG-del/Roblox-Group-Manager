@@ -3,6 +3,8 @@ import { getAuthCredentials, useGetRobloxGroups } from "@workspace/api-client-re
 import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useVoiceCallContext } from "@/contexts/VoiceCallContext";
+import { useGroupCall } from "@/hooks/useGroupCall";
+import GroupCallOverlay from "@/components/GroupCallOverlay";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1213,6 +1215,21 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 
   const voiceCall = useVoiceCallContext();
 
+  const groupCall = useGroupCall(
+    myUser?.robloxUserId ?? null,
+    myUser?.displayName ?? "",
+    myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : ""),
+  );
+
+  const handleGroupCallToggle = useCallback(() => {
+    if (!active || active.kind !== "group") return;
+    if (groupCall.active && groupCall.groupChatId === active.chat.id) {
+      groupCall.leaveCall();
+    } else if (!groupCall.active) {
+      groupCall.joinCall(active.chat.id);
+    }
+  }, [active, groupCall]);
+
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
@@ -1979,6 +1996,9 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                   </div>
                   <p className="text-[10px] text-muted-foreground">{chatMembers.length} {t("com.members")} {active.chat.robloxGroupId ? `· ${t("com.workChat")}` : ""}</p>
                 </div>
+                <Button size="sm" variant="ghost" className={`rounded-xl h-8 w-8 p-0 ${groupCall.active && groupCall.groupChatId === active.chat.id ? "text-red-500" : ""}`} onClick={handleGroupCallToggle} title={t("com.groupCall")}>
+                  {groupCall.active && groupCall.groupChatId === active.chat.id ? <PhoneOff className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
+                </Button>
                 <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
                 <Button size="sm" variant="ghost" className={`rounded-xl gap-1 h-8 text-xs ${showMembersPanel ? "bg-secondary" : ""}`} onClick={() => setShowMembersPanel(p => !p)}><Users className="w-3.5 h-3.5" /></Button>
                 {!isAdmin && (
@@ -2149,6 +2169,20 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
           )}
         </div>
       </div>
+      <GroupCallOverlay
+        active={groupCall.active}
+        groupChatId={groupCall.groupChatId}
+        groupName={active?.kind === "group" ? active.chat.name : ""}
+        muted={groupCall.muted}
+        deafened={groupCall.deafened}
+        timer={groupCall.timer}
+        peers={groupCall.peers}
+        myName={myUser?.displayName ?? ""}
+        myAvatar={myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : "")}
+        onLeave={groupCall.leaveCall}
+        onToggleMute={groupCall.toggleMute}
+        onToggleDeafen={groupCall.toggleDeafen}
+      />
     </div>
   );
 }
@@ -3012,9 +3046,16 @@ function TeamsTab({ myUser }: { myUser: PlatformUser | null }) {
 // ── GroupChatTab ───────────────────────────────────────────────────────────────
 function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<any | null>(null);
+
+  const groupCall = useGroupCall(
+    myUser?.robloxUserId ?? null,
+    myUser?.displayName ?? "",
+    myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : ""),
+  );
   const [messages, setMessages] = useState<any[]>([]);
   const [msgsLoading, setMsgsLoading] = useState(false);
   const [text, setText] = useState("");
@@ -3202,6 +3243,9 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
           <p className="font-semibold text-sm">{activeChat.name}</p>
           <p className="text-[10px] text-muted-foreground">{activeChat.memberCount || chatMembers.length} {t("com.members")}</p>
         </div>
+        <Button size="sm" variant="ghost" className={`rounded-xl h-8 w-8 p-0 ${groupCall.active && groupCall.groupChatId === activeChat.id ? "text-red-500" : ""}`} onClick={() => { if (groupCall.active && groupCall.groupChatId === activeChat.id) groupCall.leaveCall(); else if (!groupCall.active) groupCall.joinCall(activeChat.id); }} title={t("com.groupCall")}>
+          {groupCall.active && groupCall.groupChatId === activeChat.id ? <PhoneOff className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
+        </Button>
         <Button size="sm" variant="ghost" className="rounded-xl gap-1 h-8 text-xs" onClick={() => setShowAddMember(p => !p)}><UserPlus className="w-3.5 h-3.5" /></Button>
       </div>
       {showAddMember && (
@@ -3562,6 +3606,20 @@ function CollabTab({ myUser }: { myUser: PlatformUser | null }) {
           )}
         </div>
       )}
+      <GroupCallOverlay
+        active={groupCall.active}
+        groupChatId={groupCall.groupChatId}
+        groupName={activeChat?.name ?? ""}
+        muted={groupCall.muted}
+        deafened={groupCall.deafened}
+        timer={groupCall.timer}
+        peers={groupCall.peers}
+        myName={myUser?.displayName ?? ""}
+        myAvatar={myUser?.avatarUrl ?? (myUser ? robloxHeadshot(myUser.robloxUserId) : "")}
+        onLeave={groupCall.leaveCall}
+        onToggleMute={groupCall.toggleMute}
+        onToggleDeafen={groupCall.toggleDeafen}
+      />
     </div>
   );
 }
