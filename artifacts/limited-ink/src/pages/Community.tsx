@@ -1195,6 +1195,8 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [chatAttachments, setChatAttachments] = useState<Attachment[]>([]);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [chatName, setChatName] = useState("");
   const [memberInput, setMemberInput] = useState("");
@@ -1458,15 +1460,39 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     } finally { setSending(false); }
   };
 
+  const handleChatFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      if (file.size > 10 * 1024 * 1024) { toast({ variant: "destructive", title: "File too large (max 10MB)" }); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setChatAttachments(prev => [...prev, { name: file.name, type: file.type || "file", dataUrl: reader.result as string }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
+  const removeChatAttachment = (idx: number) => {
+    setChatAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const handleSendDm = async () => {
-    if (!text.trim() || !active || active.kind !== "dm") return;
+    if (!text.trim() && chatAttachments.length === 0) return;
+    if (!active || active.kind !== "dm") return;
     setSending(true);
     try {
+      let imageUrl: string | undefined;
+      if (chatAttachments.length > 0) {
+        imageUrl = `[attachments:${JSON.stringify(chatAttachments)}]`;
+      }
       const d = await apiFetch<{ message: DmMessage }>(`/api/social/messages/${active.user.id}`, {
-        method: "POST", body: JSON.stringify({ content: text.trim() }),
+        method: "POST", body: JSON.stringify({ content: text.trim(), ...(imageUrl ? { imageUrl } : {}) }),
       });
       setMessages(prev => [...prev, d.message]);
       setText("");
+      setChatAttachments([]);
       fetchAll();
     } catch {
       toast({ variant: "destructive", title: t("com.error"), description: t("com.sendFailed") });
@@ -1474,14 +1500,20 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   };
 
   const handleSendGroup = async () => {
-    if (!text.trim() || !active || active.kind !== "group") return;
+    if (!text.trim() && chatAttachments.length === 0) return;
+    if (!active || active.kind !== "group") return;
     setSending(true);
     try {
+      let imageUrl: string | undefined;
+      if (chatAttachments.length > 0) {
+        imageUrl = `[attachments:${JSON.stringify(chatAttachments)}]`;
+      }
       const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${active.chat.id}/messages`, {
-        method: "POST", body: JSON.stringify({ content: text.trim() }),
+        method: "POST", body: JSON.stringify({ content: text.trim(), ...(imageUrl ? { imageUrl } : {}) }),
       });
       setMessages(prev => [...prev, message]);
       setText("");
+      setChatAttachments([]);
     } catch {} finally { setSending(false); }
   };
 
@@ -1645,6 +1677,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
 
   return (
     <div className="space-y-3 relative">
+      <input ref={chatFileInputRef} type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleChatFileSelect} />
       <div className="flex gap-4 h-[620px]">
         {/* Sidebar */}
         <div className="w-72 shrink-0 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -1838,10 +1871,31 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                 ) : (
                   messages.map(msg => {
                     const isOwn = myUser && msg.senderId === myUser.id;
+                    const msgAtts = parseAttachments(msg.imageUrl || null);
+                    const msgImages = msgAtts.filter(a => isImageType(a.type));
+                    const msgFiles = msgAtts.filter(a => !isImageType(a.type));
                     return (
                       <div key={msg.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${isOwn ? "bg-black text-white rounded-br-md" : "bg-secondary rounded-bl-md"}`}>
-                          {isCallMsg(msg.content) ? (() => { const c = parseCallMsg(msg.content); return (<span className="flex items-center gap-1.5 text-xs"><span>{c.type === "missed" ? <PhoneOff className="w-3.5 h-3.5 text-red-400 inline" /> : <Phone className="w-3.5 h-3.5 text-green-400 inline" />}</span><span>{c.type === "missed" ? t("com.callMissed") : `${t("com.callOutgoing")} ${c.duration}`}</span></span>); })() : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isOwn} /> : msg.content}
+                          {msgImages.length > 0 && (
+                            <div className={`grid gap-1 mb-1 ${msgImages.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+                              {msgImages.map((a, i) => (
+                                <a key={i} href={a.dataUrl} target="_blank" rel="noopener noreferrer">
+                                  <img src={a.dataUrl} alt={a.name} className="rounded-lg max-h-48 w-full object-cover cursor-pointer hover:opacity-80 transition-opacity" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                          {msgFiles.length > 0 && (
+                            <div className="space-y-1 mb-1">
+                              {msgFiles.map((a, i) => (
+                                <a key={i} href={a.dataUrl} download={a.name} className={`flex items-center gap-1.5 text-xs ${isOwn ? "text-white/80 hover:text-white" : "text-muted-foreground hover:text-foreground"}`}>
+                                  <FileText className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{a.name}</span>
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                          {isCallMsg(msg.content) ? (() => { const c = parseCallMsg(msg.content); return (<span className="flex items-center gap-1.5 text-xs"><span>{c.type === "missed" ? <PhoneOff className="w-3.5 h-3.5 text-red-400 inline" /> : <Phone className="w-3.5 h-3.5 text-green-400 inline" />}</span><span>{c.type === "missed" ? t("com.callMissed") : `${t("com.callOutgoing")} ${c.duration}`}</span></span>); })() : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isOwn} /> : msg.content ? msg.content : null}
                           <p className={`text-[10px] mt-1 ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>{timeAgo(msg.createdAt, t)}</p>
                         </div>
                       </div>
@@ -1873,12 +1927,32 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                       </motion.div>
                     )}
                   </AnimatePresence>
+                  {chatAttachments.length > 0 && (
+                    <div className="flex gap-2 mb-2 flex-wrap">
+                      {chatAttachments.map((a, i) => (
+                        <div key={i} className="relative group/att">
+                          {isImageType(a.type) ? (
+                            <img src={a.dataUrl} alt={a.name} className="w-16 h-16 rounded-lg object-cover border border-border" />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg border border-border flex flex-col items-center justify-center bg-secondary">
+                              <FileText className="w-5 h-5 text-muted-foreground" />
+                              <p className="text-[8px] text-muted-foreground truncate max-w-14 mt-0.5">{a.name}</p>
+                            </div>
+                          )}
+                          <button onClick={() => removeChatAttachment(i)} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100 transition-opacity"><X className="w-2.5 h-2.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-2 items-center">
                     <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={isRecording ? stopRecording : startRecording} title={t("com.recordVoice")} disabled={!!voiceBlob}>
                       <Mic className={`w-4 h-4 ${isRecording ? "text-red-500" : ""}`} />
                     </Button>
+                    <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={() => chatFileInputRef.current?.click()} title="Attach file" disabled={isRecording || !!voiceBlob}>
+                      <Paperclip className="w-4 h-4" />
+                    </Button>
                     <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={`${t("com.messagePlaceholder")} ${active.user.displayName}`} className="rounded-xl flex-1" disabled={isRecording || !!voiceBlob} />
-                    <Button onClick={handleSend} disabled={sending || !text.trim() || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
+                    <Button onClick={handleSend} disabled={sending || (!text.trim() && chatAttachments.length === 0) || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
                       {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </Button>
                   </div>
@@ -2001,7 +2075,8 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                               </button>
                             )}
                             <div className={`rounded-2xl px-3 py-2 text-sm ${deleted ? "bg-secondary/50 border border-dashed border-border" : isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>
-                              {deleted ? <span className="italic text-muted-foreground text-xs">{t("com.deletedMessage")}</span> : isCallMsg(msg.content) ? (() => { const c = parseCallMsg(msg.content); return (<span className="flex items-center gap-1.5 text-xs"><span>{c.type === "missed" ? <PhoneOff className="w-3.5 h-3.5 text-red-400 inline" /> : <Phone className="w-3.5 h-3.5 text-green-400 inline" />}</span><span>{c.type === "missed" ? t("com.callMissed") : `${t("com.callOutgoing")} ${c.duration}`}</span></span>); })() : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isMe} /> : msg.content}
+                              {!deleted && (() => { const mAtts = parseAttachments(msg.imageUrl || null); const mImgs = mAtts.filter(a => isImageType(a.type)); const mFls = mAtts.filter(a => !isImageType(a.type)); return (<>{mImgs.length > 0 && <div className={`grid gap-1 mb-1 ${mImgs.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>{mImgs.map((a, i) => <a key={i} href={a.dataUrl} target="_blank" rel="noopener noreferrer"><img src={a.dataUrl} alt={a.name} className="rounded-lg max-h-48 w-full object-cover cursor-pointer hover:opacity-80 transition-opacity" /></a>)}</div>}{mFls.length > 0 && <div className="space-y-1 mb-1">{mFls.map((a, i) => <a key={i} href={a.dataUrl} download={a.name} className={`flex items-center gap-1.5 text-xs ${isMe ? "text-white/80 hover:text-white" : "text-muted-foreground hover:text-foreground"}`}><FileText className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{a.name}</span></a>)}</div>}</>); })()}
+                              {deleted ? <span className="italic text-muted-foreground text-xs">{t("com.deletedMessage")}</span> : isCallMsg(msg.content) ? (() => { const c = parseCallMsg(msg.content); return (<span className="flex items-center gap-1.5 text-xs"><span>{c.type === "missed" ? <PhoneOff className="w-3.5 h-3.5 text-red-400 inline" /> : <Phone className="w-3.5 h-3.5 text-green-400 inline" />}</span><span>{c.type === "missed" ? t("com.callMissed") : `${t("com.callOutgoing")} ${c.duration}`}</span></span>); })() : isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isMe} /> : msg.content ? msg.content : null}
                             </div>
                             
                           </div>
@@ -2036,12 +2111,32 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                       </motion.div>
                     )}
                   </AnimatePresence>
+                  {chatAttachments.length > 0 && (
+                    <div className="flex gap-2 mb-2 flex-wrap">
+                      {chatAttachments.map((a, i) => (
+                        <div key={i} className="relative group/att">
+                          {isImageType(a.type) ? (
+                            <img src={a.dataUrl} alt={a.name} className="w-16 h-16 rounded-lg object-cover border border-border" />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg border border-border flex flex-col items-center justify-center bg-secondary">
+                              <FileText className="w-5 h-5 text-muted-foreground" />
+                              <p className="text-[8px] text-muted-foreground truncate max-w-14 mt-0.5">{a.name}</p>
+                            </div>
+                          )}
+                          <button onClick={() => removeChatAttachment(i)} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100 transition-opacity"><X className="w-2.5 h-2.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-2 items-center">
                     <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={isRecording ? stopRecording : startRecording} title={t("com.recordVoice")} disabled={!!voiceBlob}>
                       <Mic className={`w-4 h-4 ${isRecording ? "text-red-500" : ""}`} />
                     </Button>
+                    <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={() => chatFileInputRef.current?.click()} title="Attach file" disabled={isRecording || !!voiceBlob}>
+                      <Paperclip className="w-4 h-4" />
+                    </Button>
                     <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={t("com.messagePlaceholder")} className="rounded-xl flex-1" disabled={isRecording || !!voiceBlob} />
-                    <Button onClick={handleSend} disabled={sending || !text.trim() || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
+                    <Button onClick={handleSend} disabled={sending || (!text.trim() && chatAttachments.length === 0) || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
                       {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </Button>
                   </div>
@@ -2929,6 +3024,8 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
   const [chatMembers, setChatMembers] = useState<any[]>([]);
   const [showAddMember, setShowAddMember] = useState(false);
   const [addMemberInput, setAddMemberInput] = useState("");
+  const [gcAttachments, setGcAttachments] = useState<Attachment[]>([]);
+  const gcFileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
 
@@ -2995,15 +3092,38 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
     finally { setMsgsLoading(false); }
   };
 
+  const handleGcFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      if (file.size > 10 * 1024 * 1024) { toast({ variant: "destructive", title: "File too large (max 10MB)" }); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setGcAttachments(prev => [...prev, { name: file.name, type: file.type || "file", dataUrl: reader.result as string }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
+  const removeGcAttachment = (idx: number) => {
+    setGcAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const sendMessage = async () => {
-    if (!text.trim() || !activeChat || sending) return;
+    if ((!text.trim() && gcAttachments.length === 0) || !activeChat || sending) return;
     setSending(true);
     try {
+      let imageUrl: string | undefined;
+      if (gcAttachments.length > 0) {
+        imageUrl = `[attachments:${JSON.stringify(gcAttachments)}]`;
+      }
       const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${activeChat.id}/messages`, {
-        method: "POST", body: JSON.stringify({ content: text.trim() }),
+        method: "POST", body: JSON.stringify({ content: text.trim(), ...(imageUrl ? { imageUrl } : {}) }),
       });
       setMessages(p => [...p, message]);
       setText("");
+      setGcAttachments([]);
     } catch {}
     finally { setSending(false); }
   };
@@ -3094,7 +3214,10 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
               {!isMe && <Avatar className="w-7 h-7 border border-border shrink-0 mb-0.5"><AvatarImage src={msg.sender?.avatarUrl || robloxHeadshot(msg.sender?.robloxUserId || 0)} /><AvatarFallback className="text-[10px]">{msg.sender?.displayName?.charAt(0) || "?"}</AvatarFallback></Avatar>}
               <div className={`max-w-[70%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
                 {!isMe && <p className="text-[10px] text-muted-foreground px-1">{msg.sender?.displayName}</p>}
-                <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>{msg.content}</div>
+                <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? "bg-black text-white rounded-br-sm" : "bg-secondary rounded-bl-sm"}`}>
+                  {(() => { const mAtts = parseAttachments(msg.imageUrl || null); const mImgs = mAtts.filter(a => isImageType(a.type)); const mFls = mAtts.filter(a => !isImageType(a.type)); return (<>{mImgs.length > 0 && <div className={`grid gap-1 mb-1 ${mImgs.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>{mImgs.map((a, i) => <a key={i} href={a.dataUrl} target="_blank" rel="noopener noreferrer"><img src={a.dataUrl} alt={a.name} className="rounded-lg max-h-48 w-full object-cover cursor-pointer hover:opacity-80 transition-opacity" /></a>)}</div>}{mFls.length > 0 && <div className="space-y-1 mb-1">{mFls.map((a, i) => <a key={i} href={a.dataUrl} download={a.name} className={`flex items-center gap-1.5 text-xs ${isMe ? "text-white/80 hover:text-white" : "text-muted-foreground hover:text-foreground"}`}><FileText className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{a.name}</span></a>)}</div>}</>); })()}
+                  {msg.content ? msg.content : null}
+                </div>
                 <p className="text-[10px] text-muted-foreground px-1">{timeAgoShort(msg.createdAt)}</p>
               </div>
             </div>
@@ -3102,9 +3225,30 @@ function GroupChatTab({ myUser }: { myUser: PlatformUser | null }) {
         })}
         <div ref={messagesEndRef} />
       </div>
+      {gcAttachments.length > 0 && (
+        <div className="flex gap-2 mb-2 flex-wrap pt-2">
+          {gcAttachments.map((a, i) => (
+            <div key={i} className="relative group/att">
+              {isImageType(a.type) ? (
+                <img src={a.dataUrl} alt={a.name} className="w-16 h-16 rounded-lg object-cover border border-border" />
+              ) : (
+                <div className="w-16 h-16 rounded-lg border border-border flex flex-col items-center justify-center bg-secondary">
+                  <FileText className="w-5 h-5 text-muted-foreground" />
+                  <p className="text-[8px] text-muted-foreground truncate max-w-14 mt-0.5">{a.name}</p>
+                </div>
+              )}
+              <button onClick={() => removeGcAttachment(i)} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100 transition-opacity"><X className="w-2.5 h-2.5" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <input ref={gcFileInputRef} type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleGcFileSelect} />
       <div className="flex gap-2 pt-3 border-t border-border">
+        <Button size="sm" variant="ghost" className="rounded-xl h-9 w-9 p-0 shrink-0" onClick={() => gcFileInputRef.current?.click()} title="Attach file">
+          <Paperclip className="w-4 h-4" />
+        </Button>
         <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()} placeholder={t("com.messagePlaceholder")} className="rounded-xl flex-1" />
-        <Button className="rounded-xl" onClick={sendMessage} disabled={sending || !text.trim()}>
+        <Button className="rounded-xl" onClick={sendMessage} disabled={sending || (!text.trim() && gcAttachments.length === 0)}>
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </Button>
       </div>

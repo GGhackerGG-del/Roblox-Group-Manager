@@ -277,15 +277,17 @@ router.post("/community/group-chats/:id/messages", async (req, res): Promise<voi
   const me = await getMyUser(req);
   if (!me) { res.status(401).json({ error: "Not authenticated" }); return; }
   const chatId = parseInt(req.params.id);
-  const { content } = req.body as { content?: string };
-  if (!content?.trim()) { res.status(400).json({ error: "content required" }); return; }
+  const { content, imageUrl } = req.body as { content?: string; imageUrl?: string };
+  if (!content?.trim() && !imageUrl) { res.status(400).json({ error: "content required" }); return; }
+  if (imageUrl && !imageUrl.startsWith("[attachments:") && !imageUrl.startsWith("data:")) { res.status(400).json({ error: "Invalid attachment format" }); return; }
+  if (imageUrl && imageUrl.length > 10 * 1024 * 1024) { res.status(400).json({ error: "Attachment too large" }); return; }
 
   const membership = await db.query.groupChatMembers.findFirst({
     where: and(eq(groupChatMembers.chatId, chatId), eq(groupChatMembers.userId, me.id)),
   });
   if (!membership) { res.status(403).json({ error: "Not a member" }); return; }
 
-  const [msg] = await db.insert(groupChatMessages).values({ chatId, senderId: me.id, content: content.trim() }).returning();
+  const [msg] = await db.insert(groupChatMessages).values({ chatId, senderId: me.id, content: (content || "").trim(), ...(imageUrl ? { imageUrl } : {}) }).returning();
   await db.update(groupChats).set({ lastMessageAt: new Date() }).where(eq(groupChats.id, chatId));
 
   res.json({ message: { ...msg, sender: me } });

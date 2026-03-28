@@ -465,8 +465,10 @@ router.post("/social/messages/:userId", async (req, res): Promise<void> => {
   if (!myUser) { res.status(500).json({ error: "Failed" }); return; }
 
   const otherUserId = parseInt(req.params.userId, 10);
-  const { content } = req.body as { content: string };
-  if (!content?.trim()) { res.status(400).json({ error: "Content required" }); return; }
+  const { content, imageUrl } = req.body as { content: string; imageUrl?: string };
+  if (!content?.trim() && !imageUrl) { res.status(400).json({ error: "Content required" }); return; }
+  if (imageUrl && !imageUrl.startsWith("[attachments:") && !imageUrl.startsWith("data:")) { res.status(400).json({ error: "Invalid attachment format" }); return; }
+  if (imageUrl && imageUrl.length > 10 * 1024 * 1024) { res.status(400).json({ error: "Attachment too large" }); return; }
 
   let convo = await db.query.dmConversations.findFirst({
     where: or(
@@ -485,7 +487,8 @@ router.post("/social/messages/:userId", async (req, res): Promise<void> => {
   const [msg] = await db.insert(dmMessages).values({
     conversationId: convo.id,
     senderId: myUser.id,
-    content: content.trim(),
+    content: (content || "").trim(),
+    ...(imageUrl ? { imageUrl } : {}),
   }).returning();
 
   res.json({ message: msg });
