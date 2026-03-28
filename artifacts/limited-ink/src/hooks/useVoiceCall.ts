@@ -45,6 +45,7 @@ export interface VoiceCallState {
   remoteScreenSharing: boolean;
   showScreenPicker: boolean;
   callPeer: CallPeerInfo | null;
+  callError: string | null;
 }
 
 export function useVoiceCall(myUserId: number | null, myDisplayName: string, myAvatar: string) {
@@ -82,6 +83,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     remoteScreenSharing: false,
     showScreenPicker: false,
     callPeer: null,
+    callError: null,
   });
 
   const stateRef = useRef(state);
@@ -252,8 +254,12 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
 
   const startCall = useCallback(async (targetUserId: number, peerName?: string, peerAvatar?: string) => {
     if (stateRef.current.callActive || stateRef.current.callConnecting) return;
-    if (!stateRef.current.connected) return;
-    setState(s => ({ ...s, callConnecting: true, callPeer: { userId: targetUserId, name: peerName || "User", avatar: peerAvatar || "" } }));
+    if (!stateRef.current.connected) {
+      setState(s => ({ ...s, callError: "Not connected to server. Try again in a moment." }));
+      setTimeout(() => setState(s => ({ ...s, callError: null })), 4000);
+      return;
+    }
+    setState(s => ({ ...s, callConnecting: true, callError: null, callPeer: { userId: targetUserId, name: peerName || "User", avatar: peerAvatar || "" } }));
     callTargetRef.current = targetUserId;
 
     try {
@@ -273,6 +279,8 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
 
       if (!sent) {
         cleanupCall();
+        setState(s => ({ ...s, callError: "Connection lost. Reconnecting..." }));
+        setTimeout(() => setState(s => ({ ...s, callError: null })), 4000);
         return;
       }
 
@@ -281,10 +289,19 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       callTimeoutRef.current = setTimeout(() => {
         if (stateRef.current.callConnecting && !stateRef.current.callActive) {
           cleanupCall();
+          setState(s => ({ ...s, callError: "No answer" }));
+          setTimeout(() => setState(s => ({ ...s, callError: null })), 4000);
         }
       }, CALL_TIMEOUT_MS);
-    } catch {
+    } catch (err: any) {
       cleanupCall();
+      const msg = err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
+        ? "Microphone access denied. Allow microphone in browser/app settings."
+        : err?.name === "NotFoundError"
+        ? "No microphone found. Connect a microphone and try again."
+        : "Failed to start call. Check your microphone.";
+      setState(s => ({ ...s, callError: msg }));
+      setTimeout(() => setState(s => ({ ...s, callError: null })), 5000);
     }
   }, [myUserId, myDisplayName, myAvatar, sendWs, getLocalStream, setupPeerConnection, cleanupCall]);
 
@@ -562,10 +579,14 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
 
         case "call-rejected":
           cleanupCall();
+          setState(s => ({ ...s, callError: "Call declined" }));
+          setTimeout(() => setState(s => ({ ...s, callError: null })), 4000);
           break;
 
         case "call-unavailable":
           cleanupCall();
+          setState(s => ({ ...s, callError: "User is offline" }));
+          setTimeout(() => setState(s => ({ ...s, callError: null })), 4000);
           break;
 
         case "call-ended":

@@ -1646,6 +1646,12 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
         onSelect={(sourceId) => voiceCall.startScreenStream(sourceId)}
         onClose={voiceCall.dismissScreenPicker}
       />
+      {voiceCall.callError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-destructive/90 text-destructive-foreground px-5 py-3 rounded-xl shadow-2xl text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300 flex items-center gap-2">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          {voiceCall.callError}
+        </div>
+      )}
       <div className="flex gap-4 h-[620px]">
         {/* Sidebar */}
         <div className="w-72 shrink-0 flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm">

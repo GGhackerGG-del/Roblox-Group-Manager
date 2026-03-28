@@ -39,11 +39,15 @@ function broadcastPresence(type: "user-online" | "user-offline", userId: number,
   }
 }
 
-function findSocketForUser(userId: number): WebSocket | undefined {
+function sendToUser(userId: number, payload: string): boolean {
+  let sent = false;
   for (const s of sockets) {
-    if (s.userId === userId && s.ws.readyState === WebSocket.OPEN) return s.ws;
+    if (s.userId === userId && s.ws.readyState === WebSocket.OPEN) {
+      s.ws.send(payload);
+      sent = true;
+    }
   }
-  return undefined;
+  return sent;
 }
 
 export function setupSignaling(server: HttpServer) {
@@ -85,16 +89,15 @@ export function setupSignaling(server: HttpServer) {
 
         case "call-offer": {
           if (!currentEntry) break;
-          const targetWs = findSocketForUser(msg.targetUserId);
-          if (targetWs) {
-            targetWs.send(JSON.stringify({
-              type: "incoming-call",
-              callerId: currentEntry.userId,
-              callerName: currentEntry.displayName,
-              callerAvatar: msg.callerAvatar,
-              offer: msg.offer,
-            }));
-          } else {
+          const payload = JSON.stringify({
+            type: "incoming-call",
+            callerId: currentEntry.userId,
+            callerName: currentEntry.displayName,
+            callerAvatar: msg.callerAvatar,
+            offer: msg.offer,
+          });
+          const sent = sendToUser(msg.targetUserId, payload);
+          if (!sent) {
             ws.send(JSON.stringify({ type: "call-unavailable", targetUserId: msg.targetUserId }));
           }
           break;
@@ -102,91 +105,70 @@ export function setupSignaling(server: HttpServer) {
 
         case "call-answer": {
           if (!currentEntry) break;
-          const callerWs = findSocketForUser(msg.callerId);
-          if (callerWs) {
-            callerWs.send(JSON.stringify({
-              type: "call-accepted",
-              answererId: currentEntry.userId,
-              answer: msg.answer,
-            }));
-          }
+          sendToUser(msg.callerId, JSON.stringify({
+            type: "call-accepted",
+            answererId: currentEntry.userId,
+            answer: msg.answer,
+          }));
           break;
         }
 
         case "call-reject": {
           if (!currentEntry) break;
-          const callerWs = findSocketForUser(msg.callerId);
-          if (callerWs) {
-            callerWs.send(JSON.stringify({
-              type: "call-rejected",
-              rejecterId: currentEntry.userId,
-            }));
-          }
+          sendToUser(msg.callerId, JSON.stringify({
+            type: "call-rejected",
+            rejecterId: currentEntry.userId,
+          }));
           break;
         }
 
         case "call-end": {
           if (!currentEntry) break;
-          const peerWs = findSocketForUser(msg.targetUserId);
-          if (peerWs) {
-            peerWs.send(JSON.stringify({
-              type: "call-ended",
-              userId: currentEntry.userId,
-            }));
-          }
+          sendToUser(msg.targetUserId, JSON.stringify({
+            type: "call-ended",
+            userId: currentEntry.userId,
+          }));
           break;
         }
 
         case "ice-candidate": {
           if (!currentEntry) break;
-          const peerWs = findSocketForUser(msg.targetUserId);
-          if (peerWs) {
-            peerWs.send(JSON.stringify({
-              type: "ice-candidate",
-              candidate: msg.candidate,
-              fromUserId: currentEntry.userId,
-            }));
-          }
+          sendToUser(msg.targetUserId, JSON.stringify({
+            type: "ice-candidate",
+            candidate: msg.candidate,
+            fromUserId: currentEntry.userId,
+          }));
           break;
         }
 
         case "renegotiate-offer": {
           if (!currentEntry) break;
-          const peerWs = findSocketForUser(msg.targetUserId);
-          if (peerWs) {
-            peerWs.send(JSON.stringify({
-              type: "renegotiate-offer",
-              offer: msg.offer,
-              fromUserId: currentEntry.userId,
-            }));
-          }
+          sendToUser(msg.targetUserId, JSON.stringify({
+            type: "renegotiate-offer",
+            offer: msg.offer,
+            fromUserId: currentEntry.userId,
+          }));
           break;
         }
 
         case "renegotiate-answer": {
           if (!currentEntry) break;
-          const peerWs = findSocketForUser(msg.targetUserId);
-          if (peerWs) {
-            peerWs.send(JSON.stringify({
-              type: "renegotiate-answer",
-              answer: msg.answer,
-              fromUserId: currentEntry.userId,
-            }));
-          }
+          sendToUser(msg.targetUserId, JSON.stringify({
+            type: "renegotiate-answer",
+            answer: msg.answer,
+            fromUserId: currentEntry.userId,
+          }));
           break;
         }
 
         case "track-state": {
           if (!currentEntry) break;
-          const peerWs = findSocketForUser(msg.targetUserId);
-          if (peerWs) {
-            peerWs.send(JSON.stringify({
-              type: "track-state",
-              track: msg.track,
-              enabled: msg.enabled,
-              fromUserId: currentEntry.userId,
-            }));
-          }
+          sendToUser(msg.targetUserId, JSON.stringify({
+            type: "track-state",
+            track: msg.track,
+            enabled: msg.enabled,
+            fromUserId: currentEntry.userId,
+          }));
           break;
         }
 
