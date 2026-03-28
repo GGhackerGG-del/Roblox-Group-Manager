@@ -841,14 +841,11 @@ export default function Marketing() {
                                     reader.onerror = reject;
                                     reader.readAsDataURL(file);
                                   });
-                                  const resp = await fetch(`${BASE}/api/marketing/webhook-avatar-upload`, {
+                                  const { url } = await apiFetch<{ url: string }>("/api/marketing/webhook-avatar-upload", {
                                     method: "POST",
                                     headers: { "Content-Type": "application/json" },
-                                    credentials: "include",
                                     body: JSON.stringify({ data: dataUrl }),
                                   });
-                                  if (!resp.ok) throw new Error("Upload failed");
-                                  const { url } = await resp.json() as { url: string };
                                   setNewWebhookForm(p => ({ ...p, avatarUrl: url }));
                                 } catch (err) {
                                   toast({ variant: "destructive", title: t("common.error"), description: (err as Error).message });

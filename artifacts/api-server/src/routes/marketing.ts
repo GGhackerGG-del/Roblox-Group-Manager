@@ -134,7 +134,7 @@ router.post("/marketing/webhook-avatar-upload", (req, res): void => {
   const match = data.match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i);
   if (!match) { res.status(400).json({ error: "Invalid image data" }); return; }
   const buffer = Buffer.from(match[2], "base64");
-  if (buffer.length > 2 * 1024 * 1024) { res.status(400).json({ error: "File too large (max 2MB)" }); return; }
+  if (buffer.length > 5 * 1024 * 1024) { res.status(400).json({ error: "File too large (max 5MB)" }); return; }
   res.json({ url: data });
 });
 
