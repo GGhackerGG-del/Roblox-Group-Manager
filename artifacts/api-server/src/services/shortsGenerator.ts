@@ -349,37 +349,43 @@ async function renderScene(opts: {
   if (isIntro) {
     const introSlide = `'if(lt(t,0.5),-text_h+(text_h+h*0.42)*t/0.5,h*0.42)'`;
     filterParts = [
-      `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
-      `[scaled]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
+      `[0:v]split[bg][fg]`,
+      `[bg]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH},gblur=sigma=25[blurbg]`,
+      `[fg]scale=${SW}:${SH}:force_original_aspect_ratio=decrease[fgscaled]`,
+      `[blurbg][fgscaled]overlay=(W-w)/2:(H-h)/2[combined]`,
+      `[combined]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
       `[zp]setsar=1,format=yuv420p,${eq},vignette=angle=${vignetteAngle},` +
       `fade=t=in:st=0:d=0.3,fade=t=out:st=${(duration - 0.4).toFixed(2)}:d=0.4,` +
-      `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.2:t=fill,` +
+      `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.15:t=fill,` +
 
-      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize + 8}:fontcolor=0x4488FF@0.12:` +
-      `borderw=14:bordercolor=0x4488FF@0.06:x=(w-text_w)/2:y=${introSlide}:` +
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize + 6}:fontcolor=white@0.08:` +
+      `borderw=16:bordercolor=white@0.04:x=(w-text_w)/2:y=${introSlide}:` +
       `enable='between(t,${textAppear},${textEnd})',` +
 
-      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize + 4}:fontcolor=0x88AAFF@0.2:` +
-      `borderw=9:bordercolor=0x5577DD@0.1:x=(w-text_w)/2:y=${introSlide}:` +
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize + 3}:fontcolor=white@0.15:` +
+      `borderw=10:bordercolor=white@0.08:x=(w-text_w)/2:y=${introSlide}:` +
       `enable='between(t,${textAppear},${textEnd})',` +
 
-      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize}:fontcolor=${styleCfg.textColor}:` +
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize}:fontcolor=white:` +
       `borderw=${borderW}:bordercolor=0x111111:x=(w-text_w)/2:y=${introSlide}:` +
       `enable='between(t,${textAppear},${textEnd})'`,
     ];
   } else {
     const sceneSlide = `'if(lt(t,0.35),-text_w+(text_w+60)*t/0.35,60)'`;
     filterParts = [
-      `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
-      `[scaled]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
+      `[0:v]split[bg][fg]`,
+      `[bg]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH},gblur=sigma=25[blurbg]`,
+      `[fg]scale=${SW}:${SH}:force_original_aspect_ratio=decrease[fgscaled]`,
+      `[blurbg][fgscaled]overlay=(W-w)/2:(H-h)/2[combined]`,
+      `[combined]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
       `[zp]setsar=1,format=yuv420p,${eq},vignette=angle=${vignetteAngle},` +
       `fade=t=in:st=0:d=0.2,fade=t=out:st=${(duration - 0.35).toFixed(2)}:d=0.35,` +
 
-      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize + 4}:fontcolor=0x000000@0.4:` +
-      `borderw=8:bordercolor=0x000000@0.15:x=${sceneSlide}:y=${textY}:` +
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize + 3}:fontcolor=0x000000@0.35:` +
+      `borderw=10:bordercolor=0x000000@0.12:x=${sceneSlide}:y=${textY}:` +
       `enable='between(t,${textAppear},${textEnd})',` +
 
-      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize}:fontcolor=${styleCfg.textColor}:` +
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize}:fontcolor=white:` +
       `borderw=${borderW}:bordercolor=0x111111:x=${sceneSlide}:y=${textY}:` +
       `enable='between(t,${textAppear},${textEnd})'`,
     ];
@@ -425,11 +431,11 @@ async function renderCtaScene(opts: {
   const slideInCta = `'if(lt(t,1.0),w+50-(w+50)*(t-0.3)/0.7,(w-text_w)/2)'`;
 
   const productGlowLayers = [
-    `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize + 6}:fontcolor=0x4488FF@0.15:` +
-    `borderw=12:bordercolor=0x4488FF@0.08:x=${slideIn}:y=h*0.36:enable='gte(t,0.3)'`,
+    `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize + 6}:fontcolor=white@0.06:` +
+    `borderw=18:bordercolor=white@0.03:x=${slideIn}:y=h*0.36:enable='gte(t,0.3)'`,
 
-    `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize + 2}:fontcolor=0xAABBFF@0.25:` +
-    `borderw=8:bordercolor=0x6699FF@0.12:x=${slideIn}:y=h*0.36+2:enable='gte(t,0.3)'`,
+    `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize + 2}:fontcolor=white@0.12:` +
+    `borderw=10:bordercolor=white@0.06:x=${slideIn}:y=h*0.36+2:enable='gte(t,0.3)'`,
 
     `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize}:fontcolor=white:` +
     `borderw=5:bordercolor=0x111111:x=${slideIn}:y=h*0.36+4:enable='gte(t,0.3)'`,
@@ -438,35 +444,30 @@ async function renderCtaScene(opts: {
   let priceLayers = "";
   let priceYBase = "h*0.46";
   if (escapedPrice) {
-    priceLayers = `,drawtext=${fontFileParam}text='${escapedPrice}':fontsize=54:fontcolor=0xFFD700@0.3:` +
-      `borderw=8:bordercolor=0xFFAA00@0.1:x=${slideInPrice}:y=${priceYBase}:enable='gte(t,0.5)'` +
+    priceLayers = `,drawtext=${fontFileParam}text='${escapedPrice}':fontsize=54:fontcolor=0xFFD700@0.2:` +
+      `borderw=10:bordercolor=0xFFD700@0.06:x=${slideInPrice}:y=${priceYBase}:enable='gte(t,0.5)'` +
       `,drawtext=${fontFileParam}text='${escapedPrice}':fontsize=52:fontcolor=0xFFD700:` +
       `borderw=4:bordercolor=0x332200:x=${slideInPrice}:y=${priceYBase}:enable='gte(t,0.5)'`;
   }
 
   const ctaYBase = escapedPrice ? "h*0.55" : "h*0.48";
   const ctaLayers =
-    `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=44:fontcolor=0xCCDDFF@0.2:` +
-    `borderw=6:bordercolor=0x3366CC@0.08:x=${slideInCta}:y=${ctaYBase}:enable='gte(t,0.6)'` +
-    `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=42:fontcolor=0xDDEEFF:` +
-    `borderw=3:bordercolor=0x111122:x=${slideInCta}:y=${ctaYBase}:enable='gte(t,0.6)'`;
-
-  const accentLineY = "ih*0.34";
-  const accentLineBot = escapedPrice ? "ih*0.60" : "ih*0.54";
+    `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=44:fontcolor=white@0.1:` +
+    `borderw=8:bordercolor=white@0.04:x=${slideInCta}:y=${ctaYBase}:enable='gte(t,0.6)'` +
+    `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=42:fontcolor=0xEEEEEE:` +
+    `borderw=3:bordercolor=0x111111:x=${slideInCta}:y=${ctaYBase}:enable='gte(t,0.6)'`;
 
   const filterParts = [
-    `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
-    `[scaled]zoompan=z='1.04+0.02*sin(on/${fps}*0.4)':x='(iw-ow)/2':y='(ih-oh)/2':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
-    `[zp]setsar=1,format=yuv420p,${eq},gblur=sigma=6,vignette=angle=0.55,` +
+    `[0:v]split[bg][fg]`,
+    `[bg]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH},gblur=sigma=35[blurbg]`,
+    `[fg]scale=${SW}:${SH}:force_original_aspect_ratio=decrease[fgscaled]`,
+    `[blurbg][fgscaled]overlay=(W-w)/2:(H-h)/2[combined]`,
+    `[combined]zoompan=z='1.04+0.02*sin(on/${fps}*0.4)':x='(iw-ow)/2':y='(ih-oh)/2':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
+    `[zp]setsar=1,format=yuv420p,${eq},gblur=sigma=8,vignette=angle=0.55,` +
 
     `fade=t=in:st=0:d=0.5,` +
 
-    `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.45:t=fill,` +
-
-    `drawbox=x=iw*0.06:y=${accentLineY}:w=iw*0.88:h=3:color=0x4488FF@0.5:t=fill:enable='gte(t,0.2)',` +
-    `drawbox=x=iw*0.06:y=${accentLineBot}:w=iw*0.88:h=3:color=0x4488FF@0.5:t=fill:enable='gte(t,0.2)',` +
-    `drawbox=x=iw*0.06:y=${accentLineY}:w=3:h=${accentLineBot}-${accentLineY}:color=0x4488FF@0.3:t=fill:enable='gte(t,0.2)',` +
-    `drawbox=x=iw*0.94:y=${accentLineY}:w=3:h=${accentLineBot}-${accentLineY}:color=0x4488FF@0.3:t=fill:enable='gte(t,0.2)',` +
+    `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.5:t=fill,` +
 
     productGlowLayers.join(",") +
     priceLayers +

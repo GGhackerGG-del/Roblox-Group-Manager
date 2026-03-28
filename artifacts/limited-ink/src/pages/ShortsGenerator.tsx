@@ -13,7 +13,7 @@ import {
   Video, Upload, Sparkles, Download, Loader2, X, Image as ImageIcon,
   Play, Music, Type, Palette, Hash, Copy, Check, Film, Clock, Layers,
   Wand2, ChevronRight, RefreshCw, Trash2, GripVertical, Eye, FileImage,
-  Zap, ArrowRight, CheckCircle2, AlertCircle, Pause,
+  Zap, ArrowRight, CheckCircle2, AlertCircle, Pause, Maximize2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -371,8 +371,29 @@ export default function ShortsGenerator() {
                     </div>
 
                     {videoUrl && (
-                      <div className="mx-auto w-[240px] aspect-[9/16] rounded-xl overflow-hidden border border-border bg-black">
-                        <video src={videoUrl} controls className="w-full h-full object-contain" autoPlay muted />
+                      <div className="mx-auto w-full max-w-[360px] aspect-[9/16] rounded-2xl overflow-hidden border border-border bg-black shadow-2xl shadow-black/50 relative group">
+                        <video
+                          src={videoUrl}
+                          controls
+                          className="w-full h-full object-contain"
+                          autoPlay
+                          muted
+                          playsInline
+                          style={{ maxHeight: "70vh" }}
+                        />
+                        <button
+                          onClick={() => {
+                            const v = document.querySelector<HTMLVideoElement>('video[src="' + videoUrl + '"]');
+                            if (v) {
+                              if (v.requestFullscreen) v.requestFullscreen();
+                              else if ((v as any).webkitRequestFullscreen) (v as any).webkitRequestFullscreen();
+                            }
+                          }}
+                          className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Fullscreen"
+                        >
+                          <Maximize2 className="w-4 h-4" />
+                        </button>
                       </div>
                     )}
 
