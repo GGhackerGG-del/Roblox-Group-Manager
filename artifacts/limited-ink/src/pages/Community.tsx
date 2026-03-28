@@ -737,6 +737,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
 }) {
   const { toast } = useToast();
   const { t } = useLanguage();
+  const { isOnline, fetchPresenceFor } = usePresenceContext();
   const [users, setUsers] = useState<Array<PlatformUser & { isMe?: boolean }>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -753,12 +754,14 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
     try {
       const d = await apiFetch<{ users: Array<PlatformUser & { isMe?: boolean }> }>("/api/social/users");
       setUsers(d.users);
+      const ids = d.users.map(u => u.robloxUserId).filter(Boolean);
+      if (ids.length > 0) fetchPresenceFor(ids);
     } catch {} finally { if (!silent) setLoading(false); }
     try {
       const d = await apiFetch<{ groups: any[] }>("/api/featured-groups");
       setFeaturedGroups(d.groups);
     } catch {} finally { if (!silent) setFgLoading(false); }
-  }, []);
+  }, [fetchPresenceFor]);
 
   useEffect(() => { fetchDiscover(); }, [fetchDiscover]);
 
@@ -974,10 +977,15 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
                 className={`flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors cursor-pointer group ${user.isMe ? "bg-muted" : ""}`}
                 onClick={() => onUserClick(user.id)}
               >
-                <Avatar className="w-11 h-11 border border-border shrink-0">
-                  <AvatarImage src={user.avatarUrl || robloxHeadshot(user.robloxUserId)} />
-                  <AvatarFallback className="font-bold bg-secondary text-muted-foreground">{user.displayName.charAt(0)}</AvatarFallback>
-                </Avatar>
+                <div className="relative shrink-0">
+                  <Avatar className="w-11 h-11 border border-border">
+                    <AvatarImage src={user.avatarUrl || robloxHeadshot(user.robloxUserId)} />
+                    <AvatarFallback className="font-bold bg-secondary text-muted-foreground">{user.displayName.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  {isOnline(user.robloxUserId) && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-[13px] text-foreground">{user.displayName}</p>
@@ -1022,6 +1030,7 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
 }) {
   const { toast } = useToast();
   const { t } = useLanguage();
+  const { isOnline, fetchPresenceFor } = usePresenceContext();
   const [friends, setFriends] = useState<Array<{ friendship: { id: number; status: string }; user: PlatformUser }>>([]);
   const [pending, setPending] = useState<Array<{ friendship: { id: number; status: string }; user: PlatformUser }>>([]);
   const [loading, setLoading] = useState(true);
@@ -1035,8 +1044,10 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
       }>("/api/social/friends");
       setFriends(d.friends);
       setPending(d.pending);
+      const ids = [...d.friends, ...d.pending].map(f => f.user.robloxUserId).filter(Boolean);
+      if (ids.length > 0) fetchPresenceFor(ids);
     } catch {} finally { if (!silent) setLoading(false); }
-  }, []);
+  }, [fetchPresenceFor]);
 
   useEffect(() => { fetchFriends(); }, [fetchFriends]);
 
@@ -1077,11 +1088,14 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
           <div className="space-y-4">
             {pending.map(({ friendship: f, user }) => (
               <div key={f.id} className="flex items-center gap-3">
-                <button onClick={() => onUserClick(user.id)}>
+                <button onClick={() => onUserClick(user.id)} className="relative">
                   <Avatar className="w-12 h-12 border border-border">
                     <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
                     <AvatarFallback className="font-bold bg-secondary">{user?.displayName?.charAt(0)}</AvatarFallback>
                   </Avatar>
+                  {isOnline(user?.robloxUserId) && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
+                  )}
                 </button>
                 <div className="flex-1 min-w-0">
                   <button className="text-[13px] font-semibold text-foreground hover:text-primary transition-colors" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>
@@ -1117,11 +1131,14 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
           <div className="space-y-1">
             {friends.map(({ friendship: f, user }) => (
               <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors group">
-                <button onClick={() => onUserClick(user.id)}>
+                <button onClick={() => onUserClick(user.id)} className="relative">
                   <Avatar className="w-12 h-12 border border-border">
                     <AvatarImage src={user?.avatarUrl || robloxHeadshot(user?.robloxUserId || 0)} />
                     <AvatarFallback className="font-bold bg-secondary">{user?.displayName?.charAt(0)}</AvatarFallback>
                   </Avatar>
+                  {isOnline(user?.robloxUserId) && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
+                  )}
                 </button>
                 <div className="flex-1 min-w-0">
                   <button className="text-[13px] font-semibold text-foreground hover:text-primary transition-colors" onClick={() => onUserClick(user.id)}>{user?.displayName}</button>

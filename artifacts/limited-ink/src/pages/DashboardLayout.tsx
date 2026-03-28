@@ -3,14 +3,14 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair, Cog, ShieldCheck, Megaphone, Gamepad2, Share2, Receipt, CalendarDays, Trophy, Plug, FlaskConical, Film, Circle } from "lucide-react";
+import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSquare, Bot, Search, Crosshair, Cog, ShieldCheck, Megaphone, Gamepad2, Share2, Receipt, CalendarDays, Trophy, Plug, FlaskConical, Film } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-react";
 
 import { playHover, playClick } from "@/hooks/useSounds";
 import { usePageCache } from "@/contexts/PageCacheContext";
-import { PresenceProvider, usePresenceContext } from "@/contexts/PresenceContext";
+import { PresenceProvider } from "@/contexts/PresenceContext";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -99,7 +99,6 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, [location]);
 
-  const { onlineUsers, totalOnline } = usePresenceContext();
   const { data: groupsData, isLoading: isLoadingGroups } = useGetRobloxGroups();
 
   useEffect(() => {
@@ -143,37 +142,6 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
           <NavItem href="/profile" icon={<UserCircle className="w-4 h-4" />} label={t("nav.profile")} isActive={location === "/profile"} />
           <NavItem href="/community" icon={<MessageSquare className="w-4 h-4" />} label={t("nav.community")} isActive={location === "/community"} />
         </div>
-
-        {onlineUsers.length > 0 && (
-          <div className="pt-3 space-y-1">
-            <h3 className="px-2 text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
-              <Circle className="w-2.5 h-2.5 fill-green-500 text-green-500" />
-              Online
-              <span className="ml-auto bg-green-500/15 text-green-500 text-[10px] font-bold px-1.5 py-0.5 rounded-md">{totalOnline}</span>
-            </h3>
-            <ul className="space-y-0.5">
-              {onlineUsers.slice(0, 8).map(user => (
-                <li key={user.userId}>
-                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground">
-                    <div className="relative">
-                      <Avatar className="w-6 h-6 border border-border">
-                        <AvatarImage src={user.avatarUrl || robloxHeadshot(user.userId)} />
-                        <AvatarFallback className="text-[10px] bg-secondary">{user.displayName?.charAt(0) || "?"}</AvatarFallback>
-                      </Avatar>
-                      <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" />
-                    </div>
-                    <span className="truncate text-xs font-medium">{user.displayName}</span>
-                  </div>
-                </li>
-              ))}
-              {onlineUsers.length > 8 && (
-                <li className="px-3 py-1 text-[11px] text-muted-foreground/60">
-                  +{onlineUsers.length - 8} more online
-                </li>
-              )}
-            </ul>
-          </div>
-        )}
 
         <div className="pt-3 space-y-1">
           <h3 className="px-2 text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
