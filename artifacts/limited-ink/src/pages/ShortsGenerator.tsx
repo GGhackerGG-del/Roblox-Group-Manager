@@ -35,34 +35,34 @@ interface GeneratedScript {
   hashtags: string[];
 }
 
-const STYLE_PRESETS = [
-  { id: "clean", label: "Clean", emoji: "✨", desc: "Modern & polished", color: "from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-blue-400" },
-  { id: "hype", label: "Hype", emoji: "🔥", desc: "Bold & energetic", color: "from-orange-500/20 to-red-500/20 border-orange-500/30 text-orange-400" },
-  { id: "minimal", label: "Minimal", emoji: "◾", desc: "Simple & elegant", color: "from-gray-500/20 to-gray-600/20 border-gray-500/30 text-gray-400" },
-  { id: "luxury", label: "Luxury", emoji: "💎", desc: "Premium feel", color: "from-purple-500/20 to-amber-500/20 border-purple-500/30 text-purple-400" },
-  { id: "streetwear", label: "Street", emoji: "🧢", desc: "Urban & trendy", color: "from-green-500/20 to-emerald-500/20 border-green-500/30 text-green-400" },
-];
-
-const DURATION_OPTIONS = [
-  { value: 10, label: "10s", desc: "Quick" },
-  { value: 15, label: "15s", desc: "Standard" },
-  { value: 20, label: "20s", desc: "Extended" },
-  { value: 30, label: "30s", desc: "Full" },
-];
-
 type Step = "details" | "media" | "script" | "settings" | "generate";
-
-const STEPS: { id: Step; label: string; icon: typeof Type }[] = [
-  { id: "details", label: "Details", icon: Type },
-  { id: "media", label: "Media", icon: ImageIcon },
-  { id: "script", label: "Script", icon: Wand2 },
-  { id: "settings", label: "Settings", icon: Layers },
-  { id: "generate", label: "Generate", icon: Zap },
-];
 
 export default function ShortsGenerator() {
   const { t } = useLanguage();
   const { toast } = useToast();
+
+  const STYLE_PRESETS = [
+    { id: "clean", label: t("shorts.style.clean"), emoji: "✨", desc: t("shorts.style.clean.desc"), color: "from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-blue-400" },
+    { id: "hype", label: t("shorts.style.hype"), emoji: "🔥", desc: t("shorts.style.hype.desc"), color: "from-orange-500/20 to-red-500/20 border-orange-500/30 text-orange-400" },
+    { id: "minimal", label: t("shorts.style.minimal"), emoji: "◾", desc: t("shorts.style.minimal.desc"), color: "from-gray-500/20 to-gray-600/20 border-gray-500/30 text-gray-400" },
+    { id: "luxury", label: t("shorts.style.luxury"), emoji: "💎", desc: t("shorts.style.luxury.desc"), color: "from-purple-500/20 to-amber-500/20 border-purple-500/30 text-purple-400" },
+    { id: "streetwear", label: t("shorts.style.street"), emoji: "🧢", desc: t("shorts.style.street.desc"), color: "from-green-500/20 to-emerald-500/20 border-green-500/30 text-green-400" },
+  ];
+
+  const DURATION_OPTIONS = [
+    { value: 10, label: "10s", desc: t("shorts.dur.quick") },
+    { value: 15, label: "15s", desc: t("shorts.dur.standard") },
+    { value: 20, label: "20s", desc: t("shorts.dur.extended") },
+    { value: 30, label: "30s", desc: t("shorts.dur.full") },
+  ];
+
+  const STEPS: { id: Step; label: string; icon: typeof Type }[] = [
+    { id: "details", label: t("shorts.step.details"), icon: Type },
+    { id: "media", label: t("shorts.step.media"), icon: ImageIcon },
+    { id: "script", label: t("shorts.step.script"), icon: Wand2 },
+    { id: "settings", label: t("shorts.step.settings"), icon: Layers },
+    { id: "generate", label: t("shorts.step.generate"), icon: Zap },
+  ];
 
   const [step, setStep] = useState<Step>("details");
 
@@ -140,7 +140,7 @@ export default function ShortsGenerator() {
 
   const generateScriptHandler = async () => {
     if (!productName.trim()) {
-      toast({ variant: "destructive", title: "Error", description: "Enter a product name first" });
+      toast({ variant: "destructive", title: t("shorts.error"), description: t("shorts.enterNameFirst") });
       return;
     }
     setGeneratingScript(true);
@@ -151,13 +151,13 @@ export default function ShortsGenerator() {
         headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ productName, productDescription, price, cta, style, platform, useAI }),
       });
-      if (!r.ok) throw new Error("Failed to generate script");
+      if (!r.ok) throw new Error(t("shorts.failedGenScript"));
       const data = await r.json();
       setScript(data.script);
       setScriptSource(data.source || "template");
-      toast({ title: "Script generated", description: data.source === "ai" ? "AI-powered script ready" : "Template script ready — edit to customize" });
+      toast({ title: t("shorts.scriptGenerated"), description: data.source === "ai" ? t("shorts.aiScriptReady") : t("shorts.templateScriptReady") });
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Error", description: err.message });
+      toast({ variant: "destructive", title: t("shorts.error"), description: err.message });
     } finally {
       setGeneratingScript(false);
     }
@@ -165,11 +165,11 @@ export default function ShortsGenerator() {
 
   const startGeneration = async () => {
     if (images.length === 0) {
-      toast({ variant: "destructive", title: "Error", description: "Upload at least one image" });
+      toast({ variant: "destructive", title: t("shorts.error"), description: t("shorts.uploadOneImage") });
       return;
     }
     if (!productName.trim()) {
-      toast({ variant: "destructive", title: "Error", description: "Enter a product name" });
+      toast({ variant: "destructive", title: t("shorts.error"), description: t("shorts.enterName") });
       return;
     }
 
@@ -204,7 +204,7 @@ export default function ShortsGenerator() {
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
-        throw new Error(err.error || "Generation failed");
+        throw new Error(err.error || t("shorts.genFailed"));
       }
       const data = await r.json();
       setJobId(data.jobId);
@@ -212,7 +212,7 @@ export default function ShortsGenerator() {
     } catch (err: any) {
       setJobStatus("error");
       setJobError(err.message);
-      toast({ variant: "destructive", title: "Error", description: err.message });
+      toast({ variant: "destructive", title: t("shorts.error"), description: err.message });
     }
   };
 
@@ -231,12 +231,12 @@ export default function ShortsGenerator() {
         if (data.status === "done") {
           clearInterval(pollRef.current!);
           pollRef.current = null;
-          toast({ title: "Video ready!", description: "Your short video has been generated" });
+          toast({ title: t("shorts.videoReadyToast"), description: t("shorts.videoReadyDesc") });
         } else if (data.status === "error") {
           clearInterval(pollRef.current!);
           pollRef.current = null;
           setJobError(data.error);
-          toast({ variant: "destructive", title: "Generation failed", description: data.error });
+          toast({ variant: "destructive", title: t("shorts.genFailedToast"), description: data.error });
         }
       } catch {}
     }, 1500);
@@ -249,7 +249,7 @@ export default function ShortsGenerator() {
         credentials: "include",
         headers: authHeaders(),
       });
-      if (!r.ok) throw new Error("Download failed");
+      if (!r.ok) throw new Error(t("shorts.downloadFailed"));
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       setVideoUrl(url);
@@ -260,7 +260,7 @@ export default function ShortsGenerator() {
       a.click();
       document.body.removeChild(a);
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Error", description: err.message });
+      toast({ variant: "destructive", title: t("shorts.error"), description: err.message });
     }
   };
 
@@ -308,15 +308,23 @@ export default function ShortsGenerator() {
   };
 
   const getProgressLabel = (p: number) => {
-    if (p < 10) return "Initializing...";
-    if (p < 30) return "Processing images...";
-    if (p < 65) return "Rendering scenes...";
-    if (p < 78) return "Adding overlays...";
-    if (p < 85) return "Adding transitions...";
-    if (p < 92) return "Compositing video...";
-    if (p < 98) return "Adding music...";
-    return "Finalizing...";
+    if (p < 10) return t("shorts.progress.init");
+    if (p < 30) return t("shorts.progress.images");
+    if (p < 65) return t("shorts.progress.scenes");
+    if (p < 78) return t("shorts.progress.overlays");
+    if (p < 85) return t("shorts.progress.transitions");
+    if (p < 92) return t("shorts.progress.compositing");
+    if (p < 98) return t("shorts.progress.music");
+    return t("shorts.progress.finalizing");
   };
+
+  const progressStepLabels = [
+    t("shorts.progress.stepImages"),
+    t("shorts.progress.stepScenes"),
+    t("shorts.progress.stepOverlays"),
+    t("shorts.progress.stepEffects"),
+    t("shorts.progress.stepExport"),
+  ];
 
   if (jobStatus === "processing" || jobStatus === "done" || jobStatus === "error") {
     return (
@@ -331,7 +339,7 @@ export default function ShortsGenerator() {
                       <Loader2 className="w-10 h-10 text-violet-400 animate-spin" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold">Generating your video...</h2>
+                      <h2 className="text-xl font-semibold">{t("shorts.generating")}</h2>
                       <p className="text-sm text-muted-foreground mt-1">{getProgressLabel(jobProgress)}</p>
                     </div>
                     <div className="space-y-2">
@@ -346,7 +354,7 @@ export default function ShortsGenerator() {
                       <p className="text-sm font-mono text-muted-foreground">{jobProgress}%</p>
                     </div>
                     <div className="grid grid-cols-5 gap-1.5 px-4">
-                      {["Images", "Scenes", "Overlays", "Effects", "Export"].map((label, i) => {
+                      {progressStepLabels.map((label, i) => {
                         const thresholds = [10, 30, 70, 85, 98];
                         const active = jobProgress >= thresholds[i];
                         return (
@@ -366,8 +374,8 @@ export default function ShortsGenerator() {
                       <CheckCircle2 className="w-10 h-10 text-green-400" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold">Video Ready!</h2>
-                      <p className="text-sm text-muted-foreground mt-1">Your short video has been generated successfully</p>
+                      <h2 className="text-xl font-semibold">{t("shorts.videoReady")}</h2>
+                      <p className="text-sm text-muted-foreground mt-1">{t("shorts.videoSuccess")}</p>
                     </div>
 
                     {videoUrl && (
@@ -390,7 +398,7 @@ export default function ShortsGenerator() {
                             }
                           }}
                           className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Fullscreen"
+                          title={t("shorts.fullscreen")}
                         >
                           <Maximize2 className="w-4 h-4" />
                         </button>
@@ -400,21 +408,21 @@ export default function ShortsGenerator() {
                     <div className="flex gap-3 justify-center pt-2">
                       {!videoUrl && (
                         <Button onClick={previewVideo} variant="outline" className="gap-2">
-                          <Eye className="w-4 h-4" /> Preview
+                          <Eye className="w-4 h-4" /> {t("shorts.preview")}
                         </Button>
                       )}
                       <Button onClick={downloadVideo} className="gap-2 bg-gradient-to-r from-pink-500 to-violet-600 hover:from-pink-600 hover:to-violet-700 text-white">
-                        <Download className="w-4 h-4" /> Download MP4
+                        <Download className="w-4 h-4" /> {t("shorts.downloadMp4")}
                       </Button>
                     </div>
 
                     {script && (
                       <div className="text-left bg-secondary/50 rounded-xl p-4 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-muted-foreground">Caption & Hashtags</span>
+                          <span className="text-xs font-medium text-muted-foreground">{t("shorts.captionHashtags")}</span>
                           <button onClick={copyCaption} className="text-xs text-primary hover:underline flex items-center gap-1">
                             {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                            {copied ? "Copied" : "Copy"}
+                            {copied ? t("shorts.copied") : t("shorts.copy")}
                           </button>
                         </div>
                         <p className="text-sm">{script.caption}</p>
@@ -423,7 +431,7 @@ export default function ShortsGenerator() {
                     )}
 
                     <Button onClick={resetAll} variant="ghost" className="gap-2 text-muted-foreground">
-                      <RefreshCw className="w-4 h-4" /> Create Another
+                      <RefreshCw className="w-4 h-4" /> {t("shorts.createAnother")}
                     </Button>
                   </>
                 )}
@@ -434,12 +442,12 @@ export default function ShortsGenerator() {
                       <AlertCircle className="w-10 h-10 text-red-400" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold">Generation Failed</h2>
-                      <p className="text-sm text-red-400 mt-1">{jobError || "An unknown error occurred"}</p>
+                      <h2 className="text-xl font-semibold">{t("shorts.generationFailed")}</h2>
+                      <p className="text-sm text-red-400 mt-1">{jobError || t("shorts.unknownError")}</p>
                     </div>
                     <div className="flex gap-3 justify-center">
                       <Button onClick={resetAll} variant="outline" className="gap-2">
-                        <RefreshCw className="w-4 h-4" /> Try Again
+                        <RefreshCw className="w-4 h-4" /> {t("shorts.tryAgain")}
                       </Button>
                     </div>
                   </>
@@ -460,9 +468,9 @@ export default function ShortsGenerator() {
             <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-600/20">
               <Film className="w-5 h-5 text-white" />
             </div>
-            AI Shorts Generator
+            {t("shorts.title")}
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Create promotional shorts for TikTok & YouTube</p>
+          <p className="text-muted-foreground text-sm mt-1">{t("shorts.subtitle")}</p>
         </div>
       </div>
 
@@ -501,39 +509,39 @@ export default function ShortsGenerator() {
           {step === "details" && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2"><Type className="w-5 h-5" /> Product Details</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2"><Type className="w-5 h-5" /> {t("shorts.productDetails")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Product Name *</label>
-                    <Input value={productName} onChange={e => setProductName(e.target.value)} placeholder="e.g. Midnight Hoodie" className="h-11" />
+                    <label className="text-xs font-medium text-muted-foreground">{t("shorts.productName")}</label>
+                    <Input value={productName} onChange={e => setProductName(e.target.value)} placeholder={t("shorts.productName.placeholder")} className="h-11" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Price</label>
-                    <Input value={price} onChange={e => setPrice(e.target.value)} placeholder="e.g. 50 Robux" className="h-11" />
+                    <label className="text-xs font-medium text-muted-foreground">{t("shorts.price")}</label>
+                    <Input value={price} onChange={e => setPrice(e.target.value)} placeholder={t("shorts.price.placeholder")} className="h-11" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Description</label>
-                  <Textarea value={productDescription} onChange={e => setProductDescription(e.target.value)} placeholder="Describe your product — this will be used for AI copy generation..." className="resize-none min-h-[90px]" />
+                  <label className="text-xs font-medium text-muted-foreground">{t("shorts.description")}</label>
+                  <Textarea value={productDescription} onChange={e => setProductDescription(e.target.value)} placeholder={t("shorts.description.placeholder")} className="resize-none min-h-[90px]" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Roblox URL</label>
+                    <label className="text-xs font-medium text-muted-foreground">{t("shorts.robloxUrl")}</label>
                     <Input value={itemUrl} onChange={e => setItemUrl(e.target.value)} placeholder="https://www.roblox.com/..." className="h-11" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Call to Action</label>
-                    <Input value={cta} onChange={e => setCta(e.target.value)} placeholder="Get yours now!" className="h-11" />
+                    <label className="text-xs font-medium text-muted-foreground">{t("shorts.cta")}</label>
+                    <Input value={cta} onChange={e => setCta(e.target.value)} placeholder={t("shorts.cta.placeholder")} className="h-11" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Platform</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("shorts.platform")}</label>
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { id: "tiktok" as const, label: "TikTok", icon: "📱" },
-                      { id: "youtube" as const, label: "YouTube Shorts", icon: "▶️" },
+                      { id: "youtube" as const, label: t("shorts.youtubeShorts"), icon: "▶️" },
                     ].map(p => (
                       <button
                         key={p.id}
@@ -559,7 +567,7 @@ export default function ShortsGenerator() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <ImageIcon className="w-5 h-5" /> Images
+                    <ImageIcon className="w-5 h-5" /> {t("shorts.images")}
                     <Badge variant="secondary" className="ml-auto text-xs">{images.length}/8</Badge>
                   </CardTitle>
                 </CardHeader>
@@ -584,8 +592,8 @@ export default function ShortsGenerator() {
                     <div className="w-14 h-14 mx-auto mb-3 bg-primary/10 rounded-xl flex items-center justify-center">
                       <Upload className="w-7 h-7 text-primary" />
                     </div>
-                    <p className="text-sm font-medium">Drop images here or click to browse</p>
-                    <p className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP — up to 8 images • Shown in upload order</p>
+                    <p className="text-sm font-medium">{t("shorts.dropImages")}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t("shorts.imageFormats")}</p>
                   </div>
 
                   {imagePreviews.length > 0 && (
@@ -598,7 +606,7 @@ export default function ShortsGenerator() {
                           animate={{ opacity: 1, scale: 1 }}
                           className="relative group aspect-[9/16] rounded-xl overflow-hidden border border-border bg-secondary shadow-sm"
                         >
-                          <img src={src} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
+                          <img src={src} alt={`${t("shorts.images")} ${i + 1}`} className="w-full h-full object-cover" />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
                             <button
                               onClick={() => removeImage(i)}
@@ -612,7 +620,7 @@ export default function ShortsGenerator() {
                           </div>
                           {i === 0 && (
                             <div className="absolute bottom-2 left-2 right-2 bg-violet-600/90 text-white text-[9px] font-bold py-0.5 text-center rounded">
-                              HOOK
+                              {t("shorts.hook").split(" ")[0]}
                             </div>
                           )}
                         </motion.div>
@@ -625,7 +633,7 @@ export default function ShortsGenerator() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2"><Music className="w-4 h-4" /> Music</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2"><Music className="w-4 h-4" /> {t("shorts.music")}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {musicFile ? (
@@ -644,8 +652,8 @@ export default function ShortsGenerator() {
                         className="w-full border border-dashed border-border rounded-xl py-5 text-center text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all"
                       >
                         <Music className="w-6 h-6 mx-auto mb-1.5 opacity-50" />
-                        Upload background music
-                        <span className="block text-xs mt-0.5 opacity-60">MP3, WAV, M4A</span>
+                        {t("shorts.uploadMusic")}
+                        <span className="block text-xs mt-0.5 opacity-60">{t("shorts.musicFormats")}</span>
                       </button>
                     )}
                     <input
@@ -660,12 +668,12 @@ export default function ShortsGenerator() {
 
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2"><FileImage className="w-4 h-4" /> Logo</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2"><FileImage className="w-4 h-4" /> {t("shorts.logo")}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {logoPreview ? (
                       <div className="flex items-center gap-3 bg-secondary rounded-xl px-4 py-3">
-                        <img src={logoPreview} alt="Logo" className="w-9 h-9 rounded-lg object-contain bg-white/5" />
+                        <img src={logoPreview} alt={t("shorts.logo")} className="w-9 h-9 rounded-lg object-contain bg-white/5" />
                         <span className="text-sm truncate flex-1">{logoFile?.name}</span>
                         <button onClick={() => { setLogoFile(null); setLogoPreview(null); }} className="text-muted-foreground hover:text-destructive transition-colors">
                           <X className="w-4 h-4" />
@@ -677,8 +685,8 @@ export default function ShortsGenerator() {
                         className="w-full border border-dashed border-border rounded-xl py-5 text-center text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all"
                       >
                         <FileImage className="w-6 h-6 mx-auto mb-1.5 opacity-50" />
-                        Upload logo overlay
-                        <span className="block text-xs mt-0.5 opacity-60">PNG with transparency</span>
+                        {t("shorts.uploadLogo")}
+                        <span className="block text-xs mt-0.5 opacity-60">{t("shorts.logoFormat")}</span>
                       </button>
                     )}
                     <input
@@ -698,7 +706,7 @@ export default function ShortsGenerator() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Wand2 className="w-5 h-5" /> AI Script
+                  <Wand2 className="w-5 h-5" /> {t("shorts.aiScript")}
                   {scriptSource && (
                     <Badge variant="secondary" className="ml-2 text-[10px]">
                       {scriptSource === "ai" ? "🤖 AI" : "📝 Template"}
@@ -710,22 +718,22 @@ export default function ShortsGenerator() {
                 <div className="flex items-center gap-4 bg-secondary/50 rounded-xl px-4 py-3">
                   <div className="flex items-center gap-2 flex-1">
                     <Sparkles className="w-4 h-4 text-violet-400" />
-                    <span className="text-sm font-medium">Use AI for script</span>
-                    <span className="text-xs text-muted-foreground">(powered by GPT)</span>
+                    <span className="text-sm font-medium">{t("shorts.useAI")}</span>
+                    <span className="text-xs text-muted-foreground">{t("shorts.poweredByGPT")}</span>
                   </div>
                   <Switch checked={useAI} onCheckedChange={setUseAI} />
                 </div>
 
                 <Button onClick={generateScriptHandler} disabled={generatingScript || !productName.trim()} variant="outline" className="w-full h-12 text-sm">
                   {generatingScript ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                  {script ? "Regenerate Script" : "Generate Script"}
+                  {script ? t("shorts.regenerateScript") : t("shorts.generateScript")}
                 </Button>
 
                 {!script && !generatingScript && (
                   <div className="text-center py-8 text-muted-foreground">
                     <Wand2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">Click above to generate a script</p>
-                    <p className="text-xs mt-1 opacity-60">You can edit it afterwards</p>
+                    <p className="text-sm">{t("shorts.clickToGenerate")}</p>
+                    <p className="text-xs mt-1 opacity-60">{t("shorts.editAfter")}</p>
                   </div>
                 )}
 
@@ -733,13 +741,13 @@ export default function ShortsGenerator() {
                   <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-violet-500" /> Hook (Opening)
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-500" /> {t("shorts.hook")}
                       </label>
                       <Input value={script.hook} onChange={e => setScript({ ...script, hook: e.target.value })} className="h-11 font-medium" />
                     </div>
 
                     <div className="space-y-3">
-                      <label className="text-xs font-medium text-muted-foreground">Scene Subtitles</label>
+                      <label className="text-xs font-medium text-muted-foreground">{t("shorts.sceneSubtitles")}</label>
                       {script.subtitles.map((sub, i) => (
                         <div key={i} className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground w-6 text-right shrink-0">{i + 1}.</span>
@@ -768,23 +776,23 @@ export default function ShortsGenerator() {
                         onClick={() => setScript({ ...script, subtitles: [...script.subtitles, ""] })}
                         className="text-xs text-muted-foreground"
                       >
-                        + Add subtitle
+                        {t("shorts.addSubtitle")}
                       </Button>
                     </div>
 
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> CTA (Closing)
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> {t("shorts.ctaClosing")}
                       </label>
                       <Input value={script.ctaLine} onChange={e => setScript({ ...script, ctaLine: e.target.value })} className="h-11" />
                     </div>
 
                     <div className="border-t border-border pt-4 space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground flex items-center justify-between">
-                        <span>Caption + Hashtags</span>
+                        <span>{t("shorts.captionHashtags")}</span>
                         <button onClick={copyCaption} className="flex items-center gap-1 text-primary hover:underline">
                           {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                          {copied ? "Copied" : "Copy"}
+                          {copied ? t("shorts.copied") : t("shorts.copy")}
                         </button>
                       </label>
                       <Textarea
@@ -813,7 +821,7 @@ export default function ShortsGenerator() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2"><Clock className="w-4 h-4" /> Duration</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2"><Clock className="w-4 h-4" /> {t("shorts.duration")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-3">
@@ -837,23 +845,23 @@ export default function ShortsGenerator() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2"><Palette className="w-4 h-4" /> Branding</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2"><Palette className="w-4 h-4" /> {t("shorts.branding")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Watermark Text</label>
+                    <label className="text-xs font-medium text-muted-foreground">{t("shorts.watermark")}</label>
                     <Input value={watermarkText} onChange={e => setWatermarkText(e.target.value)} placeholder="@yourbrand" className="h-10" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Primary Color</label>
+                      <label className="text-xs font-medium text-muted-foreground">{t("shorts.primaryColor")}</label>
                       <div className="flex items-center gap-2 bg-secondary rounded-lg px-3 py-2">
                         <input type="color" value={brandColor} onChange={e => setBrandColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border-0" />
                         <span className="text-xs font-mono text-muted-foreground">{brandColor}</span>
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Secondary Color</label>
+                      <label className="text-xs font-medium text-muted-foreground">{t("shorts.secondaryColor")}</label>
                       <div className="flex items-center gap-2 bg-secondary rounded-lg px-3 py-2">
                         <input type="color" value={brandColorSecondary} onChange={e => setBrandColorSecondary(e.target.value)} className="w-7 h-7 rounded cursor-pointer border-0" />
                         <span className="text-xs font-mono text-muted-foreground">{brandColorSecondary}</span>
@@ -865,7 +873,7 @@ export default function ShortsGenerator() {
 
               <Card className="sm:col-span-2">
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2"><Layers className="w-4 h-4" /> Style Preset</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2"><Layers className="w-4 h-4" /> {t("shorts.stylePreset")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -903,49 +911,49 @@ export default function ShortsGenerator() {
                     <Video className="w-8 h-8 text-violet-400" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-semibold">Ready to Generate</h2>
-                    <p className="text-sm text-muted-foreground mt-1">Review your settings and hit generate</p>
+                    <h2 className="text-xl font-semibold">{t("shorts.readyToGenerate")}</h2>
+                    <p className="text-sm text-muted-foreground mt-1">{t("shorts.reviewSettings")}</p>
                   </div>
 
                   <div className="text-left bg-secondary/50 rounded-xl p-4 space-y-3 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Product</span>
+                      <span className="text-muted-foreground">{t("shorts.product")}</span>
                       <span className="font-medium truncate ml-4">{productName || "—"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Images</span>
-                      <span className="font-medium">{images.length} uploaded</span>
+                      <span className="text-muted-foreground">{t("shorts.images")}</span>
+                      <span className="font-medium">{images.length} {t("shorts.imagesCount")}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Duration</span>
+                      <span className="text-muted-foreground">{t("shorts.duration")}</span>
                       <span className="font-medium">{duration}s</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Style</span>
+                      <span className="text-muted-foreground">{t("shorts.stylePreset")}</span>
                       <span className="font-medium capitalize">{style}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Platform</span>
-                      <span className="font-medium">{platform === "tiktok" ? "TikTok" : "YouTube Shorts"}</span>
+                      <span className="text-muted-foreground">{t("shorts.platform")}</span>
+                      <span className="font-medium">{platform === "tiktok" ? "TikTok" : t("shorts.youtubeShorts")}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Script</span>
-                      <span className="font-medium">{script ? "✓ Ready" : "Auto-generate"}</span>
+                      <span className="text-muted-foreground">{t("shorts.script")}</span>
+                      <span className="font-medium">{script ? t("shorts.scriptReady") : t("shorts.scriptAuto")}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Music</span>
-                      <span className="font-medium">{musicFile ? "✓ " + musicFile.name.slice(0, 20) : "None"}</span>
+                      <span className="text-muted-foreground">{t("shorts.music")}</span>
+                      <span className="font-medium">{musicFile ? "✓ " + musicFile.name.slice(0, 20) : t("shorts.none")}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Logo</span>
-                      <span className="font-medium">{logoFile ? "✓ Added" : "None"}</span>
+                      <span className="text-muted-foreground">{t("shorts.logo")}</span>
+                      <span className="font-medium">{logoFile ? t("shorts.logoAdded") : t("shorts.none")}</span>
                     </div>
                   </div>
 
                   {!canGenerate && (
                     <div className="bg-destructive/10 text-destructive rounded-lg px-4 py-2 text-sm">
-                      {!productName.trim() && "Enter a product name • "}
-                      {images.length === 0 && "Upload at least one image"}
+                      {!productName.trim() && `${t("shorts.enterProductName")} • `}
+                      {images.length === 0 && t("shorts.uploadAtLeastOne")}
                     </div>
                   )}
 
@@ -956,11 +964,11 @@ export default function ShortsGenerator() {
                     size="lg"
                   >
                     <Zap className="w-5 h-5 mr-2" />
-                    Generate Video
+                    {t("shorts.generateVideo")}
                   </Button>
 
                   <p className="text-xs text-muted-foreground">
-                    Generation takes 30–90 seconds depending on image count and duration
+                    {t("shorts.generationTime")}
                   </p>
                 </div>
               </CardContent>
@@ -976,11 +984,11 @@ export default function ShortsGenerator() {
           disabled={currentStepIndex === 0}
           className="gap-2"
         >
-          <ChevronRight className="w-4 h-4 rotate-180" /> Back
+          <ChevronRight className="w-4 h-4 rotate-180" /> {t("shorts.back")}
         </Button>
         {currentStepIndex < STEPS.length - 1 && (
           <Button onClick={goNext} variant="outline" className="gap-2">
-            Next <ChevronRight className="w-4 h-4" />
+            {t("shorts.next")} <ChevronRight className="w-4 h-4" />
           </Button>
         )}
       </div>
