@@ -253,6 +253,8 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
   try {
     const W = 1080;
     const H = 1920;
+    const SW = Math.round(W * 1.3);
+    const SH = Math.round(H * 1.3);
     const totalDuration = input.duration || 15;
     const imageCount = input.images.length;
     if (imageCount === 0) throw new Error("No images provided");
@@ -301,8 +303,8 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
       const fadeOut = `fade=t=out:st=${sceneDur - transitionDur}:d=${transitionDur}`;
 
       const filter = [
-        `[0:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,` +
-        `crop=${W * 2}:${H * 2},` +
+        `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,` +
+        `crop=${SW}:${SH},` +
         `zoompan=z='${zoomExpr}':x=${panX}:y=${panY}:d=${frames}:s=${W}x${H}:fps=25,` +
         `setsar=1,format=yuv420p,` +
         `${fadeIn},${fadeOut},` +
@@ -319,8 +321,9 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
         "-t", String(sceneDur),
         "-c:v", "libx264", "-preset", "fast", "-crf", "22",
         "-pix_fmt", "yuv420p",
+        "-threads", "2",
         sceneFile,
-      ], { timeout: 90000 });
+      ], { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
 
       sceneFiles.push(sceneFile);
       job.progress = 10 + Math.floor((i + 1) / (imageCount + 1) * 55);
@@ -335,8 +338,8 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
 
     const bgImg = input.images[input.images.length > 1 ? input.images.length - 1 : 0];
     let ctaFilter = [
-      `[0:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,` +
-      `crop=${W * 2}:${H * 2},` +
+      `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,` +
+      `crop=${SW}:${SH},` +
       `zoompan=z='1.08':x='(iw-ow)/2':y='(ih-oh)/2':d=${ctaFrames}:s=${W}x${H}:fps=25,` +
       `setsar=1,format=yuv420p,` +
       `fade=t=in:st=0:d=0.4,` +
@@ -360,8 +363,9 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
       "-t", String(ctaDur),
       "-c:v", "libx264", "-preset", "fast", "-crf", "22",
       "-pix_fmt", "yuv420p",
+      "-threads", "2",
       ctaScene,
-    ], { timeout: 90000 });
+    ], { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
 
     sceneFiles.push(ctaScene);
     job.progress = 70;
