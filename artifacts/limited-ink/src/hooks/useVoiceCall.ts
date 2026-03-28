@@ -67,6 +67,12 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
   const screenSenderRef = useRef<RTCRtpSender | null>(null);
   const renegotiatingRef = useRef(false);
   const remoteScreenStreamRef = useRef<MediaStream | null>(null);
+  const myUserIdRef = useRef(myUserId);
+  myUserIdRef.current = myUserId;
+  const myDisplayNameRef = useRef(myDisplayName);
+  myDisplayNameRef.current = myDisplayName;
+  const myAvatarRef = useRef(myAvatar);
+  myAvatarRef.current = myAvatar;
 
   const [state, setState] = useState<VoiceCallState>({
     connected: false,
@@ -207,7 +213,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
           type: "ice-candidate",
           candidate: e.candidate,
           targetUserId: callTargetRef.current,
-          fromUserId: myUserId,
+          fromUserId: myUserIdRef.current,
         });
       }
     };
@@ -224,7 +230,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
         sendWs({
           type: "renegotiate-offer",
           targetUserId: callTargetRef.current,
-          fromUserId: myUserId,
+          fromUserId: myUserIdRef.current,
           offer,
         });
       } catch {
@@ -240,7 +246,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     };
 
     return pc;
-  }, [myUserId, sendWs, cleanupCall, handleRemoteTrack]);
+  }, [sendWs, cleanupCall, handleRemoteTrack]);
 
   const getLocalStream = useCallback(async () => {
     const micId = localStorage.getItem("limitedink_mic_id");
@@ -271,9 +277,9 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       const sent = sendWs({
         type: "call-offer",
         targetUserId,
-        callerId: myUserId,
-        callerName: myDisplayName,
-        callerAvatar: myAvatar,
+        callerId: myUserIdRef.current,
+        callerName: myDisplayNameRef.current,
+        callerAvatar: myAvatarRef.current,
         offer,
       });
 
@@ -303,7 +309,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       setState(s => ({ ...s, callError: msg }));
       setTimeout(() => setState(s => ({ ...s, callError: null })), 5000);
     }
-  }, [myUserId, myDisplayName, myAvatar, sendWs, getLocalStream, setupPeerConnection, cleanupCall]);
+  }, [sendWs, getLocalStream, setupPeerConnection, cleanupCall]);
 
   const acceptCall = useCallback(async () => {
     const incoming = stateRef.current.incomingCall;
@@ -322,7 +328,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       const sent = sendWs({
         type: "call-answer",
         callerId: incoming.callerId,
-        answererId: myUserId,
+        answererId: myUserIdRef.current,
         answer,
       });
 
@@ -347,25 +353,25 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     } catch {
       cleanupCall();
     }
-  }, [myUserId, sendWs, getLocalStream, setupPeerConnection, cleanupCall]);
+  }, [sendWs, getLocalStream, setupPeerConnection, cleanupCall]);
 
   const rejectCall = useCallback(() => {
     const incoming = stateRef.current.incomingCall;
     if (!incoming) return;
     stopIncomingRing();
     try { (window as any).electronAPI?.focusWindow?.(); } catch {}
-    sendWs({ type: "call-reject", callerId: incoming.callerId, rejecterId: myUserId });
+    sendWs({ type: "call-reject", callerId: incoming.callerId, rejecterId: myUserIdRef.current });
     setState(s => ({ ...s, incomingCall: null }));
-  }, [myUserId, sendWs]);
+  }, [sendWs]);
 
   const endCall = useCallback(() => {
     if (callTargetRef.current !== null) {
-      sendWs({ type: "call-end", targetUserId: callTargetRef.current, userId: myUserId });
+      sendWs({ type: "call-end", targetUserId: callTargetRef.current, userId: myUserIdRef.current });
     }
     const timer = stateRef.current.callTimer;
     cleanupCall();
     return timer;
-  }, [myUserId, sendWs, cleanupCall]);
+  }, [sendWs, cleanupCall]);
 
   const toggleMute = useCallback(() => {
     if (localStreamRef.current) {
@@ -397,7 +403,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
         videoSenderRef.current = null;
       }
       setState(s => ({ ...s, videoEnabled: false }));
-      sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "video", enabled: false });
+      sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserIdRef.current, track: "video", enabled: false });
     } else {
       try {
         const camId = localStorage.getItem("limitedink_cam_id");
@@ -416,11 +422,11 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
         videoSenderRef.current = sender;
 
         setState(s => ({ ...s, videoEnabled: true }));
-        sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "video", enabled: true });
+        sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserIdRef.current, track: "video", enabled: true });
       } catch {
       }
     }
-  }, [sendWs, myUserId]);
+  }, [sendWs]);
 
   const startScreenStream = useCallback(async (sourceId?: string) => {
     const pc = pcRef.current;
@@ -459,7 +465,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
           screenSenderRef.current = null;
         }
         setState(s => ({ ...s, screenSharing: false }));
-        sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "screen", enabled: false });
+        sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserIdRef.current, track: "screen", enabled: false });
       };
 
       if (screenVideoRef.current) {
@@ -470,11 +476,11 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       screenSenderRef.current = sender;
 
       setState(s => ({ ...s, screenSharing: true, showScreenPicker: false }));
-      sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "screen", enabled: true });
+      sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserIdRef.current, track: "screen", enabled: true });
     } catch {
       setState(s => ({ ...s, showScreenPicker: false }));
     }
-  }, [sendWs, myUserId]);
+  }, [sendWs]);
 
   const toggleScreenShare = useCallback(async () => {
     const pc = pcRef.current;
@@ -488,7 +494,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
         screenSenderRef.current = null;
       }
       setState(s => ({ ...s, screenSharing: false }));
-      sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserId, track: "screen", enabled: false });
+      sendWs({ type: "track-state", targetUserId: callTargetRef.current, fromUserId: myUserIdRef.current, track: "screen", enabled: false });
     } else {
       const ea = (window as any).electronAPI;
       if (ea?.getDesktopSources) {
@@ -497,10 +503,12 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
         startScreenStream();
       }
     }
-  }, [sendWs, myUserId, startScreenStream]);
+  }, [sendWs, startScreenStream]);
 
   const connectWs = useCallback(() => {
-    if (!myUserId || unmountedRef.current) return;
+    const uid = myUserIdRef.current;
+    if (!uid || unmountedRef.current) return;
+    if (wsRef.current && wsRef.current.readyState <= WebSocket.OPEN) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const base = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -511,7 +519,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
 
     ws.onopen = () => {
       setState(s => ({ ...s, connected: true }));
-      ws.send(JSON.stringify({ type: "register", userId: myUserId, displayName: myDisplayName }));
+      ws.send(JSON.stringify({ type: "register", userId: uid, displayName: myDisplayNameRef.current }));
     };
 
     ws.onmessage = (event) => {
@@ -554,7 +562,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
               }
             } catch {}
           } else {
-            sendWs({ type: "call-reject", callerId: msg.callerId, rejecterId: myUserId });
+            sendWs({ type: "call-reject", callerId: msg.callerId, rejecterId: myUserIdRef.current });
           }
           break;
 
@@ -610,7 +618,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
                 sendWs({
                   type: "renegotiate-answer",
                   targetUserId: msg.fromUserId,
-                  fromUserId: myUserId,
+                  fromUserId: myUserIdRef.current,
                   answer,
                 });
               } catch {}
@@ -638,6 +646,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     };
 
     ws.onclose = () => {
+      wsRef.current = null;
       setState(s => ({ ...s, connected: false }));
       if (!unmountedRef.current) {
         reconnectTimerRef.current = setTimeout(() => connectWs(), 3000);
@@ -647,20 +656,21 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     ws.onerror = () => {
       ws.close();
     };
-  }, [myUserId, myDisplayName, sendWs, cleanupCall]);
+  }, [sendWs, cleanupCall]);
 
   useEffect(() => {
     unmountedRef.current = false;
-    connectWs();
+    if (myUserId) connectWs();
     return () => {
       unmountedRef.current = true;
       stopAllSounds();
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
       wsRef.current?.close();
+      wsRef.current = null;
       cleanupCall(false);
     };
-  }, [connectWs, cleanupCall]);
+  }, [myUserId, connectWs, cleanupCall]);
 
   const dismissScreenPicker = useCallback(() => {
     setState(s => ({ ...s, showScreenPicker: false }));
