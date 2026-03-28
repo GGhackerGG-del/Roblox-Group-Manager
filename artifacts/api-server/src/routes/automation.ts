@@ -9,37 +9,18 @@ const USERS_API = "https://users.roblox.com";
 const TWO_STEP_API = "https://twostepverification.roblox.com";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-function hasLeadingZeroBits(hash: Buffer, bits: number): boolean {
-  let remaining = bits;
-  for (let i = 0; i < hash.length && remaining > 0; i++) {
-    if (remaining >= 8) {
-      if (hash[i] !== 0) return false;
-      remaining -= 8;
-    } else {
-      const mask = 0xff << (8 - remaining);
-      if ((hash[i] & mask) !== 0) return false;
-      remaining = 0;
-    }
-  }
-  return true;
-}
+function solveChefPoWDirect(sessionId: string, difficulty: number): string {
+  const targetZeroBytes = difficulty;
+  const target = Buffer.alloc(targetZeroBytes, 0);
+  const MAX = 100_000_000;
+  const start = Date.now();
 
-function solveChefPoW(prefixHex: string, difficulty: number): string {
-  const prefixBytes = Buffer.from(prefixHex, "hex");
-  const MAX_ATTEMPTS = 50_000_000;
-
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const tsBuf = Buffer.alloc(8);
-    const now = BigInt(Date.now());
-    tsBuf.writeBigUInt64BE(now);
-    const randBuf = crypto.randomBytes(8);
-    const nonce = Buffer.concat([tsBuf, randBuf]);
-
-    const candidate = Buffer.concat([prefixBytes, nonce]);
+  for (let nonce = 0; nonce < MAX; nonce++) {
+    const candidate = `${sessionId}.${nonce}`;
     const hash = crypto.createHash("sha256").update(candidate).digest();
-
-    if (hasLeadingZeroBits(hash, difficulty)) {
-      return nonce.toString("hex");
+    if (hash.subarray(0, targetZeroBytes).equals(target)) {
+      console.log(`[ChefPoW] Solved in ${Date.now() - start}ms, nonce=${nonce} (${targetZeroBytes} zero bytes)`);
+      return String(nonce);
     }
   }
   throw new Error("PoW nonce search exhausted");
@@ -49,7 +30,7 @@ async function solveChefChallenge(
   challengeId: string,
   metadata: any,
   cookie: string,
-): Promise<{ redemptionToken: string; nonce: string } | null> {
+): Promise<{ solutionB64: string; continued: boolean } | null> {
   const chefHeaders = {
     "Cookie": `.ROBLOSECURITY=${cookie}`,
     "User-Agent": UA,
@@ -61,62 +42,22 @@ async function solveChefChallenge(
 
   for (let round = 0; round < 3; round++) {
     try {
-      console.log(`[ChefPoW] Round ${round + 1}, challengeId=${challengeId}, metadata: ${JSON.stringify(metadata).slice(0, 300)}`);
+      const sessionId = metadata.sessionId || metadata.challengeId || challengeId;
+      const difficulty = metadata.difficulty ?? 5;
+      console.log(`[ChefPoW] Round ${round + 1}: sessionId=${sessionId}, difficulty=${difficulty}, challengeId=${challengeId}`);
+      console.log(`[ChefPoW] Full metadata: ${JSON.stringify(metadata)}`);
 
-      const initResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge/init", {
-        method: "POST",
-        headers: chefHeaders,
-        body: JSON.stringify({}),
-      });
-      const initText = await initResp.text();
-      console.log(`[ChefPoW] init: status=${initResp.status} body=${initText.slice(0, 500)}`);
-      if (!initResp.ok) {
-        console.error(`[ChefPoW] init failed, retrying...`);
-        await new Promise(r => setTimeout(r, 1000));
-        continue;
-      }
+      const nonce = solveChefPoWDirect(sessionId, Number(difficulty));
 
-      let initData: any;
-      try { initData = JSON.parse(initText); } catch { console.error(`[ChefPoW] Failed to parse init response`); continue; }
+      const formats = [
+        { sessionId, nonce },
+        { sessionId, redemptionToken: nonce, answer: nonce },
+        { sessionId, nonce, answer: nonce },
+      ];
 
-      const prefix = initData.prefix || initData.artifact || initData.sessionToken || initData.challenge;
-      const difficulty = initData.difficulty ?? metadata.difficulty ?? 5;
-      const powSessionId = initData.sessionId || metadata.sessionId || challengeId;
-
-      if (!prefix) {
-        console.error(`[ChefPoW] No prefix found. Full response: ${JSON.stringify(initData)}`);
-        continue;
-      }
-
-      console.log(`[ChefPoW] Solving: prefix=${String(prefix).slice(0, 40)}..., difficulty=${difficulty} bits, sessionId=${powSessionId}`);
-      const start = Date.now();
-      const nonceHex = solveChefPoW(String(prefix), Number(difficulty));
-      console.log(`[ChefPoW] Solved in ${Date.now() - start}ms, nonce=${nonceHex.slice(0, 32)}...`);
-
-      const redeemResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge/redeem", {
-        method: "POST",
-        headers: chefHeaders,
-        body: JSON.stringify({ sessionId: powSessionId, answer: nonceHex }),
-      });
-      const redeemText = await redeemResp.text();
-      console.log(`[ChefPoW] redeem: status=${redeemResp.status} body=${redeemText.slice(0, 500)}`);
-
-      if (!redeemResp.ok) {
-        const fallbackResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge/answer", {
-          method: "POST",
-          headers: chefHeaders,
-          body: JSON.stringify({ sessionId: powSessionId, answer: nonceHex }),
-        });
-        const fallbackText = await fallbackResp.text();
-        console.log(`[ChefPoW] answer fallback: status=${fallbackResp.status} body=${fallbackText.slice(0, 500)}`);
-        if (!fallbackResp.ok) {
-          console.error(`[ChefPoW] redeem+answer both failed, retrying round...`);
-          await new Promise(r => setTimeout(r, 500));
-          continue;
-        }
-        let fbData: any = {};
-        try { fbData = JSON.parse(fallbackText); } catch {}
-        const fbToken = fbData.redemptionToken || fbData.token || fbData.exchangeBlob || "";
+      for (const fmt of formats) {
+        const payload = JSON.stringify(fmt);
+        const b64 = Buffer.from(payload).toString("base64");
 
         const continueResp = await fetch("https://apis.roblox.com/challenge/v1/continue", {
           method: "POST",
@@ -124,43 +65,20 @@ async function solveChefChallenge(
           body: JSON.stringify({
             challengeId,
             challengeType: "chef",
-            challengeMetadata: JSON.stringify({ sessionId: powSessionId, redemptionToken: fbToken, answer: nonceHex }),
+            challengeMetadata: payload,
           }),
         });
         const continueText = await continueResp.text();
-        console.log(`[ChefPoW] continue (fallback): status=${continueResp.status} body=${continueText.slice(0, 500)}`);
-        if (continueResp.ok) return { redemptionToken: fbToken, nonce: nonceHex };
-        continue;
+        console.log(`[ChefPoW] continue (fmt=${JSON.stringify(fmt).slice(0, 80)}): status=${continueResp.status} body=${continueText.slice(0, 300)}`);
+
+        if (continueResp.ok) {
+          return { solutionB64: b64, continued: true };
+        }
       }
 
-      let redeemData: any = {};
-      try { redeemData = JSON.parse(redeemText); } catch {}
-
-      const redemptionToken = redeemData.redemptionToken || redeemData.token || redeemData.exchangeBlob || "";
-
-      const continueResp = await fetch("https://apis.roblox.com/challenge/v1/continue", {
-        method: "POST",
-        headers: chefHeaders,
-        body: JSON.stringify({
-          challengeId,
-          challengeType: "chef",
-          challengeMetadata: JSON.stringify({
-            sessionId: powSessionId,
-            redemptionToken,
-            answer: nonceHex,
-          }),
-        }),
-      });
-      const continueText = await continueResp.text();
-      console.log(`[ChefPoW] continue: status=${continueResp.status} body=${continueText.slice(0, 500)}`);
-
-      if (!continueResp.ok) {
-        console.error(`[ChefPoW] continue failed, retrying round...`);
-        await new Promise(r => setTimeout(r, 500));
-        continue;
-      }
-
-      return { redemptionToken, nonce: nonceHex };
+      const directB64 = Buffer.from(JSON.stringify({ sessionId, nonce })).toString("base64");
+      console.log(`[ChefPoW] All continue formats failed, will try direct header approach`);
+      return { solutionB64: directB64, continued: false };
     } catch (err: any) {
       console.error(`[ChefPoW] Round ${round + 1} error:`, err.message);
     }
@@ -603,7 +521,7 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
     console.log(`[Payout] Sending to ${payoutUrl}, body=${JSON.stringify(body)}`);
     let resp: Response | null = null;
     let respBody = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 5; attempt++) {
       resp = await fetch(payoutUrl, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
       respBody = await resp.text();
       const allHeaders = Object.fromEntries(resp.headers.entries());
@@ -620,20 +538,16 @@ router.post("/automation/payout/:groupId", async (req, res): Promise<void> => {
 
         if (rblxChallengeId && rblxChallengeType === "chef") {
           console.log(`[Payout] Chef PoW challenge detected, solving...`);
+          console.log(`[Payout] Challenge metadata: ${JSON.stringify(metadata)}`);
           const solution = await solveChefChallenge(rblxChallengeId, metadata, cookie);
           if (solution) {
-            const solutionMeta = Buffer.from(JSON.stringify({
-              redemptionToken: solution.redemptionToken,
-              nonce: solution.nonce,
-              challengeId: rblxChallengeId,
-            })).toString("base64");
             payoutHeaders["rblx-challenge-id"] = rblxChallengeId;
             payoutHeaders["rblx-challenge-type"] = "chef";
-            payoutHeaders["rblx-challenge-metadata"] = solutionMeta;
-            console.log(`[Payout] Chef PoW solved, retrying...`);
+            payoutHeaders["rblx-challenge-metadata"] = solution.solutionB64;
+            console.log(`[Payout] Chef PoW solved (continued=${solution.continued}), retrying with solution...`);
             continue;
           } else {
-            res.status(403).json({ error: "Failed to solve Roblox security challenge. Please try again or make a test payout on roblox.com first, then retry here." });
+            res.status(403).json({ error: "Failed to solve Roblox security challenge. Please try again." });
             return;
           }
         }
