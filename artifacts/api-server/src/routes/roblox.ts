@@ -64,9 +64,35 @@ router.post("/roblox/auth", async (req, res): Promise<void> => {
 
   const { cookie } = parsed.data;
 
-  const userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
-  if (!userResp.ok) {
-    res.status(401).json({ error: "Invalid or expired Roblox cookie." });
+  let userResp: globalThis.Response | null = null;
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+      lastStatus = userResp.status;
+      if (userResp.ok) break;
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+    } catch {
+      userResp = null;
+      lastStatus = 0;
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+    }
+    break;
+  }
+  if (!userResp || !userResp.ok) {
+    if (lastStatus === 429) {
+      res.status(429).json({ error: "Roblox rate limit. Please wait a moment and try again." });
+    } else if (lastStatus === 401) {
+      res.status(401).json({ error: "Invalid or expired Roblox cookie." });
+    } else {
+      res.status(502).json({ error: "Roblox API temporarily unavailable. Please try again." });
+    }
     return;
   }
 
@@ -155,10 +181,8 @@ router.get("/roblox/me", async (req, res): Promise<void> => {
     if (!userData) {
       if (lastStatus === 429) {
         res.status(429).json({ error: "Roblox rate limit. Please try again in a few seconds." });
-      } else if (lastStatus === 401 || lastStatus === 403) {
-        res.status(401).json({ error: "Roblox session expired. Please sign in again." });
       } else {
-        res.status(502).json({ error: "Roblox API unavailable. Please try again." });
+        res.status(502).json({ error: "Roblox API temporarily unavailable. Please try again." });
       }
       return;
     }
@@ -200,7 +224,7 @@ router.get("/roblox/profile", async (req, res): Promise<void> => {
   ]);
 
   if (userResp.status !== "fulfilled" || !userResp.value.ok) {
-    res.status(401).json({ error: "Failed to load profile." });
+    res.status(502).json({ error: "Roblox API temporarily unavailable. Please try again." });
     return;
   }
 
@@ -281,10 +305,10 @@ router.get("/roblox/groups", async (req, res): Promise<void> => {
     break;
   }
   if (!userResp || !userResp.ok) {
-    if (userResp && (userResp.status === 401 || userResp.status === 403)) {
-      await clearSessionIfCookieDead(req);
+    if (userResp && userResp.status === 401) {
+      clearSessionIfCookieDead(req).catch(() => {});
     }
-    res.status(502).json({ error: "Roblox API unavailable. Please try again." });
+    res.status(502).json({ error: "Roblox API temporarily unavailable. Please try again." });
     return;
   }
 
@@ -404,17 +428,17 @@ router.get("/roblox/groups/:groupId/stats", async (req, res): Promise<void> => {
     break;
   }
   if (!meResp || !meResp.ok) {
-    if (meResp && (meResp.status === 401 || meResp.status === 403)) {
-      await clearSessionIfCookieDead(req);
+    if (meResp && meResp.status === 401) {
+      clearSessionIfCookieDead(req).catch(() => {});
     }
-    res.status(502).json({ error: "Roblox API unavailable. Please try again." });
+    res.status(502).json({ error: "Roblox API temporarily unavailable. Please try again." });
     return;
   }
   const meData = await meResp.json() as { id: number };
 
   const ownerCheckResp = await fetchRoblox(`${ROBLOX_GROUPS_API}/v1/users/${meData.id}/groups/roles`, cookie);
   if (!ownerCheckResp.ok) {
-    res.status(403).json({ error: "Failed to verify group access rights." });
+    res.status(502).json({ error: "Failed to verify group access rights. Please try again." });
     return;
   }
   const ownerCheckData = await ownerCheckResp.json() as {

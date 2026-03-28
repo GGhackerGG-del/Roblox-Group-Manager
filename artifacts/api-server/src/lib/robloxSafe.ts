@@ -28,21 +28,27 @@ export async function verifyRobloxCookie(cookie: string): Promise<"valid" | "dea
     }
   };
 
-  const delays = [0, 2000, 3000];
-  let lastResult: "valid" | "dead" | "unknown" = "unknown";
+  const delays = [0, 2000, 4000, 5000, 6000];
+  let deadCount = 0;
+  let validCount = 0;
   for (let i = 0; i < delays.length; i++) {
     if (delays[i] > 0) await new Promise(r => setTimeout(r, delays[i]));
-    lastResult = await attempt();
-    if (lastResult === "valid") return "valid";
+    const result = await attempt();
+    if (result === "valid") {
+      validCount++;
+      return "valid";
+    }
+    if (result === "dead") deadCount++;
   }
-  return lastResult;
+  if (deadCount >= 3) return "dead";
+  return "unknown";
 }
 
 export async function safeRobloxFetch(
   url: string,
   cookie: string,
   options: RequestInit = {},
-  retries = 1,
+  retries = 2,
 ): Promise<Response & { __robloxAuthDead?: boolean }> {
   const doFetch = () =>
     fetch(url, {
@@ -56,8 +62,9 @@ export async function safeRobloxFetch(
 
   let resp = await doFetch();
 
-  if ((resp.status === 401 || resp.status === 403) && retries > 0) {
-    await new Promise(r => setTimeout(r, 1000));
+  for (let i = 0; i < retries; i++) {
+    if (resp.status !== 401 && resp.status !== 403) break;
+    await new Promise(r => setTimeout(r, 1500 * (i + 1)));
     resp = await doFetch();
   }
 
@@ -95,14 +102,14 @@ export async function clearSessionIfCookieDead(req: Request): Promise<boolean> {
 
   const result = await verifyRobloxCookie(cookie);
   if (result === "dead") {
-    console.log("[Session] Cookie confirmed dead after 3 retries, clearing session");
+    console.log("[Session] Cookie confirmed dead after 5 verification attempts (3+ returned 401), clearing session");
     delete req.session.robloxCookie;
     delete req.session.robloxProfile;
     delete (req.session as any).robloxUserId;
     return true;
   }
   if (result === "unknown") {
-    console.log("[Session] Cookie verification inconclusive (network issue?), keeping session intact");
+    console.log("[Session] Cookie verification inconclusive (network issue / rate limit), keeping session intact");
   } else {
     console.log("[Session] Cookie still valid after re-check, keeping session intact");
   }
