@@ -91,7 +91,30 @@ function CtrlBtn({
 export default function CallOverlay(props: CallOverlayProps) {
   const { t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const fullscreenRef = useRef<HTMLDivElement>(null);
   const prevScreenSharing = useRef(false);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      if (!document.fullscreenElement) setFullscreen(false);
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!fullscreen) {
+      setExpanded(true);
+      setFullscreen(true);
+      setTimeout(() => {
+        fullscreenRef.current?.requestFullscreen?.().catch(() => {});
+      }, 50);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setFullscreen(false);
+    }
+  };
 
   useEffect(() => {
     if (props.remoteScreenSharing && !prevScreenSharing.current) {
@@ -178,13 +201,18 @@ export default function CallOverlay(props: CallOverlayProps) {
 
             {expanded && (hasVideo) && (
               <motion.div
+                ref={fullscreenRef}
                 initial={{ opacity: 0, y: 40, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 40, scale: 0.95 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                className="fixed bottom-[72px] left-1/2 -translate-x-1/2 z-[9998] w-[700px] max-w-[90vw] bg-[#1e1f22] rounded-xl border border-white/10 shadow-2xl overflow-hidden"
+                className={
+                  fullscreen
+                    ? "fixed inset-0 z-[9998] bg-black flex flex-col"
+                    : "fixed bottom-[72px] left-1/2 -translate-x-1/2 z-[9998] w-[700px] max-w-[90vw] bg-[#1e1f22] rounded-xl border border-white/10 shadow-2xl overflow-hidden"
+                }
               >
-                <div className="relative w-full aspect-video bg-black">
+                <div className={`relative w-full bg-black ${fullscreen ? "flex-1" : "aspect-video"}`}>
                   {props.remoteScreenSharing && (
                     <video
                       ref={props.screenVideoRef}
@@ -206,16 +234,19 @@ export default function CallOverlay(props: CallOverlayProps) {
                   {!props.remoteScreenSharing && !props.remoteVideoEnabled && (
                     <div className="w-full h-full flex items-center justify-center">
                       <div className="flex flex-col items-center gap-3">
-                        <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#5865f2]/40">
+                        <div className={`rounded-full overflow-hidden border-2 border-[#5865f2]/40 ${fullscreen ? "w-32 h-32" : "w-20 h-20"}`}>
                           <img src={props.peerAvatar} alt="" className="w-full h-full object-cover" />
                         </div>
-                        <p className="text-white/70 text-sm font-medium">{props.peerName}</p>
+                        <p className={`text-white/70 font-medium ${fullscreen ? "text-lg" : "text-sm"}`}>{props.peerName}</p>
+                        {fullscreen && (
+                          <span className="text-white/40 text-sm">{props.callConnecting ? t("com.calling") : formatTime(props.callTimer)}</span>
+                        )}
                       </div>
                     </div>
                   )}
 
                   {props.videoEnabled && (
-                    <div className="absolute bottom-3 right-3 w-[160px] h-[120px] rounded-lg overflow-hidden bg-black border border-white/20 shadow-lg">
+                    <div className={`absolute bottom-3 right-3 rounded-lg overflow-hidden bg-black border border-white/20 shadow-lg ${fullscreen ? "w-[240px] h-[180px]" : "w-[160px] h-[120px]"}`}>
                       <video
                         ref={props.localVideoRef}
                         autoPlay
@@ -231,7 +262,7 @@ export default function CallOverlay(props: CallOverlayProps) {
                   )}
 
                   {props.remoteScreenSharing && props.remoteVideoEnabled && (
-                    <div className="absolute top-3 right-3 w-[160px] h-[120px] rounded-lg overflow-hidden bg-black border border-white/20 shadow-lg">
+                    <div className={`absolute top-3 right-3 rounded-lg overflow-hidden bg-black border border-white/20 shadow-lg ${fullscreen ? "w-[240px] h-[180px]" : "w-[160px] h-[120px]"}`}>
                       <video
                         ref={props.remoteVideoRef}
                         autoPlay
@@ -250,7 +281,31 @@ export default function CallOverlay(props: CallOverlayProps) {
                       <span className="text-[11px] text-white/80 font-medium">{t("com.screenSharing")}</span>
                     </div>
                   )}
+
+                  {!fullscreen && (
+                    <button
+                      onClick={toggleFullscreen}
+                      className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white rounded-lg p-2 transition-colors z-10"
+                      title={t("com.fullscreen")}
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
+
+                {fullscreen && (
+                  <div className="flex items-center justify-center gap-3 py-4 bg-[#232428]">
+                    <CtrlBtn onClick={props.onToggleMute} active={!props.callMuted} icon={props.callMuted ? MicOff : Mic} tooltip={props.callMuted ? t("com.unmute") : t("com.mute")} />
+                    <CtrlBtn onClick={props.onToggleDeafen} active={!props.callDeafened} icon={props.callDeafened ? VolumeX : Volume2} tooltip={props.callDeafened ? t("com.undeafen") : t("com.deafen")} />
+                    <CtrlBtn onClick={props.onToggleVideo} active={props.videoEnabled} icon={props.videoEnabled ? Video : VideoOff} tooltip={props.videoEnabled ? t("com.videoOff") : t("com.videoOn")} />
+                    <CtrlBtn onClick={props.onToggleScreenShare} active={props.screenSharing} icon={props.screenSharing ? MonitorOff : Monitor} tooltip={props.screenSharing ? t("com.stopShare") : t("com.shareScreen")} />
+                    <CtrlBtn onClick={toggleFullscreen} active={false} icon={Minimize2} tooltip={t("com.exitFullscreen")} />
+                    <div className="w-px h-8 bg-white/[0.06] mx-1" />
+                    <button onClick={props.onEndCall} className="h-9 px-5 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors">
+                      <PhoneOff className="w-[18px] h-[18px] text-white" />
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -313,7 +368,7 @@ export default function CallOverlay(props: CallOverlayProps) {
                         onClick={() => setExpanded(e => !e)}
                         active={expanded}
                         icon={expanded ? Minimize2 : Maximize2}
-                        tooltip={expanded ? "Collapse" : "Expand"}
+                        tooltip={expanded ? t("com.exitFullscreen") : t("com.fullscreen")}
                       />
                     )}
                   </div>
