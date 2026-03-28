@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import multer from "multer";
 import path from "path";
 import { promises as fs } from "fs";
-import { generateScript, startGeneration, getJob } from "../services/shortsGenerator";
+import { generateScript, generateScriptAI, startGeneration, getJob } from "../services/shortsGenerator.js";
 
 const router: IRouter = Router();
 
@@ -19,9 +19,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024, files: 10 },
+  limits: { fileSize: 15 * 1024 * 1024, files: 12 },
   fileFilter: (_req, file, cb) => {
-    const allowed = /\.(jpg|jpeg|png|webp|gif|mp3|wav|ogg|m4a)$/i;
+    const allowed = /\.(jpg|jpeg|png|webp|gif|mp3|wav|ogg|m4a|aac)$/i;
     if (allowed.test(path.extname(file.originalname))) {
       cb(null, true);
     } else {
@@ -30,21 +30,32 @@ const upload = multer({
   },
 });
 
-router.post("/shorts/generate-script", (req, res): void => {
-  const { productName, productDescription, price, cta, style, platform } = req.body;
+router.post("/shorts/generate-script", async (req, res): Promise<void> => {
+  const { productName, productDescription, price, cta, style, platform, useAI } = req.body;
   if (!productName) {
     res.status(400).json({ error: "Product name is required" });
     return;
   }
-  const script = generateScript({
+
+  const input = {
     productName: productName || "",
     productDescription: productDescription || "",
     price: price || "",
     cta: cta || "",
     style: style || "clean",
     platform: platform || "tiktok",
-  });
-  res.json({ script });
+  };
+
+  if (useAI) {
+    const aiScript = await generateScriptAI(input);
+    if (aiScript) {
+      res.json({ script: aiScript, source: "ai" });
+      return;
+    }
+  }
+
+  const script = generateScript(input);
+  res.json({ script, source: "template" });
 });
 
 router.post(
@@ -65,14 +76,29 @@ router.post(
       }
 
       const body = req.body;
-      const script = body.script ? JSON.parse(body.script) : generateScript({
-        productName: body.productName || "Product",
-        productDescription: body.productDescription || "",
-        price: body.price || "",
-        cta: body.cta || "",
-        style: body.style || "clean",
-        platform: body.platform || "tiktok",
-      });
+      let script;
+      if (body.script) {
+        try {
+          const parsed = JSON.parse(body.script);
+          if (!parsed.hook || !Array.isArray(parsed.subtitles) || !parsed.ctaLine) {
+            res.status(400).json({ error: "Invalid script format: missing hook, subtitles, or ctaLine" });
+            return;
+          }
+          script = parsed;
+        } catch {
+          res.status(400).json({ error: "Invalid script JSON" });
+          return;
+        }
+      } else {
+        script = generateScript({
+          productName: body.productName || "Product",
+          productDescription: body.productDescription || "",
+          price: body.price || "",
+          cta: body.cta || "",
+          style: body.style || "clean",
+          platform: body.platform || "tiktok",
+        });
+      }
 
       const ownerId = String(req.session.robloxUserId || "anon");
       const jobId = await startGeneration({
