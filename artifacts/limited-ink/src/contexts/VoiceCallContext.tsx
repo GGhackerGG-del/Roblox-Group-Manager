@@ -2,19 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useVoiceCall } from "@/hooks/useVoiceCall";
 import { useAuth } from "@/contexts/AuthContext";
 import { robloxHeadshot } from "@/lib/roblox";
-import { getAuthCredentials } from "@workspace/api-client-react";
 import CallOverlay from "@/components/CallOverlay";
 import ScreenPicker from "@/components/ScreenPicker";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-function getAuthHeaders() {
-  const { token, fingerprint } = getAuthCredentials();
-  const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
-  return headers;
-}
 
 type VoiceCallReturn = ReturnType<typeof useVoiceCall>;
 
@@ -28,27 +17,18 @@ export function useVoiceCallContext(): VoiceCallReturn {
 
 export function VoiceCallProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
-  const [platformUserId, setPlatformUserId] = useState<number | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
 
+  const robloxUserId = profile?.id ?? null;
+
   useEffect(() => {
     if (!profile) return;
-    fetch(`${BASE}/api/social/me`, {
-      credentials: "include",
-      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(u => {
-        if (!u) return;
-        setPlatformUserId(u.id);
-        setDisplayName(u.displayName);
-        setAvatarUrl(u.avatarUrl || robloxHeadshot(u.robloxUserId));
-      })
-      .catch(() => {});
+    setDisplayName(profile.displayName || profile.name || "User");
+    setAvatarUrl(robloxHeadshot(profile.id));
   }, [profile]);
 
-  const voiceCall = useVoiceCall(platformUserId, displayName, avatarUrl);
+  const voiceCall = useVoiceCall(robloxUserId, displayName, avatarUrl);
 
   return (
     <VoiceCallContext.Provider value={voiceCall}>

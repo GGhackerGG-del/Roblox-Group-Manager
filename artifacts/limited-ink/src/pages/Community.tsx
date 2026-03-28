@@ -1342,7 +1342,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     if (active?.kind !== "dm") return;
     try {
       await voiceCall.startCall(
-        active.user.id,
+        active.user.robloxUserId,
         active.user.displayName,
         active.user.avatarUrl || robloxHeadshot(active.user.robloxUserId),
       );
