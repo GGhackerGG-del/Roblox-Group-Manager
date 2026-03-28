@@ -9,30 +9,95 @@ const ROBLOX_USERS_API = "https://users.roblox.com";
 const ROBLOX_THUMBNAILS_API = "https://thumbnails.roblox.com";
 const ROBLOX_GROUPS_API = "https://groups.roblox.com";
 
+async function fetchRobloxProfile(robloxUserId: number) {
+  const [resp, thumbResp] = await Promise.allSettled([
+    fetch(`${ROBLOX_USERS_API}/v1/users/${robloxUserId}`),
+    fetch(`${ROBLOX_THUMBNAILS_API}/v1/users/avatar-headshot?userIds=${robloxUserId}&size=150x150&format=Png&isCircular=false`),
+  ]);
+  if (resp.status !== "fulfilled" || !resp.value.ok) return null;
+  const userData = await resp.value.json() as { id: number; name: string; displayName: string };
+  let avatarUrl: string | null = null;
+  if (thumbResp.status === "fulfilled" && thumbResp.value.ok) {
+    const td = await thumbResp.value.json() as { data: Array<{ imageUrl: string }> };
+    avatarUrl = td.data?.[0]?.imageUrl || null;
+  }
+  return { name: userData.name, displayName: userData.displayName, avatarUrl };
+}
+
+const AVATAR_REFRESH_MS = 10 * 60 * 1000;
+const refreshingUsers = new Set<number>();
+
+function refreshStaleAvatars(users: Array<typeof platformUsers.$inferSelect>) {
+  const stale = users.filter(u => {
+    if (refreshingUsers.has(u.id)) return false;
+    const age = Date.now() - (u.updatedAt?.getTime() || 0);
+    return age > AVATAR_REFRESH_MS;
+  });
+  if (stale.length === 0) return;
+  const batch = stale.slice(0, 20);
+  for (const u of batch) refreshingUsers.add(u.id);
+
+  (async () => {
+    try {
+      const ids = batch.map(u => u.robloxUserId);
+      const thumbResp = await fetch(
+        `${ROBLOX_THUMBNAILS_API}/v1/users/avatar-headshot?userIds=${ids.join(",")}&size=150x150&format=Png&isCircular=false`
+      );
+      if (!thumbResp.ok) {
+        for (const u of batch) {
+          await db.update(platformUsers).set({ updatedAt: new Date() }).where(eq(platformUsers.id, u.id));
+        }
+        return;
+      }
+      const td = await thumbResp.json() as { data: Array<{ targetId: number; imageUrl: string; state: string }> };
+      const responseMap = new Map((td.data || []).map(e => [e.targetId, e]));
+      for (const user of batch) {
+        const entry = responseMap.get(user.robloxUserId);
+        if (entry?.state === "Completed" && entry.imageUrl && entry.imageUrl !== user.avatarUrl) {
+          await db.update(platformUsers).set({ avatarUrl: entry.imageUrl, updatedAt: new Date() }).where(eq(platformUsers.id, user.id));
+        } else {
+          await db.update(platformUsers).set({ updatedAt: new Date() }).where(eq(platformUsers.id, user.id));
+        }
+      }
+    } catch {} finally {
+      for (const u of batch) refreshingUsers.delete(u.id);
+    }
+  })();
+}
+
 async function getOrCreatePlatformUser(robloxUserId: number, cookie: string) {
   let user = await db.query.platformUsers.findFirst({
     where: eq(platformUsers.robloxUserId, robloxUserId),
   });
 
   if (!user) {
-    const [resp, thumbResp] = await Promise.allSettled([
-      fetch(`${ROBLOX_USERS_API}/v1/users/${robloxUserId}`),
-      fetch(`${ROBLOX_THUMBNAILS_API}/v1/users/avatar-headshot?userIds=${robloxUserId}&size=150x150&format=Png&isCircular=false`),
-    ]);
-    if (resp.status !== "fulfilled" || !resp.value.ok) return null;
-    const userData = await resp.value.json() as { id: number; name: string; displayName: string };
-    let avatarUrl: string | null = null;
-    if (thumbResp.status === "fulfilled" && thumbResp.value.ok) {
-      const td = await thumbResp.value.json() as { data: Array<{ imageUrl: string }> };
-      avatarUrl = td.data?.[0]?.imageUrl || null;
-    }
+    const profile = await fetchRobloxProfile(robloxUserId);
+    if (!profile) return null;
     [user] = await db.insert(platformUsers).values({
       robloxUserId,
-      robloxUsername: userData.name,
-      displayName: userData.displayName,
-      avatarUrl,
+      robloxUsername: profile.name,
+      displayName: profile.displayName,
+      avatarUrl: profile.avatarUrl,
       bio: "",
     }).returning();
+  } else {
+    const age = Date.now() - (user.updatedAt?.getTime() || 0);
+    if (age > AVATAR_REFRESH_MS && !refreshingUsers.has(user.id)) {
+      refreshingUsers.add(user.id);
+      fetchRobloxProfile(robloxUserId).then(async (profile) => {
+        try {
+          if (profile) {
+            const updates: any = { updatedAt: new Date() };
+            if (profile.avatarUrl && profile.avatarUrl !== user!.avatarUrl) updates.avatarUrl = profile.avatarUrl;
+            if (profile.displayName !== user!.displayName) updates.displayName = profile.displayName;
+            if (profile.name !== user!.robloxUsername) updates.robloxUsername = profile.name;
+            await db.update(platformUsers).set(updates).where(eq(platformUsers.id, user!.id));
+          } else {
+            await db.update(platformUsers).set({ updatedAt: new Date() }).where(eq(platformUsers.id, user!.id));
+          }
+        } catch {} finally { refreshingUsers.delete(user!.id); }
+      }).catch(() => { refreshingUsers.delete(user!.id); });
+    }
   }
   return user;
 }
@@ -85,6 +150,8 @@ router.get("/social/users", async (req, res): Promise<void> => {
     limit,
     offset,
   });
+
+  refreshStaleAvatars(allUsers);
 
   const myUser = robloxUserId ? await db.query.platformUsers.findFirst({ where: eq(platformUsers.robloxUserId, robloxUserId) }) : null;
 
@@ -417,6 +484,7 @@ router.get("/social/messages", async (req, res): Promise<void> => {
   let otherMap: Record<number, typeof platformUsers.$inferSelect> = {};
   if (otherIds.length > 0) {
     const others = await db.query.platformUsers.findMany({ where: inArray(platformUsers.id, otherIds) });
+    refreshStaleAvatars(others);
     otherMap = Object.fromEntries(others.map(u => [u.id, u]));
   }
 
