@@ -9,16 +9,40 @@ const USERS_API = "https://users.roblox.com";
 const TWO_STEP_API = "https://twostepverification.roblox.com";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-function solveChefPoW(artifact: string, difficulty: number): string {
-  const targetZeros = "0".repeat(difficulty);
-  let nonce = 0;
-  while (true) {
-    const candidate = `${artifact}${nonce}`;
-    const hash = crypto.createHash("sha256").update(candidate).digest("hex");
-    if (hash.startsWith(targetZeros)) return String(nonce);
-    nonce++;
-    if (nonce > 100_000_000) throw new Error("PoW nonce search exhausted");
+function hasLeadingZeroBits(hash: Buffer, bits: number): boolean {
+  let remaining = bits;
+  for (let i = 0; i < hash.length && remaining > 0; i++) {
+    if (remaining >= 8) {
+      if (hash[i] !== 0) return false;
+      remaining -= 8;
+    } else {
+      const mask = 0xff << (8 - remaining);
+      if ((hash[i] & mask) !== 0) return false;
+      remaining = 0;
+    }
   }
+  return true;
+}
+
+function solveChefPoW(prefixHex: string, difficulty: number): string {
+  const prefixBytes = Buffer.from(prefixHex, "hex");
+  const MAX_ATTEMPTS = 50_000_000;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const tsBuf = Buffer.alloc(8);
+    const now = BigInt(Date.now());
+    tsBuf.writeBigUInt64BE(now);
+    const randBuf = crypto.randomBytes(8);
+    const nonce = Buffer.concat([tsBuf, randBuf]);
+
+    const candidate = Buffer.concat([prefixBytes, nonce]);
+    const hash = crypto.createHash("sha256").update(candidate).digest();
+
+    if (hasLeadingZeroBits(hash, difficulty)) {
+      return nonce.toString("hex");
+    }
+  }
+  throw new Error("PoW nonce search exhausted");
 }
 
 async function solveChefChallenge(
@@ -37,55 +61,82 @@ async function solveChefChallenge(
 
   for (let round = 0; round < 3; round++) {
     try {
-      console.log(`[ChefPoW] Round ${round + 1}, metadata: ${JSON.stringify(metadata).slice(0, 300)}`);
-      const sessionId = metadata.sessionId || metadata.challengeId || challengeId;
+      console.log(`[ChefPoW] Round ${round + 1}, challengeId=${challengeId}, metadata: ${JSON.stringify(metadata).slice(0, 300)}`);
 
-      const powResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge", {
+      const initResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge/init", {
+        method: "POST",
         headers: chefHeaders,
+        body: JSON.stringify({}),
       });
-      const powText = await powResp.text();
-      console.log(`[ChefPoW] pow-challenge GET: status=${powResp.status} body=${powText.slice(0, 500)}`);
-      if (!powResp.ok) {
-        console.error(`[ChefPoW] pow-challenge GET failed, retrying...`);
+      const initText = await initResp.text();
+      console.log(`[ChefPoW] init: status=${initResp.status} body=${initText.slice(0, 500)}`);
+      if (!initResp.ok) {
+        console.error(`[ChefPoW] init failed, retrying...`);
         await new Promise(r => setTimeout(r, 1000));
         continue;
       }
 
-      let powData: any;
-      try { powData = JSON.parse(powText); } catch { console.error(`[ChefPoW] Failed to parse pow response`); continue; }
+      let initData: any;
+      try { initData = JSON.parse(initText); } catch { console.error(`[ChefPoW] Failed to parse init response`); continue; }
 
-      const artifact = powData.artifact || powData.prefix || powData.sessionToken || powData.challenge;
-      const difficulty = powData.difficulty ?? metadata.difficulty ?? 5;
-      const powSessionId = powData.sessionId || sessionId;
+      const prefix = initData.prefix || initData.artifact || initData.sessionToken || initData.challenge;
+      const difficulty = initData.difficulty ?? metadata.difficulty ?? 5;
+      const powSessionId = initData.sessionId || metadata.sessionId || challengeId;
 
-      if (!artifact) {
-        console.error(`[ChefPoW] No artifact found. Full response: ${JSON.stringify(powData)}`);
+      if (!prefix) {
+        console.error(`[ChefPoW] No prefix found. Full response: ${JSON.stringify(initData)}`);
         continue;
       }
 
-      console.log(`[ChefPoW] Solving: artifact=${String(artifact).slice(0, 40)}..., difficulty=${difficulty}, sessionId=${powSessionId}`);
+      console.log(`[ChefPoW] Solving: prefix=${String(prefix).slice(0, 40)}..., difficulty=${difficulty} bits, sessionId=${powSessionId}`);
       const start = Date.now();
-      const nonce = solveChefPoW(String(artifact), Number(difficulty));
-      console.log(`[ChefPoW] Solved in ${Date.now() - start}ms, nonce=${nonce}`);
+      const nonceHex = solveChefPoW(String(prefix), Number(difficulty));
+      console.log(`[ChefPoW] Solved in ${Date.now() - start}ms, nonce=${nonceHex.slice(0, 32)}...`);
 
-      const answerResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge/answer", {
+      const redeemResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge/redeem", {
         method: "POST",
         headers: chefHeaders,
-        body: JSON.stringify({ sessionId: powSessionId, answer: nonce }),
+        body: JSON.stringify({ sessionId: powSessionId, answer: nonceHex }),
       });
-      const answerText = await answerResp.text();
-      console.log(`[ChefPoW] answer: status=${answerResp.status} body=${answerText.slice(0, 500)}`);
+      const redeemText = await redeemResp.text();
+      console.log(`[ChefPoW] redeem: status=${redeemResp.status} body=${redeemText.slice(0, 500)}`);
 
-      let answerData: any = {};
-      try { answerData = JSON.parse(answerText); } catch {}
+      if (!redeemResp.ok) {
+        const fallbackResp = await fetch("https://apis.roblox.com/chef-service/v1/pow-challenge/answer", {
+          method: "POST",
+          headers: chefHeaders,
+          body: JSON.stringify({ sessionId: powSessionId, answer: nonceHex }),
+        });
+        const fallbackText = await fallbackResp.text();
+        console.log(`[ChefPoW] answer fallback: status=${fallbackResp.status} body=${fallbackText.slice(0, 500)}`);
+        if (!fallbackResp.ok) {
+          console.error(`[ChefPoW] redeem+answer both failed, retrying round...`);
+          await new Promise(r => setTimeout(r, 500));
+          continue;
+        }
+        let fbData: any = {};
+        try { fbData = JSON.parse(fallbackText); } catch {}
+        const fbToken = fbData.redemptionToken || fbData.token || fbData.exchangeBlob || "";
 
-      if (!answerResp.ok) {
-        console.error(`[ChefPoW] answer failed (${answerResp.status}), retrying round...`);
-        await new Promise(r => setTimeout(r, 500));
+        const continueResp = await fetch("https://apis.roblox.com/challenge/v1/continue", {
+          method: "POST",
+          headers: chefHeaders,
+          body: JSON.stringify({
+            challengeId,
+            challengeType: "chef",
+            challengeMetadata: JSON.stringify({ sessionId: powSessionId, redemptionToken: fbToken, answer: nonceHex }),
+          }),
+        });
+        const continueText = await continueResp.text();
+        console.log(`[ChefPoW] continue (fallback): status=${continueResp.status} body=${continueText.slice(0, 500)}`);
+        if (continueResp.ok) return { redemptionToken: fbToken, nonce: nonceHex };
         continue;
       }
 
-      const redemptionToken = answerData.redemptionToken || answerData.token || answerData.exchangeBlob || "";
+      let redeemData: any = {};
+      try { redeemData = JSON.parse(redeemText); } catch {}
+
+      const redemptionToken = redeemData.redemptionToken || redeemData.token || redeemData.exchangeBlob || "";
 
       const continueResp = await fetch("https://apis.roblox.com/challenge/v1/continue", {
         method: "POST",
@@ -96,7 +147,7 @@ async function solveChefChallenge(
           challengeMetadata: JSON.stringify({
             sessionId: powSessionId,
             redemptionToken,
-            answer: nonce,
+            answer: nonceHex,
           }),
         }),
       });
@@ -109,7 +160,7 @@ async function solveChefChallenge(
         continue;
       }
 
-      return { redemptionToken, nonce };
+      return { redemptionToken, nonce: nonceHex };
     } catch (err: any) {
       console.error(`[ChefPoW] Round ${round + 1} error:`, err.message);
     }
