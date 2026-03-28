@@ -278,35 +278,35 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
       const sceneFile = path.join(tempDir, `scene_${i}.mp4`);
       const text = allTexts[i];
 
+      const fps = 25;
       const zoomPatterns = [
-        `min(1+0.03*t/${sceneDur}\\,1.12)`,
-        `max(1.12-0.03*t/${sceneDur}\\,1)`,
-        `1.06+0.06*sin(t*0.8)`,
-        `min(1+0.05*t/${sceneDur}\\,1.2)`,
+        `if(lte(1+0.03*on/${fps}/${sceneDur},1.12),1+0.03*on/${fps}/${sceneDur},1.12)`,
+        `if(gte(1.12-0.03*on/${fps}/${sceneDur},1),1.12-0.03*on/${fps}/${sceneDur},1)`,
+        `1.06+0.06*sin(on/${fps}*0.8)`,
+        `if(lte(1+0.05*on/${fps}/${sceneDur},1.2),1+0.05*on/${fps}/${sceneDur},1.2)`,
       ];
       const zoomExpr = zoomPatterns[i % zoomPatterns.length];
 
       const panPatterns = [
-        `'(iw-ow)/2+30*sin(t*0.4)'`,
-        `'(iw-ow)/2-20*sin(t*0.6)'`,
-        `'(iw-ow)/2'`,
-        `'(iw-ow)/2+15*cos(t*0.3)'`,
+        `(iw-ow)/2+30*sin(on/${fps}*0.4)`,
+        `(iw-ow)/2-20*sin(on/${fps}*0.6)`,
+        `(iw-ow)/2`,
+        `(iw-ow)/2+15*cos(on/${fps}*0.3)`,
       ];
       const panX = panPatterns[i % panPatterns.length];
 
-      const panY = i % 2 === 0 ? `'(ih-oh)/2+10*sin(t*0.3)'` : `'(ih-oh)/2'`;
+      const panY = i % 2 === 0 ? `(ih-oh)/2+10*sin(on/${fps}*0.3)` : `(ih-oh)/2`;
 
       const escapedText = esc(text);
-      const frames = Math.ceil(sceneDur * 25);
+      const frames = Math.ceil(sceneDur * fps);
 
       const fadeIn = `fade=t=in:st=0:d=0.4:enable='between(t,0,${sceneDur})'`;
       const fadeOut = `fade=t=out:st=${sceneDur - transitionDur}:d=${transitionDur}`;
 
       const filter = [
-        `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,` +
-        `crop=${SW}:${SH},` +
-        `zoompan=z='${zoomExpr}':x=${panX}:y=${panY}:d=${frames}:s=${W}x${H}:fps=25,` +
-        `setsar=1,format=yuv420p,` +
+        `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled];` +
+        `[scaled]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp];` +
+        `[zp]setsar=1,format=yuv420p,` +
         `${fadeIn},${fadeOut},` +
         `drawbox=x=0:y=ih*0.73:w=iw:h=ih*0.14:color=${styleCfg.bgOpacity}:t=fill:` +
         `enable='between(t,0.3,${sceneDur - 0.3})',` +
@@ -338,10 +338,9 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
 
     const bgImg = input.images[input.images.length > 1 ? input.images.length - 1 : 0];
     let ctaFilter = [
-      `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,` +
-      `crop=${SW}:${SH},` +
-      `zoompan=z='1.08':x='(iw-ow)/2':y='(ih-oh)/2':d=${ctaFrames}:s=${W}x${H}:fps=25,` +
-      `setsar=1,format=yuv420p,` +
+      `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled];` +
+      `[scaled]zoompan=z='1.08':x='(iw-ow)/2':y='(ih-oh)/2':d=${ctaFrames}:s=${W}x${H}:fps=25[zp];` +
+      `[zp]setsar=1,format=yuv420p,` +
       `fade=t=in:st=0:d=0.4,` +
       `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.45:t=fill,` +
       `drawbox=x=iw*0.1:y=ih*0.36:w=iw*0.8:h=ih*0.28:color=${styleCfg.bgOpacity}:t=fill,` +
