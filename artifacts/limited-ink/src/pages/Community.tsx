@@ -961,7 +961,7 @@ function DiscoverTab({ myUser, onUserClick, onChat }: {
       )}
 
       <div className="bg-card rounded-xl border border-border p-5">
-        <h3 className="text-[15px] font-semibold text-white mb-4">Developers <span className="text-[#5B88BD]">{sorted.length}</span></h3>
+        <h3 className="text-[15px] font-semibold text-foreground mb-4">Developers <span className="text-[#5B88BD]">{sorted.length}</span></h3>
         {loading ? (
           <div className="space-y-3">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-16 rounded-lg bg-muted" />)}</div>
         ) : sorted.length === 0 ? (
@@ -1118,7 +1118,7 @@ function FriendsTab({ myUser, onChat, onUserClick }: {
       <div className="bg-card rounded-xl border border-border p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <span className="text-[15px] font-semibold text-white">All friends <span className="text-[#5B88BD]">{friends.length}</span></span>
+            <span className="text-[15px] font-semibold text-foreground">All friends <span className="text-[#5B88BD]">{friends.length}</span></span>
           </div>
         </div>
         {friends.length === 0 ? (
@@ -3965,7 +3965,7 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
       <div className="w-[280px] shrink-0 space-y-3">
         <div className="bg-card rounded-xl border border-border p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[13px] font-semibold text-white">Friends <span className="text-[#5B88BD]">{friends.length}</span></span>
+            <span className="text-[13px] font-semibold text-foreground">Friends <span className="text-[#5B88BD]">{friends.length}</span></span>
           </div>
           {friends.length === 0 ? (
             <p className="text-[12px] text-muted-foreground">No friends yet</p>
