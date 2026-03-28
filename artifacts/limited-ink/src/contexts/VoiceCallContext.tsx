@@ -59,6 +59,8 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
         localVideoRef={voiceCall.localVideoRef}
         remoteVideoRef={voiceCall.remoteVideoRef}
         screenVideoRef={voiceCall.screenVideoRef}
+        localScreenVideoRef={voiceCall.localScreenVideoRef}
+        localScreenStream={voiceCall.screenStreamRef}
         remoteScreenStream={voiceCall.remoteScreenStreamRef}
       />
       <ScreenPicker

@@ -58,6 +58,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
+  const localScreenVideoRef = useRef<HTMLVideoElement | null>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const callTargetRef = useRef<number | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -118,6 +119,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
+    if (localScreenVideoRef.current) localScreenVideoRef.current.srcObject = null;
     if (callTimerRef.current) clearInterval(callTimerRef.current);
     callTimerRef.current = null;
     if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
@@ -471,6 +473,10 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
       if (screenVideoRef.current) {
         screenVideoRef.current.srcObject = stream;
       }
+      if (localScreenVideoRef.current) {
+        localScreenVideoRef.current.srcObject = stream;
+        localScreenVideoRef.current.play().catch(() => {});
+      }
 
       const sender = pc.addTrack(screenTrack, stream);
       screenSenderRef.current = sender;
@@ -691,6 +697,7 @@ export function useVoiceCall(myUserId: number | null, myDisplayName: string, myA
     localVideoRef,
     remoteVideoRef,
     screenVideoRef,
+    localScreenVideoRef,
     localVideoStreamRef,
     screenStreamRef,
     remoteScreenStreamRef,

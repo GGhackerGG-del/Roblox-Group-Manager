@@ -37,6 +37,8 @@ interface CallOverlayProps {
   localVideoRef: React.RefObject<HTMLVideoElement | null>;
   remoteVideoRef: React.RefObject<HTMLVideoElement | null>;
   screenVideoRef: React.RefObject<HTMLVideoElement | null>;
+  localScreenVideoRef: React.RefObject<HTMLVideoElement | null>;
+  localScreenStream?: React.RefObject<MediaStream | null>;
   remoteScreenStream?: React.RefObject<MediaStream | null>;
 }
 
@@ -123,12 +125,27 @@ export default function CallOverlay(props: CallOverlayProps) {
     prevScreenSharing.current = props.remoteScreenSharing;
   }, [props.remoteScreenSharing]);
 
+  const prevLocalScreenSharing = useRef(false);
+  useEffect(() => {
+    if (props.screenSharing && !prevLocalScreenSharing.current) {
+      setExpanded(true);
+    }
+    prevLocalScreenSharing.current = props.screenSharing;
+  }, [props.screenSharing]);
+
   useEffect(() => {
     if (expanded && props.remoteScreenSharing && props.screenVideoRef.current && props.remoteScreenStream?.current) {
       props.screenVideoRef.current.srcObject = props.remoteScreenStream.current;
       props.screenVideoRef.current.play().catch(() => {});
     }
   }, [expanded, props.remoteScreenSharing]);
+
+  useEffect(() => {
+    if (expanded && props.screenSharing && props.localScreenVideoRef.current && props.localScreenStream?.current) {
+      props.localScreenVideoRef.current.srcObject = props.localScreenStream.current;
+      props.localScreenVideoRef.current.play().catch(() => {});
+    }
+  }, [expanded, props.screenSharing]);
 
   const showCallPanel = props.callActive || props.callConnecting;
   const showIncoming = !!props.incomingCall && !props.callActive && !props.callConnecting;
@@ -222,7 +239,17 @@ export default function CallOverlay(props: CallOverlayProps) {
                     />
                   )}
 
-                  {!props.remoteScreenSharing && props.remoteVideoEnabled && (
+                  {!props.remoteScreenSharing && props.screenSharing && (
+                    <video
+                      ref={props.localScreenVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+
+                  {!props.remoteScreenSharing && !props.screenSharing && props.remoteVideoEnabled && (
                     <video
                       ref={props.remoteVideoRef}
                       autoPlay
@@ -231,7 +258,7 @@ export default function CallOverlay(props: CallOverlayProps) {
                     />
                   )}
 
-                  {!props.remoteScreenSharing && !props.remoteVideoEnabled && (
+                  {!props.remoteScreenSharing && !props.screenSharing && !props.remoteVideoEnabled && (
                     <div className="w-full h-full flex items-center justify-center">
                       <div className="flex flex-col items-center gap-3">
                         <div className={`rounded-full overflow-hidden border-2 border-[#5865f2]/40 ${fullscreen ? "w-32 h-32" : "w-20 h-20"}`}>
@@ -285,7 +312,7 @@ export default function CallOverlay(props: CallOverlayProps) {
                   {!fullscreen && (
                     <button
                       onClick={toggleFullscreen}
-                      className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white rounded-lg p-2 transition-colors z-10"
+                      className={`absolute top-3 bg-black/60 hover:bg-black/80 text-white rounded-lg p-2 transition-colors z-10 ${props.screenSharing || props.remoteScreenSharing ? "right-3" : "right-3"}`}
                       title={t("com.fullscreen")}
                     >
                       <Maximize2 className="w-4 h-4" />
