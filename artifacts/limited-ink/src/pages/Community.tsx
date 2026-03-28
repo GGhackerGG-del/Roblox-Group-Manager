@@ -27,7 +27,9 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AccessoriesTab, { UserEquippedAccessories } from "@/components/AccessoriesTab";
-import { Sparkles, Gamepad2 } from "lucide-react";
+import AvatarWithFrame, { AVATAR_FRAMES, FRAME_NAMES, FRAME_RARITIES } from "@/components/AvatarWithFrame";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Sparkles, Gamepad2, Palette } from "lucide-react";
 import { usePresenceContext } from "@/contexts/PresenceContext";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -66,6 +68,7 @@ interface PlatformUser {
   displayName: string;
   avatarUrl: string | null;
   bio: string;
+  avatarFrame?: string;
   createdAt: string;
   friendship?: { status: string; isRequester: boolean; id: number } | null;
   isMe?: boolean;
@@ -245,10 +248,13 @@ function UserProfileModal({ userId, myUser, onClose, onChat }: {
             <div className="relative">
               <div className="h-32 bg-gradient-to-br from-[#2a2a3e] via-[#1e1e2e] to-[#2d2a3e] rounded-t-xl" />
               <div className="absolute -bottom-12 left-6">
-                <Avatar className="w-24 h-24 border-4 border-border shadow-xl">
-                  <AvatarImage src={profile.user.avatarUrl || robloxHeadshot(profile.user.robloxUserId)} />
-                  <AvatarFallback className="text-2xl font-bold bg-secondary">{profile.user.displayName.charAt(0)}</AvatarFallback>
-                </Avatar>
+                <AvatarWithFrame
+                  src={profile.user.avatarUrl || robloxHeadshot(profile.user.robloxUserId)}
+                  fallbackText={profile.user.displayName.charAt(0)}
+                  frameId={profile.user.avatarFrame || "none"}
+                  size="lg"
+                  className="border-4 border-border shadow-xl"
+                />
               </div>
               <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/80">
                 <X className="w-4 h-4" />
@@ -4200,12 +4206,16 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
   onChat: (user: PlatformUser) => void;
   onEditBio: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [posts, setPosts] = useState<Post[]>([]);
   const [friends, setFriends] = useState<Array<{ friendship: { id: number; status: string }; user: PlatformUser }>>([]);
   const [loading, setLoading] = useState(true);
   const [commentPost, setCommentPost] = useState<Post | null>(null);
   const [equippedAccessories, setEquippedAccessories] = useState<any[]>([]);
+  const [currentFrame, setCurrentFrame] = useState("none");
+  const [previewFrame, setPreviewFrame] = useState("none");
+  const [savingFrame, setSavingFrame] = useState(false);
+  const [frameDialogOpen, setFrameDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -4214,12 +4224,30 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
       apiFetch<{ posts: Post[] }>("/api/social/feed").catch(() => ({ posts: [] as Post[] })),
       apiFetch<{ friends: Array<{ friendship: { id: number; status: string }; user: PlatformUser }>; pending: any[] }>("/api/social/friends").catch(() => ({ friends: [], pending: [] })),
       apiFetch<any[]>(`/api/accessories/user/${myUser.id}`).catch(() => []),
-    ]).then(([feedData, friendsData, accessories]) => {
+      apiFetch<any>("/api/social/me").catch(() => null),
+    ]).then(([feedData, friendsData, accessories, socialMe]) => {
       setPosts(feedData.posts.filter(p => p.authorId === myUser.id));
       setFriends(friendsData.friends);
       setEquippedAccessories(accessories);
+      const frame = socialMe?.avatarFrame || "none";
+      setCurrentFrame(frame);
+      setPreviewFrame(frame);
     }).finally(() => setLoading(false));
   }, [myUser]);
+
+  const saveFrame = async (frameId: string) => {
+    setSavingFrame(true);
+    try {
+      await apiFetch("/api/social/me", { method: "PATCH", body: JSON.stringify({ avatarFrame: frameId }) });
+      setCurrentFrame(frameId);
+      setPreviewFrame(frameId);
+      setFrameDialogOpen(false);
+      window.dispatchEvent(new Event("avatar-frame-changed"));
+      toast({ title: language === "ru" ? "Рамка обновлена!" : language === "es" ? "¡Marco actualizado!" : "Frame updated!" });
+    } catch {
+      toast({ variant: "destructive", title: t("com.error") });
+    } finally { setSavingFrame(false); }
+  };
 
   const handleLike = async (postId: number) => {
     if (!myUser) return;
@@ -4247,10 +4275,96 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
           </div>
           <div className="px-6 pb-5 -mt-16 relative z-10">
             <div className="flex items-end gap-5">
-              <Avatar className="w-[120px] h-[120px] border-4 border-border shadow-2xl">
-                <AvatarImage src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)} />
-                <AvatarFallback className="text-4xl font-bold bg-secondary">{myUser.displayName.charAt(0)}</AvatarFallback>
-              </Avatar>
+              <div className="relative group">
+                <AvatarWithFrame
+                  src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)}
+                  fallbackText={myUser.displayName.charAt(0)}
+                  frameId={currentFrame}
+                  size="xl"
+                  className="border-4 border-background shadow-2xl"
+                />
+                <Dialog open={frameDialogOpen} onOpenChange={(open) => { setFrameDialogOpen(open); if (open) setPreviewFrame(currentFrame); }}>
+                  <DialogTrigger asChild>
+                    <button className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-110 transition-transform z-10">
+                      <Palette className="w-4 h-4" />
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Sparkles className="w-5 h-5" />
+                        {language === "ru" ? "Аксессуары профиля" : language === "es" ? "Accesorios de perfil" : "Profile Accessories"}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="flex justify-center py-4">
+                      <AvatarWithFrame
+                        src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)}
+                        fallbackText={myUser.displayName.charAt(0)}
+                        frameId={previewFrame}
+                        size="xl"
+                      />
+                    </div>
+                    <p className="text-center text-sm text-muted-foreground -mt-2 mb-4">
+                      {FRAME_NAMES[previewFrame]?.[language] || FRAME_NAMES[previewFrame]?.en || previewFrame}
+                    </p>
+                    <div className="grid grid-cols-4 gap-3">
+                      {Object.keys(AVATAR_FRAMES).map(key => {
+                        const rarity = FRAME_RARITIES[key] || "common";
+                        const isSelected = previewFrame === key;
+                        const isCurrent = currentFrame === key;
+                        const RARITY_CLR: Record<string, string> = {
+                          common: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+                          rare: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+                          epic: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+                          legendary: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+                        };
+                        const RARITY_LBL: Record<string, Record<string, string>> = {
+                          common: { en: "Common", ru: "Обычный", es: "Común" },
+                          rare: { en: "Rare", ru: "Редкий", es: "Raro" },
+                          epic: { en: "Epic", ru: "Эпический", es: "Épico" },
+                          legendary: { en: "Legendary", ru: "Легендарный", es: "Legendario" },
+                        };
+                        return (
+                          <motion.button
+                            key={key}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setPreviewFrame(key)}
+                            className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                              isSelected
+                                ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                                : "border-border bg-card hover:border-primary/50 hover:bg-secondary/50"
+                            }`}
+                          >
+                            {isCurrent && <div className="absolute top-1 right-1"><Check className="w-3.5 h-3.5 text-green-500" /></div>}
+                            <AvatarWithFrame
+                              src={myUser.avatarUrl || robloxHeadshot(myUser.robloxUserId)}
+                              fallbackText={myUser.displayName.charAt(0)}
+                              frameId={key}
+                              size="sm"
+                            />
+                            <span className="text-[10px] font-medium text-center leading-tight line-clamp-1">
+                              {FRAME_NAMES[key]?.[language] || FRAME_NAMES[key]?.en || key}
+                            </span>
+                            <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-md border ${RARITY_CLR[rarity]}`}>
+                              {RARITY_LBL[rarity]?.[language] || RARITY_LBL[rarity]?.en}
+                            </span>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2 pt-4">
+                      <Button variant="outline" className="flex-1 rounded-xl" onClick={() => { setFrameDialogOpen(false); setPreviewFrame(currentFrame); }}>
+                        {language === "ru" ? "Отмена" : language === "es" ? "Cancelar" : "Cancel"}
+                      </Button>
+                      <Button className="flex-1 rounded-xl gap-2" disabled={savingFrame || previewFrame === currentFrame} onClick={() => saveFrame(previewFrame)}>
+                        {savingFrame && <Loader2 className="w-4 h-4 animate-spin" />}
+                        {language === "ru" ? "Применить" : language === "es" ? "Aplicar" : "Apply"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <div className="flex-1 min-w-0 pb-1">
                 <div className="flex items-center gap-3">
                   <h1 className="text-[22px] font-bold text-foreground">{myUser.displayName}</h1>
@@ -4261,7 +4375,7 @@ function ProfileTab({ myUser, onUserClick, onChat, onEditBio }: {
               </div>
               <div className="flex gap-2 pb-1">
                 <button onClick={onEditBio} className="px-4 py-2 bg-secondary hover:bg-accent text-[13px] text-secondary-foreground rounded-lg transition-colors flex items-center gap-2">
-                  <Pencil className="w-3.5 h-3.5" /> Edit profile
+                  <Pencil className="w-3.5 h-3.5" /> {language === "ru" ? "Редактировать" : language === "es" ? "Editar perfil" : "Edit profile"}
                 </button>
               </div>
             </div>

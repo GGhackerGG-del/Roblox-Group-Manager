@@ -126,13 +126,15 @@ const DUEL_GAMES: GameDef[] = [
   { id: "coin-battle", icon: <Coins className="w-5 h-5" />, gradient: "from-amber-500/20 to-yellow-500/20", color: "text-amber-400" },
 ];
 
-export function UserEquippedAccessories({ userId }: { userId: number }) {
-  const [items, setItems] = useState<Accessory[]>([]);
+export function UserEquippedAccessories({ userId, accessories }: { userId?: number; accessories?: Accessory[] }) {
+  const [items, setItems] = useState<Accessory[]>(accessories || []);
   useEffect(() => {
+    if (accessories) { setItems(accessories); return; }
+    if (!userId) return;
     apiFetch<Accessory[]>(`/api/accessories/user/${userId}`)
       .then(setItems)
       .catch(() => {});
-  }, [userId]);
+  }, [userId, accessories]);
   if (items.length === 0) return null;
   return (
     <div className="flex gap-1 flex-wrap mt-1">
