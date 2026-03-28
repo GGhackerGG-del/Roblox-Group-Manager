@@ -9,6 +9,7 @@ export const platformUsers = pgTable("platform_users", {
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
   bio: text("bio").default("").notNull(),
+  avatarFrame: text("avatar_frame").default("none"),
   lastSeen: timestamp("last_seen", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

@@ -7,6 +7,7 @@ import { LogOut, Users, Key, Loader2, Sparkles, UserCircle, Settings, MessageSqu
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useGetRobloxGroups, getAuthCredentials } from "@workspace/api-client-react";
+import AvatarWithFrame from "@/components/AvatarWithFrame";
 
 import { playHover, playClick } from "@/hooks/useSounds";
 import { usePageCache } from "@/contexts/PageCacheContext";
@@ -90,6 +91,25 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const prefetchedRef = useRef<Set<string>>(new Set());
   const trackedSectionsRef = useRef<Set<string>>(new Set());
   const [unreadCount, setUnreadCount] = useState(0);
+  const [myFrame, setMyFrame] = useState("none");
+
+  const loadFrame = useCallback(() => {
+    const { token, fingerprint } = getAuthCredentials();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (fingerprint) headers["X-Device-Fingerprint"] = fingerprint;
+    fetch(`${BASE}/api/social/me`, { credentials: "include", headers })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.avatarFrame) setMyFrame(data.avatarFrame); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadFrame();
+    const handler = () => loadFrame();
+    window.addEventListener("avatar-frame-changed", handler);
+    return () => window.removeEventListener("avatar-frame-changed", handler);
+  }, [loadFrame]);
 
   const fetchUnread = useCallback(async () => {
     try {
@@ -250,12 +270,12 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
           </Link>
 
           <div className="flex items-center gap-3 px-2">
-            <Avatar className="w-10 h-10 border border-border shadow-sm">
-              <AvatarImage src={profile?.avatarUrl || robloxHeadshot(profile?.id || 0)} />
-              <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                {profile?.displayName?.charAt(0) || "U"}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarWithFrame
+              src={profile?.avatarUrl || robloxHeadshot(profile?.id || 0)}
+              fallbackText={profile?.displayName?.charAt(0) || "U"}
+              frameId={myFrame}
+              size="sm"
+            />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-foreground truncate">{profile?.displayName}</p>
               <p className="text-xs text-muted-foreground truncate">@{profile?.name}</p>

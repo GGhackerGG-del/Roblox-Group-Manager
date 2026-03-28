@@ -61,8 +61,15 @@ router.patch("/social/me", async (req, res): Promise<void> => {
   if (!robloxUserId) { res.status(401).json({ error: "Not authenticated" }); return; }
   const user = await db.query.platformUsers.findFirst({ where: eq(platformUsers.robloxUserId, robloxUserId) });
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  const { bio } = req.body as { bio?: string };
-  const [updated] = await db.update(platformUsers).set({ bio: bio ?? user.bio, updatedAt: new Date() }).where(eq(platformUsers.id, user.id)).returning();
+  const VALID_FRAMES = ["none","golden_crown","sakura","ice_crystal","fire_blaze","neon_green","purple_galaxy","rainbow","rose_garden","silver_steel","midnight_blue","emerald","blood_red","pastel_dream","sunset","diamond","toxic"];
+  const { bio, avatarFrame } = req.body as { bio?: string; avatarFrame?: string };
+  const updates: any = { updatedAt: new Date() };
+  if (bio !== undefined) updates.bio = bio;
+  if (avatarFrame !== undefined) {
+    if (!VALID_FRAMES.includes(avatarFrame)) { res.status(400).json({ error: "Invalid frame" }); return; }
+    updates.avatarFrame = avatarFrame;
+  }
+  const [updated] = await db.update(platformUsers).set(updates).where(eq(platformUsers.id, user.id)).returning();
   res.json(updated);
 });
 
