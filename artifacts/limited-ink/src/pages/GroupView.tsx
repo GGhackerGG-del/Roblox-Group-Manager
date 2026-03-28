@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { getAuthCredentials } from "@workspace/api-client-react";
 import { robloxHeadshot } from "@/lib/roblox";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { notifyAction } from "@/lib/desktopNotify";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -492,6 +493,7 @@ function UploadClothingTab({ groupId }: { groupId: number }) {
     if (ok > 0) playSuccess();
     if (fail > 0) playError();
     toast({ title: t("group.uploadSuccess"), description: `${ok} ✓ / ${fail} ✗` });
+    notifyAction("Загрузка завершена", `Успешно: ${ok}, Ошибок: ${fail}`);
     setUploading(false);
   };
 

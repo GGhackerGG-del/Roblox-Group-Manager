@@ -6,10 +6,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   showCallNotification: (callerName: string, callerAvatar?: string) => {
     ipcRenderer.send("show-call-notification", { callerName, callerAvatar });
   },
+  showNotification: (data: { title: string; body: string; type?: string }) => {
+    ipcRenderer.send("show-notification", data);
+  },
   focusWindow: () => {
     ipcRenderer.send("focus-window");
   },
   getDesktopSources: () => {
     return ipcRenderer.invoke("get-desktop-sources");
+  },
+  isWindowFocused: () => {
+    return ipcRenderer.invoke("is-window-focused");
   },
 });

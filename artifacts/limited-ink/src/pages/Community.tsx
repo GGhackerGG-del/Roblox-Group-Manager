@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Sparkles, Gamepad2, Palette } from "lucide-react";
 import { usePresenceContext } from "@/contexts/PresenceContext";
 import EmojiPicker from "@/components/EmojiPicker";
+import { isDesktop, notifyNewMessage, notifyGroupMessage, notifyGroupCall, notifyAction } from "@/lib/desktopNotify";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -1179,6 +1180,9 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [groupChats, setGroupChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<ActiveChatTarget | null>(null);
+  const lastDmTimestamps = useRef<Map<number, string>>(new Map());
+  const lastGcTimestamps = useRef<Map<number, string>>(new Map());
+  const notifyInitialized = useRef(false);
   const [messages, setMessages] = useState<any[]>([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [text, setText] = useState("");
@@ -1242,22 +1246,80 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   }, []);
   const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
 
+  const fetchAllInFlight = useRef(false);
   const fetchAll = useCallback(async (silent = false) => {
+    if (fetchAllInFlight.current) return;
+    fetchAllInFlight.current = true;
     try {
       const [dmData, gcData] = await Promise.all([
         apiFetch<{ conversations: DmConversation[] }>("/api/social/messages").catch(() => null),
         apiFetch<{ chats: any[] }>("/api/community/group-chats").catch(() => null),
       ]);
       if (dmData) {
+        if (isDesktop() && notifyInitialized.current) {
+          for (const conv of dmData.conversations) {
+            if (!conv.lastMessage) continue;
+            const key = conv.otherUser?.id;
+            if (!key) continue;
+            const prev = lastDmTimestamps.current.get(key);
+            const cur = conv.lastMessage.createdAt;
+            if (prev && cur && cur > prev && conv.lastMessage.senderId !== myUser?.id) {
+              const activeDm = activeRef.current;
+              if (!(activeDm?.kind === "dm" && activeDm.user.id === key)) {
+                notifyNewMessage(
+                  conv.otherUser?.displayName || "Unknown",
+                  conv.lastMessage.content || "📎 Вложение"
+                );
+              }
+            }
+            if (cur && (!prev || cur > prev)) lastDmTimestamps.current.set(key, cur);
+          }
+        } else if (!notifyInitialized.current) {
+          for (const conv of dmData.conversations) {
+            if (conv.lastMessage?.createdAt && conv.otherUser?.id) {
+              lastDmTimestamps.current.set(conv.otherUser.id, conv.lastMessage.createdAt);
+            }
+          }
+        }
         setConversations(dmData.conversations);
         const userIds = dmData.conversations
           .map(c => c.otherUser?.robloxUserId)
           .filter((id): id is number => !!id);
         if (userIds.length > 0) fetchPresenceFor(userIds);
       }
-      if (gcData) setGroupChats(gcData.chats);
-    } catch {} finally { if (!silent) setLoading(false); }
-  }, [fetchPresenceFor]);
+      if (gcData) {
+        if (isDesktop() && notifyInitialized.current) {
+          for (const gc of gcData.chats) {
+            if (!gc.lastMessage) continue;
+            const prev = lastGcTimestamps.current.get(gc.id);
+            const cur = gc.lastMessage.createdAt;
+            if (prev && cur && cur > prev && gc.lastMessage.senderId !== myUser?.id) {
+              const activeGc = activeRef.current;
+              if (!(activeGc?.kind === "group" && activeGc.chat.id === gc.id)) {
+                notifyGroupMessage(
+                  gc.name || "Group",
+                  gc.lastMessage.senderName || "Someone",
+                  gc.lastMessage.content || "📎 Вложение"
+                );
+              }
+            }
+            if (cur && (!prev || cur > prev)) lastGcTimestamps.current.set(gc.id, cur);
+          }
+        } else if (!notifyInitialized.current) {
+          for (const gc of gcData.chats) {
+            if (gc.lastMessage?.createdAt) {
+              lastGcTimestamps.current.set(gc.id, gc.lastMessage.createdAt);
+            }
+          }
+        }
+        setGroupChats(gcData.chats);
+      }
+      notifyInitialized.current = true;
+    } catch {} finally {
+      fetchAllInFlight.current = false;
+      if (!silent) setLoading(false);
+    }
+  }, [fetchPresenceFor, myUser]);
 
   useEffect(() => {
     if (!robloxGroupChatCreated && groupsData?.groups?.length && myUser) {

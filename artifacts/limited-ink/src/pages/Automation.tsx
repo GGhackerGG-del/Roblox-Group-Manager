@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { getAuthCredentials, useGetRobloxGroups } from "@workspace/api-client-react";
 import { robloxHeadshot } from "@/lib/roblox";
+import { notifyAction } from "@/lib/desktopNotify";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,6 +165,7 @@ export default function Automation() {
       });
       playSuccess();
       toast({ title: "✅", description: data.message });
+      notifyAction("Заявки приняты", data.message);
       setJoinRequests([]);
     } catch (e: unknown) {
       playError();
@@ -212,6 +214,7 @@ export default function Automation() {
       });
       playSuccess();
       toast({ title: "✅", description: data.message });
+      notifyAction("Ранг изменён", data.message);
       setMemberSearchResults(prev => prev.map(m => m.user.userId === userId ? { ...m, role: { ...m.role, id: roleId } } : m));
     } catch (e: unknown) {
       playError();
@@ -226,6 +229,7 @@ export default function Automation() {
       const data = await apiFetch<{ message: string }>(`/api/automation/exile/${groupId}/${userId}`, { method: "DELETE" });
       playSuccess();
       toast({ title: "✅", description: data.message });
+      notifyAction("Пользователь исключён", `${username} удалён из группы`);
       setExileResults(prev => prev.filter(m => m.user.userId !== userId));
     } catch (e: unknown) {
       playError();
@@ -375,6 +379,7 @@ export default function Automation() {
       }
       playSuccess();
       toast({ title: "✅", description: data.message });
+      notifyAction("Выплата отправлена", data.message);
       setPayoutEntries([]);
       setTwoFA({ open: false, challengeId: "", challengeType: "twostepverification", mediaType: "Authenticator", code: "", verifying: false });
     } catch (e: unknown) {

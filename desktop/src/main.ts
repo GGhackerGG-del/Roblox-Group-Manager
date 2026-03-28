@@ -206,6 +206,46 @@ ipcMain.on("show-call-notification", (event, data: { callerName: string; callerA
   mainWindow.flashFrame(true);
 });
 
+ipcMain.on("show-notification", (event, data: { title: string; body: string; type?: string }) => {
+  if (!mainWindow) return;
+  const senderUrl = event.senderFrame?.url || "";
+  if (!senderUrl.startsWith("http://localhost:") && !senderUrl.startsWith("http://127.0.0.1:")) return;
+  if (typeof data?.title !== "string" || data.title.length > 200) return;
+  if (typeof data?.body !== "string" || data.body.length > 500) return;
+
+  if (mainWindow.isFocused()) return;
+
+  const notification = new Notification({
+    title: data.title,
+    body: data.body,
+    icon: app.isPackaged
+      ? path.join(process.resourcesPath, "icon.png")
+      : path.join(__dirname, "..", "resources", "icon.png"),
+    silent: data.type === "action",
+  });
+
+  notification.on("click", () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.flashFrame(false);
+    }
+  });
+
+  notification.show();
+
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+  mainWindow.flashFrame(true);
+});
+
+ipcMain.handle("is-window-focused", (event) => {
+  const senderUrl = event.senderFrame?.url || "";
+  if (!senderUrl.startsWith("http://localhost:") && !senderUrl.startsWith("http://127.0.0.1:")) return false;
+  return mainWindow?.isFocused() ?? false;
+});
+
 ipcMain.handle("get-desktop-sources", async (event) => {
   const senderUrl = event.senderFrame?.url || "";
   if (!senderUrl.startsWith("http://localhost:") && !senderUrl.startsWith("http://127.0.0.1:")) return [];

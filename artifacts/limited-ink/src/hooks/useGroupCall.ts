@@ -5,6 +5,7 @@ import {
   playDeafen, playUndeafen,
   stopAllSounds,
 } from "@/lib/callSounds";
+import { notifyGroupCall } from "@/lib/desktopNotify";
 
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
@@ -60,6 +61,8 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const groupChatIdRef = useRef<number | null>(null);
   const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRingKeyRef = useRef<string>("");
+  const lastRingTimeRef = useRef<number>(0);
 
   const [state, setState] = useState<GroupCallState>({
     active: false,
@@ -336,6 +339,12 @@ export function useGroupCall(myUserId: number | null, myDisplayName: string, myA
 
       case "group-call-ring": {
         if (stateRef.current.active) break;
+        const ringKey = `${msg.groupChatId}:${msg.callerId}`;
+        const now = Date.now();
+        if (ringKey === lastRingKeyRef.current && now - lastRingTimeRef.current < 15000) break;
+        lastRingKeyRef.current = ringKey;
+        lastRingTimeRef.current = now;
+        notifyGroupCall(msg.callerName || "Someone");
         setState(s => ({
           ...s,
           incomingRing: {
