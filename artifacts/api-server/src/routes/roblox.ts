@@ -128,23 +128,46 @@ router.get("/roblox/me", async (req, res): Promise<void> => {
   }
 
   try {
-    const [userResp, avatarResp] = await Promise.allSettled([
-      fetchRoblox(`${ROBLOX_USERS_API}/v1/users/${userId}`, cookie),
-      fetch(`${ROBLOX_THUMBNAILS_API}/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`),
-    ]);
+    let userData: { id: number; name: string; displayName: string; description: string } | null = null;
+    let lastStatus = 0;
 
-    const userData = userResp.status === "fulfilled" && userResp.value.ok
-      ? await userResp.value.json() as { id: number; name: string; displayName: string; description: string }
-      : null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/${userId}`, cookie);
+        lastStatus = userResp.status;
+        if (userResp.ok) {
+          userData = await userResp.json() as typeof userData;
+          break;
+        }
+        if ((userResp.status === 401 || userResp.status === 403) && attempt < 2) {
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
+        }
+      } catch {
+        if (attempt < 2) {
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
+        }
+      }
+      break;
+    }
 
     if (!userData) {
-      res.status(401).json({ error: "Roblox session expired. Please sign in again." });
+      if (lastStatus === 429) {
+        res.status(429).json({ error: "Roblox rate limit. Please try again in a few seconds." });
+      } else if (lastStatus === 401 || lastStatus === 403) {
+        res.status(401).json({ error: "Roblox session expired. Please sign in again." });
+      } else {
+        res.status(502).json({ error: "Roblox API unavailable. Please try again." });
+      }
       return;
     }
 
+    const avatarResp = await fetch(`${ROBLOX_THUMBNAILS_API}/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`).catch(() => null);
+
     let avatarUrl: string | null = null;
-    if (avatarResp.status === "fulfilled" && avatarResp.value.ok) {
-      const d = await avatarResp.value.json() as { data: Array<{ imageUrl: string }> };
+    if (avatarResp && avatarResp.ok) {
+      const d = await avatarResp.json() as { data: Array<{ imageUrl: string }> };
       avatarUrl = d.data?.[0]?.imageUrl || null;
     }
 
@@ -239,13 +262,26 @@ router.get("/roblox/groups", async (req, res): Promise<void> => {
     return;
   }
 
-  let userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
-  if (userResp.status === 401 || userResp.status === 403) {
-    await new Promise(r => setTimeout(r, 1000));
-    userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+  let userResp: globalThis.Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      userResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+      if (userResp.ok) break;
+      if ((userResp.status === 401 || userResp.status === 403) && attempt < 2) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+    } catch {
+      userResp = null;
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+    }
+    break;
   }
-  if (!userResp.ok) {
-    if (userResp.status === 401 || userResp.status === 403) {
+  if (!userResp || !userResp.ok) {
+    if (userResp && (userResp.status === 401 || userResp.status === 403)) {
       await clearSessionIfCookieDead(req);
     }
     res.status(502).json({ error: "Roblox API unavailable. Please try again." });
@@ -349,13 +385,26 @@ router.get("/roblox/groups/:groupId/stats", async (req, res): Promise<void> => {
     return;
   }
 
-  let meResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
-  if (meResp.status === 401 || meResp.status === 403) {
-    await new Promise(r => setTimeout(r, 1000));
-    meResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+  let meResp: globalThis.Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      meResp = await fetchRoblox(`${ROBLOX_USERS_API}/v1/users/authenticated`, cookie);
+      if (meResp.ok) break;
+      if ((meResp.status === 401 || meResp.status === 403) && attempt < 2) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+    } catch {
+      meResp = null;
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+    }
+    break;
   }
-  if (!meResp.ok) {
-    if (meResp.status === 401 || meResp.status === 403) {
+  if (!meResp || !meResp.ok) {
+    if (meResp && (meResp.status === 401 || meResp.status === 403)) {
       await clearSessionIfCookieDead(req);
     }
     res.status(502).json({ error: "Roblox API unavailable. Please try again." });

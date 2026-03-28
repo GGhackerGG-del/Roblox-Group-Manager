@@ -14,17 +14,28 @@ export function robloxHeaders(cookie: string, extra: Record<string, string> = {}
 }
 
 export async function verifyRobloxCookie(cookie: string): Promise<"valid" | "dead" | "unknown"> {
-  try {
-    const resp = await fetch("https://users.roblox.com/v1/users/authenticated", {
-      headers: robloxHeaders(cookie),
-      signal: AbortSignal.timeout(10000),
-    });
-    if (resp.ok) return "valid";
-    if (resp.status === 401) return "dead";
-    return "unknown";
-  } catch {
-    return "unknown";
+  const attempt = async (): Promise<"valid" | "dead" | "unknown"> => {
+    try {
+      const resp = await fetch("https://users.roblox.com/v1/users/authenticated", {
+        headers: robloxHeaders(cookie),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (resp.ok) return "valid";
+      if (resp.status === 401) return "dead";
+      return "unknown";
+    } catch {
+      return "unknown";
+    }
+  };
+
+  const delays = [0, 2000, 3000];
+  let lastResult: "valid" | "dead" | "unknown" = "unknown";
+  for (let i = 0; i < delays.length; i++) {
+    if (delays[i] > 0) await new Promise(r => setTimeout(r, delays[i]));
+    lastResult = await attempt();
+    if (lastResult === "valid") return "valid";
   }
+  return lastResult;
 }
 
 export async function safeRobloxFetch(
@@ -84,11 +95,16 @@ export async function clearSessionIfCookieDead(req: Request): Promise<boolean> {
 
   const result = await verifyRobloxCookie(cookie);
   if (result === "dead") {
-    console.log("[Session] Cookie confirmed dead by Roblox 401, clearing session");
+    console.log("[Session] Cookie confirmed dead after 3 retries, clearing session");
     delete req.session.robloxCookie;
     delete req.session.robloxProfile;
     delete (req.session as any).robloxUserId;
     return true;
+  }
+  if (result === "unknown") {
+    console.log("[Session] Cookie verification inconclusive (network issue?), keeping session intact");
+  } else {
+    console.log("[Session] Cookie still valid after re-check, keeping session intact");
   }
   return false;
 }
