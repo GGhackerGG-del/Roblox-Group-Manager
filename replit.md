@@ -204,6 +204,15 @@ CREATE TABLE gamification_profiles (
 - Health check: `/api/healthz`
 - Telegram bot polling conflicts resolved: bot disabled in development mode
 
+### Self-hosted Deployment (VPS)
+- `deploy/` folder contains Docker-based self-hosting setup
+- `deploy/Dockerfile` — Node.js 20 + ffmpeg, builds frontend & backend
+- `deploy/docker-compose.yml` — app + PostgreSQL 16
+- `deploy/setup.sh` — one-command installer (Docker, secrets, build & run)
+- `deploy/DEPLOY.md` — full Russian-language deployment guide
+- `deploy/.env.example` — template for environment variables
+- Requires: VPS with 1GB RAM, Ubuntu 22.04+, SSH access
+
 ## Known Limitations / Pending Work
 - Roblox clothing upload uses `apis.roblox.com/assets/user-auth/v1/assets` (Open Cloud API) with multipart form. Price set + release via `itemconfiguration.roblox.com/v1/collectibles` with correct payload (targetId, creatorGroupId, publisherUserId, priceInRobux, agreedPublishingFee:10, publishingType:2, resaleRestriction:2, saleLocationConfiguration).
 - Upload tab supports Template Overlay: user can upload a template PNG that gets composited on top of each clothing image via HTML5 Canvas (585x559 px) before upload. Also has bulk name/type/price/description settings.

@@ -8,6 +8,9 @@ out-tsc
 .expo
 .expo-shared
 
+# env secrets
+deploy/.env
+
 # dependencies
 node_modules
 
