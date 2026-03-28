@@ -162,35 +162,55 @@ const QUEST_REWARD_MAP: Record<string, string> = {
 };
 
 async function seedIfEmpty() {
-  try {
-    const existingAcc = await db.select({ id: accessories.id }).from(accessories).limit(1);
-    if (existingAcc.length === 0) {
-      console.log("[Seed] Accessories table is empty, seeding...");
-      for (const item of SEED_ACCESSORIES) {
-        await db.insert(accessories).values({ ...item, isActive: true });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const existingAcc = await db.select({ id: accessories.id }).from(accessories).limit(1);
+      if (existingAcc.length === 0) {
+        console.log(`[Seed] Accessories table is empty, seeding (attempt ${attempt})...`);
+        let inserted = 0;
+        for (const item of SEED_ACCESSORIES) {
+          try {
+            await db.insert(accessories).values({ ...item, isActive: true });
+            inserted++;
+          } catch (e: any) {
+            console.error(`[Seed] Failed to insert accessory "${item.name}":`, e.message);
+          }
+        }
+        console.log(`[Seed] Inserted ${inserted}/${SEED_ACCESSORIES.length} accessories`);
+      } else {
+        console.log(`[Seed] Accessories table already has data (${existingAcc.length}+ rows)`);
       }
-      console.log(`[Seed] Inserted ${SEED_ACCESSORIES.length} accessories`);
-    }
 
-    const existingQ = await db.select({ id: quests.id }).from(quests).limit(1);
-    if (existingQ.length === 0) {
-      console.log("[Seed] Quests table is empty, seeding...");
-      const allAcc = await db.select().from(accessories);
-      const accByName = new Map(allAcc.map(a => [a.name, a.id]));
+      const existingQ = await db.select({ id: quests.id }).from(quests).limit(1);
+      if (existingQ.length === 0) {
+        console.log("[Seed] Quests table is empty, seeding...");
+        const allAcc = await db.select().from(accessories);
+        const accByName = new Map(allAcc.map(a => [a.name, a.id]));
+        let qInserted = 0;
 
-      for (const q of SEED_QUESTS) {
-        const rewardAccName = QUEST_REWARD_MAP[q.name];
-        const rewardId = rewardAccName ? accByName.get(rewardAccName) : undefined;
-        await db.insert(quests).values({
-          ...q,
-          rewardAccessoryId: rewardId || null,
-          isActive: true,
-        });
+        for (const q of SEED_QUESTS) {
+          try {
+            const rewardAccName = QUEST_REWARD_MAP[q.name];
+            const rewardId = rewardAccName ? accByName.get(rewardAccName) : undefined;
+            await db.insert(quests).values({
+              ...q,
+              rewardAccessoryId: rewardId || null,
+              isActive: true,
+            });
+            qInserted++;
+          } catch (e: any) {
+            console.error(`[Seed] Failed to insert quest "${q.name}":`, e.message);
+          }
+        }
+        console.log(`[Seed] Inserted ${qInserted}/${SEED_QUESTS.length} quests`);
+      } else {
+        console.log(`[Seed] Quests table already has data`);
       }
-      console.log(`[Seed] Inserted ${SEED_QUESTS.length} quests`);
+      return;
+    } catch (err: any) {
+      console.error(`[Seed] Attempt ${attempt} failed:`, err.message);
+      if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
     }
-  } catch (err) {
-    console.error("[Seed] Failed to seed:", err);
   }
 }
 seedIfEmpty();
