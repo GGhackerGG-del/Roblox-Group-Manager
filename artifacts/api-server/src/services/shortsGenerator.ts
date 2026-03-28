@@ -77,11 +77,11 @@ export function generateScript(input: {
   platform: string;
 }): GeneratedScript {
   const styleHooks: Record<string, string[]> = {
-    clean: ["Check this out 👀", "You NEED this.", "Simple. Clean. Fire. 🔥"],
-    hype: ["🔥 THIS IS INSANE 🔥", "BRO LOOK AT THIS!!", "NO WAY this exists!! 😱"],
-    minimal: ["Less is more.", "Details matter.", "Refined style. ◾"],
-    luxury: ["Premium quality only. 💎", "Exclusive drop.", "Elite taste. 👑"],
-    streetwear: ["Drip check ✅", "Street approved. 🧢", "The fit goes CRAZY 🔥"],
+    clean: ["Check this out", "You NEED this.", "Simple. Clean. Fire."],
+    hype: ["THIS IS INSANE", "BRO LOOK AT THIS!!", "NO WAY this exists!!"],
+    minimal: ["Less is more.", "Details matter.", "Refined style."],
+    luxury: ["Premium quality only.", "Exclusive drop.", "Elite taste."],
+    streetwear: ["Drip check", "Street approved.", "The fit goes CRAZY"],
   };
 
   const hooks = styleHooks[input.style] || styleHooks.clean;
@@ -99,7 +99,7 @@ export function generateScript(input: {
   if (input.price) subtitles.push(`Only ${input.price}`);
   subtitles.push("Available now");
 
-  const ctaLine = input.cta || "Get yours now! Link in bio 🔗";
+  const ctaLine = input.cta || "Get yours now! Link in bio";
 
   const platformTags: Record<string, string[]> = {
     tiktok: ["#roblox", "#robloxclothing", "#robloxfit", "#fyp", "#viral", "#robloxdrip"],
@@ -186,13 +186,53 @@ function esc(text: string): string {
     .replace(/\n/g, " ");
 }
 
-const STYLE_CONFIGS: Record<string, { textColor: string; accent: string; bgOpacity: string; fontSize: number; ctaFontSize: number }> = {
-  clean: { textColor: "white", accent: "0x5B88BDCC", bgOpacity: "0x00000088", fontSize: 50, ctaFontSize: 60 },
-  hype: { textColor: "yellow", accent: "0xFF4500CC", bgOpacity: "0x00000099", fontSize: 56, ctaFontSize: 66 },
-  minimal: { textColor: "white", accent: "0x333333CC", bgOpacity: "0x00000066", fontSize: 44, ctaFontSize: 54 },
-  luxury: { textColor: "white", accent: "0x8B6914CC", bgOpacity: "0x000000AA", fontSize: 48, ctaFontSize: 58 },
-  streetwear: { textColor: "white", accent: "0x00CC66CC", bgOpacity: "0x00000088", fontSize: 52, ctaFontSize: 62 },
+const STYLE_CONFIGS: Record<string, {
+  textColor: string;
+  accent: string;
+  bgOpacity: string;
+  fontSize: number;
+  ctaFontSize: number;
+  titleFontSize: number;
+  vignette: number;
+  contrast: number;
+  brightness: number;
+  saturation: number;
+}> = {
+  clean: {
+    textColor: "white", accent: "0x5B88BDCC", bgOpacity: "0x00000088",
+    fontSize: 56, ctaFontSize: 64, titleFontSize: 72,
+    vignette: 0.4, contrast: 1.05, brightness: 0.0, saturation: 1.1,
+  },
+  hype: {
+    textColor: "white", accent: "0xFF4500CC", bgOpacity: "0x00000099",
+    fontSize: 62, ctaFontSize: 70, titleFontSize: 78,
+    vignette: 0.5, contrast: 1.15, brightness: -0.02, saturation: 1.2,
+  },
+  minimal: {
+    textColor: "white", accent: "0x333333CC", bgOpacity: "0x00000066",
+    fontSize: 50, ctaFontSize: 58, titleFontSize: 66,
+    vignette: 0.3, contrast: 1.0, brightness: 0.0, saturation: 0.9,
+  },
+  luxury: {
+    textColor: "white", accent: "0x8B6914CC", bgOpacity: "0x000000AA",
+    fontSize: 54, ctaFontSize: 62, titleFontSize: 70,
+    vignette: 0.5, contrast: 1.1, brightness: -0.03, saturation: 0.85,
+  },
+  streetwear: {
+    textColor: "white", accent: "0x00CC66CC", bgOpacity: "0x00000088",
+    fontSize: 58, ctaFontSize: 66, titleFontSize: 74,
+    vignette: 0.45, contrast: 1.1, brightness: -0.01, saturation: 1.15,
+  },
 };
+
+const XFADE_TRANSITIONS = [
+  "pixelize", "diagtl", "diagtr", "fadeblack", "fadewhite",
+  "wipeleft", "wiperight", "wipeup", "wipedown",
+  "slideleft", "slideright", "slideup", "slidedown",
+  "circlecrop", "rectcrop", "horzopen", "vertopen",
+  "squeezeh", "squeezev", "hlslice", "hrslice",
+  "vuslice", "vdslice", "radial", "zoomin",
+];
 
 export async function startGeneration(input: ShortsJobInput, ownerId: string): Promise<string> {
   const id = `short_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -221,6 +261,10 @@ export async function startGeneration(input: ShortsJobInput, ownerId: string): P
   return id;
 }
 
+function getJob_(id: string): ShortsJob | undefined {
+  return jobs.get(id);
+}
+
 async function cleanupInputFiles(job: ShortsJob): Promise<void> {
   for (const f of job.inputFiles) {
     await fs.unlink(f).catch(() => {});
@@ -238,6 +282,173 @@ setInterval(() => {
     }
   }
 }, 10 * 60 * 1000);
+
+async function ffrun(args: string[], timeout = 120000): Promise<void> {
+  await execFileAsync("ffmpeg", args, { timeout, maxBuffer: 10 * 1024 * 1024 });
+}
+
+async function probeDuration(file: string): Promise<number> {
+  const { stdout } = await execFileAsync("ffprobe", [
+    "-v", "error", "-show_entries", "format=duration",
+    "-of", "default=noprint_wrappers=1:nokey=1", file,
+  ], { timeout: 10000 });
+  return parseFloat(stdout.trim()) || 0;
+}
+
+function pickTransition(index: number): string {
+  return XFADE_TRANSITIONS[index % XFADE_TRANSITIONS.length];
+}
+
+async function renderScene(opts: {
+  imgPath: string;
+  outPath: string;
+  text: string;
+  duration: number;
+  sceneIndex: number;
+  styleCfg: typeof STYLE_CONFIGS[string];
+  W: number;
+  H: number;
+  SW: number;
+  SH: number;
+  isIntro: boolean;
+}): Promise<void> {
+  const { imgPath, outPath, text, duration, sceneIndex, styleCfg, W, H, SW, SH, isIntro } = opts;
+  const fps = 30;
+  const frames = Math.ceil(duration * fps);
+  const escapedText = esc(text);
+
+  const zoomPatterns = [
+    `if(lte(1+0.04*on/${fps}/${duration},1.15),1+0.04*on/${fps}/${duration},1.15)`,
+    `if(gte(1.15-0.04*on/${fps}/${duration},1),1.15-0.04*on/${fps}/${duration},1)`,
+    `1.08+0.07*sin(on/${fps}*0.6)`,
+    `if(lte(1+0.06*on/${fps}/${duration},1.2),1+0.06*on/${fps}/${duration},1.2)`,
+  ];
+  const zoomExpr = zoomPatterns[sceneIndex % zoomPatterns.length];
+
+  const panPatterns = [
+    `(iw-ow)/2+40*sin(on/${fps}*0.35)`,
+    `(iw-ow)/2-30*sin(on/${fps}*0.5)`,
+    `(iw-ow)/2+20*cos(on/${fps}*0.25)`,
+    `(iw-ow)/2`,
+  ];
+  const panX = panPatterns[sceneIndex % panPatterns.length];
+  const panY = sceneIndex % 2 === 0 ? `(ih-oh)/2+15*sin(on/${fps}*0.25)` : `(ih-oh)/2`;
+
+  const vignetteAngle = styleCfg.vignette.toFixed(2);
+  const eq = `eq=contrast=${styleCfg.contrast}:brightness=${styleCfg.brightness}:saturation=${styleCfg.saturation}`;
+
+  const textY = isIntro ? "h*0.42" : "h*0.12";
+  const fontSize = isIntro ? styleCfg.titleFontSize : styleCfg.fontSize;
+  const borderW = isIntro ? 5 : 4;
+
+  const textAppear = 0.15;
+  const textEnd = duration - 0.2;
+
+  let filterParts: string[];
+
+  if (isIntro) {
+    filterParts = [
+      `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
+      `[scaled]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
+      `[zp]setsar=1,format=yuv420p,${eq},vignette=angle=${vignetteAngle},` +
+      `fade=t=in:st=0:d=0.3,fade=t=out:st=${(duration - 0.4).toFixed(2)}:d=0.4,` +
+      `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.25:t=fill,` +
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize}:fontcolor=${styleCfg.textColor}:` +
+      `borderw=${borderW}:bordercolor=black:x=(w-text_w)/2:y=${textY}:` +
+      `enable='between(t,${textAppear},${textEnd})'`,
+    ];
+  } else {
+    filterParts = [
+      `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
+      `[scaled]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
+      `[zp]setsar=1,format=yuv420p,${eq},vignette=angle=${vignetteAngle},` +
+      `fade=t=in:st=0:d=0.2,fade=t=out:st=${(duration - 0.35).toFixed(2)}:d=0.35,` +
+      `drawtext=${fontFileParam}text='${escapedText}':fontsize=${fontSize}:fontcolor=${styleCfg.textColor}:` +
+      `borderw=${borderW}:bordercolor=black:x=60:y=${textY}:` +
+      `enable='between(t,${textAppear},${textEnd})'`,
+    ];
+  }
+
+  const filter = filterParts.join(";");
+
+  await ffrun([
+    "-y", "-loop", "1", "-i", imgPath,
+    "-filter_complex", filter,
+    "-t", String(duration),
+    "-c:v", "libx264", "-preset", "fast", "-crf", "19",
+    "-pix_fmt", "yuv420p", "-r", String(fps),
+    "-threads", "2",
+    outPath,
+  ]);
+}
+
+async function renderCtaScene(opts: {
+  imgPath: string;
+  outPath: string;
+  productName: string;
+  price: string;
+  ctaLine: string;
+  duration: number;
+  styleCfg: typeof STYLE_CONFIGS[string];
+  W: number;
+  H: number;
+  SW: number;
+  SH: number;
+}): Promise<void> {
+  const { imgPath, outPath, productName, price, ctaLine, duration, styleCfg, W, H, SW, SH } = opts;
+  const fps = 30;
+  const frames = Math.ceil(duration * fps);
+  const escapedProduct = esc(productName);
+  const escapedPrice = price ? esc(price) : "";
+  const escapedCta = esc(ctaLine);
+
+  const eq = `eq=contrast=${styleCfg.contrast}:brightness=${styleCfg.brightness - 0.05}:saturation=${styleCfg.saturation * 0.8}`;
+
+  let filterParts = [
+    `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled]`,
+    `[scaled]zoompan=z='1.06':x='(iw-ow)/2':y='(ih-oh)/2':d=${frames}:s=${W}x${H}:fps=${fps}[zp]`,
+    `[zp]setsar=1,format=yuv420p,${eq},vignette=angle=0.5,gblur=sigma=3,` +
+    `fade=t=in:st=0:d=0.4,` +
+    `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.5:t=fill,` +
+    `drawbox=x=iw*0.08:y=ih*0.34:w=iw*0.84:h=ih*0.32:color=0x000000@0.6:t=fill,` +
+    `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize}:fontcolor=${styleCfg.textColor}:` +
+    `borderw=5:bordercolor=black:x=(w-text_w)/2:y=h*0.38`,
+  ];
+
+  let lastFilter = filterParts[filterParts.length - 1];
+
+  if (escapedPrice) {
+    lastFilter += `,drawtext=${fontFileParam}text='${escapedPrice}':fontsize=50:fontcolor=yellow:` +
+      `borderw=3:bordercolor=black:x=(w-text_w)/2:y=h*0.47`;
+  }
+
+  lastFilter += `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=46:fontcolor=${styleCfg.textColor}:` +
+    `borderw=3:bordercolor=black:x=(w-text_w)/2:y=h*0.56`;
+
+  filterParts[filterParts.length - 1] = lastFilter;
+
+  const filter = filterParts.join(";");
+
+  await ffrun([
+    "-y", "-loop", "1", "-i", imgPath,
+    "-filter_complex", filter,
+    "-t", String(duration),
+    "-c:v", "libx264", "-preset", "fast", "-crf", "19",
+    "-pix_fmt", "yuv420p", "-r", String(fps),
+    "-threads", "2",
+    outPath,
+  ]);
+}
+
+async function createFlashFrame(outPath: string, W: number, H: number): Promise<void> {
+  await ffrun([
+    "-y", "-f", "lavfi", "-i", `color=c=white:s=${W}x${H}:d=0.08:r=30`,
+    "-vf", "format=yuv420p,fade=t=out:st=0:d=0.08",
+    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+    "-pix_fmt", "yuv420p",
+    outPath,
+  ], 15000);
+}
 
 async function processJob(id: string, input: ShortsJobInput): Promise<void> {
   const job = jobs.get(id)!;
@@ -260,132 +471,68 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
     if (imageCount === 0) throw new Error("No images provided");
 
     const styleCfg = STYLE_CONFIGS[input.style] || STYLE_CONFIGS.clean;
-    const transitionDur = 0.5;
-    const rawScene = totalDuration / (imageCount + 1);
-    const sceneDur = rawScene + transitionDur;
 
-    job.progress = 10;
+    const xfadeDur = 0.6;
+    const totalScenes = imageCount + 1;
+    const sceneBaseDur = totalDuration / totalScenes + xfadeDur * 0.5;
 
-    const sceneFiles: string[] = [];
+    job.progress = 8;
+
     const allTexts = [
       input.script.hook,
       ...input.script.subtitles.slice(0, imageCount - 1),
     ];
     while (allTexts.length < imageCount) allTexts.push(input.productName);
 
+    const sceneFiles: string[] = [];
+
     for (let i = 0; i < imageCount; i++) {
       const imgPath = input.images[i];
       const sceneFile = path.join(tempDir, `scene_${i}.mp4`);
       const text = allTexts[i];
 
-      const fps = 25;
-      const zoomPatterns = [
-        `if(lte(1+0.03*on/${fps}/${sceneDur},1.12),1+0.03*on/${fps}/${sceneDur},1.12)`,
-        `if(gte(1.12-0.03*on/${fps}/${sceneDur},1),1.12-0.03*on/${fps}/${sceneDur},1)`,
-        `1.06+0.06*sin(on/${fps}*0.8)`,
-        `if(lte(1+0.05*on/${fps}/${sceneDur},1.2),1+0.05*on/${fps}/${sceneDur},1.2)`,
-      ];
-      const zoomExpr = zoomPatterns[i % zoomPatterns.length];
-
-      const panPatterns = [
-        `(iw-ow)/2+30*sin(on/${fps}*0.4)`,
-        `(iw-ow)/2-20*sin(on/${fps}*0.6)`,
-        `(iw-ow)/2`,
-        `(iw-ow)/2+15*cos(on/${fps}*0.3)`,
-      ];
-      const panX = panPatterns[i % panPatterns.length];
-
-      const panY = i % 2 === 0 ? `(ih-oh)/2+10*sin(on/${fps}*0.3)` : `(ih-oh)/2`;
-
-      const escapedText = esc(text);
-      const frames = Math.ceil(sceneDur * fps);
-
-      const fadeIn = `fade=t=in:st=0:d=0.4:enable='between(t,0,${sceneDur})'`;
-      const fadeOut = `fade=t=out:st=${sceneDur - transitionDur}:d=${transitionDur}`;
-
-      const filter = [
-        `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled];` +
-        `[scaled]zoompan=z='${zoomExpr}':x='${panX}':y='${panY}':d=${frames}:s=${W}x${H}:fps=${fps}[zp];` +
-        `[zp]setsar=1,format=yuv420p,` +
-        `${fadeIn},${fadeOut},` +
-        `drawbox=x=0:y=ih*0.73:w=iw:h=ih*0.14:color=${styleCfg.bgOpacity}:t=fill:` +
-        `enable='between(t,0.3,${sceneDur - 0.3})',` +
-        `drawtext=${fontFileParam}text='${escapedText}':fontsize=${styleCfg.fontSize}:fontcolor=${styleCfg.textColor}:` +
-        `borderw=3:bordercolor=black:x=(w-text_w)/2:y=h*0.78:` +
-        `enable='between(t,0.4,${sceneDur - 0.3})'`,
-      ].join("");
-
-      await execFileAsync("ffmpeg", [
-        "-y", "-loop", "1", "-i", imgPath,
-        "-filter_complex", filter,
-        "-t", String(sceneDur),
-        "-c:v", "libx264", "-preset", "fast", "-crf", "22",
-        "-pix_fmt", "yuv420p",
-        "-threads", "2",
-        sceneFile,
-      ], { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
+      await renderScene({
+        imgPath, outPath: sceneFile, text,
+        duration: sceneBaseDur,
+        sceneIndex: i, styleCfg, W, H, SW, SH,
+        isIntro: i === 0,
+      });
 
       sceneFiles.push(sceneFile);
-      job.progress = 10 + Math.floor((i + 1) / (imageCount + 1) * 55);
+      job.progress = 8 + Math.floor((i + 1) / totalScenes * 50);
     }
 
     const ctaScene = path.join(tempDir, "scene_cta.mp4");
-    const ctaDur = Math.max(rawScene + transitionDur, 3.5);
-    const escapedCta = esc(input.script.ctaLine);
-    const escapedProduct = esc(input.productName);
-    const escapedPrice = input.price ? esc(input.price) : "";
-    const ctaFrames = Math.ceil(ctaDur * 25);
+    const ctaDur = Math.max(sceneBaseDur, 3.5);
 
-    const bgImg = input.images[input.images.length > 1 ? input.images.length - 1 : 0];
-    let ctaFilter = [
-      `[0:v]scale=${SW}:${SH}:force_original_aspect_ratio=increase,crop=${SW}:${SH}[scaled];` +
-      `[scaled]zoompan=z='1.08':x='(iw-ow)/2':y='(ih-oh)/2':d=${ctaFrames}:s=${W}x${H}:fps=25[zp];` +
-      `[zp]setsar=1,format=yuv420p,` +
-      `fade=t=in:st=0:d=0.4,` +
-      `drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.45:t=fill,` +
-      `drawbox=x=iw*0.1:y=ih*0.36:w=iw*0.8:h=ih*0.28:color=${styleCfg.bgOpacity}:t=fill,` +
-      `drawtext=${fontFileParam}text='${escapedProduct}':fontsize=${styleCfg.ctaFontSize}:fontcolor=${styleCfg.textColor}:` +
-      `borderw=4:bordercolor=black:x=(w-text_w)/2:y=h*0.40`,
-    ].join("");
-
-    if (escapedPrice) {
-      ctaFilter += `,drawtext=${fontFileParam}text='${escapedPrice}':fontsize=46:fontcolor=yellow:` +
-        `borderw=3:bordercolor=black:x=(w-text_w)/2:y=h*0.48`;
-    }
-
-    ctaFilter += `,drawtext=${fontFileParam}text='${escapedCta}':fontsize=42:fontcolor=${styleCfg.textColor}:` +
-      `borderw=2:bordercolor=black:x=(w-text_w)/2:y=h*0.55`;
-
-    await execFileAsync("ffmpeg", [
-      "-y", "-loop", "1", "-i", bgImg,
-      "-filter_complex", ctaFilter,
-      "-t", String(ctaDur),
-      "-c:v", "libx264", "-preset", "fast", "-crf", "22",
-      "-pix_fmt", "yuv420p",
-      "-threads", "2",
-      ctaScene,
-    ], { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
+    await renderCtaScene({
+      imgPath: input.images[input.images.length > 1 ? input.images.length - 1 : 0],
+      outPath: ctaScene,
+      productName: input.productName,
+      price: input.price,
+      ctaLine: input.script.ctaLine,
+      duration: ctaDur,
+      styleCfg, W, H, SW, SH,
+    });
 
     sceneFiles.push(ctaScene);
-    job.progress = 70;
+    job.progress = 62;
 
     if (input.watermarkText) {
       for (let i = 0; i < sceneFiles.length; i++) {
         const src = sceneFiles[i];
         const dst = path.join(tempDir, `wm_${i}.mp4`);
         const wmText = esc(input.watermarkText);
-        await execFileAsync("ffmpeg", [
+        await ffrun([
           "-y", "-i", src,
-          "-vf", `drawtext=${fontFileParam}text='${wmText}':fontsize=22:fontcolor=white@0.35:x=w-text_w-24:y=24`,
-          "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+          "-vf", `drawtext=${fontFileParam}text='${wmText}':fontsize=24:fontcolor=white@0.3:x=w-text_w-30:y=30`,
+          "-c:v", "libx264", "-preset", "fast", "-crf", "19",
           "-pix_fmt", "yuv420p",
           dst,
-        ], { timeout: 30000 });
+        ], 30000);
         sceneFiles[i] = dst;
       }
     }
-
-    job.progress = 78;
 
     if (input.logoPath) {
       try {
@@ -393,92 +540,109 @@ async function processJob(id: string, input: ShortsJobInput): Promise<void> {
         for (let i = 0; i < sceneFiles.length; i++) {
           const src = sceneFiles[i];
           const dst = path.join(tempDir, `logo_${i}.mp4`);
-          await execFileAsync("ffmpeg", [
+          await ffrun([
             "-y", "-i", src, "-i", input.logoPath,
-            "-filter_complex", `[1:v]scale=100:100:force_original_aspect_ratio=decrease,format=yuva420p,colorchannelmixer=aa=0.6[logo];[0:v][logo]overlay=40:40`,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+            "-filter_complex",
+            `[1:v]scale=100:100:force_original_aspect_ratio=decrease,format=yuva420p,colorchannelmixer=aa=0.6[logo];[0:v][logo]overlay=40:40`,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "19",
             "-pix_fmt", "yuv420p",
             dst,
-          ], { timeout: 30000 });
+          ], 30000);
           sceneFiles[i] = dst;
         }
       } catch {}
     }
 
-    job.progress = 85;
+    job.progress = 70;
 
-    const crossfadeDur = Math.min(transitionDur, 0.5);
     let finalOutput: string;
 
     if (sceneFiles.length >= 2) {
       let current = sceneFiles[0];
+
       for (let i = 1; i < sceneFiles.length; i++) {
         const next = sceneFiles[i];
         const dst = path.join(tempDir, `xfade_${i}.mp4`);
-        const offsetMs = (sceneDur - crossfadeDur) * (i);
-        let offset = sceneDur - crossfadeDur;
-        if (i > 1) {
+
+        let offset: number;
+        try {
+          const dur = await probeDuration(current);
+          offset = Math.max(0.1, dur - xfadeDur);
+        } catch {
+          offset = sceneBaseDur - xfadeDur;
+        }
+
+        const transition = pickTransition(i);
+
+        try {
+          await ffrun([
+            "-y", "-i", current, "-i", next,
+            "-filter_complex",
+            `[0:v][1:v]xfade=transition=${transition}:duration=${xfadeDur}:offset=${offset.toFixed(2)},format=yuv420p`,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "19",
+            "-pix_fmt", "yuv420p",
+            dst,
+          ], 120000);
+          current = dst;
+        } catch (xfadeErr: any) {
+          console.error(`[Shorts] xfade ${transition} failed at scene ${i}, trying fadeblack:`, xfadeErr.message?.substring(0, 200));
           try {
-            const probe = await execFileAsync("ffprobe", [
-              "-v", "error", "-show_entries", "format=duration",
-              "-of", "default=noprint_wrappers=1:nokey=1", current,
-            ], { timeout: 10000 });
-            offset = Math.max(0, parseFloat(probe.stdout.trim()) - crossfadeDur);
+            await ffrun([
+              "-y", "-i", current, "-i", next,
+              "-filter_complex",
+              `[0:v][1:v]xfade=transition=fadeblack:duration=${xfadeDur}:offset=${offset.toFixed(2)},format=yuv420p`,
+              "-c:v", "libx264", "-preset", "fast", "-crf", "19",
+              "-pix_fmt", "yuv420p",
+              dst,
+            ], 120000);
+            current = dst;
           } catch {
-            offset = sceneDur * i - crossfadeDur * i;
+            console.error(`[Shorts] All xfade failed at scene ${i}, falling back to concat`);
+            const concatList = path.join(tempDir, "concat.txt");
+            const concatContent = sceneFiles.map((f) => `file '${f}'`).join("\n");
+            await fs.writeFile(concatList, concatContent);
+            const concatOut = path.join(tempDir, "concat_fallback.mp4");
+            await ffrun([
+              "-y", "-f", "concat", "-safe", "0", "-i", concatList,
+              "-c:v", "libx264", "-preset", "fast", "-crf", "19",
+              "-pix_fmt", "yuv420p",
+              concatOut,
+            ], 120000);
+            current = concatOut;
+            break;
           }
         }
 
-        try {
-          await execFileAsync("ffmpeg", [
-            "-y", "-i", current, "-i", next,
-            "-filter_complex",
-            `[0:v][1:v]xfade=transition=fade:duration=${crossfadeDur}:offset=${offset.toFixed(2)},format=yuv420p`,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "22",
-            "-pix_fmt", "yuv420p",
-            dst,
-          ], { timeout: 90000 });
-          current = dst;
-        } catch (xfadeErr: any) {
-          console.error(`[Shorts] xfade failed at scene ${i}, falling back to concat:`, xfadeErr.message);
-          const concatList = path.join(tempDir, "concat.txt");
-          const concatContent = sceneFiles.map((f) => `file '${f}'`).join("\n");
-          await fs.writeFile(concatList, concatContent);
-          const concatOut = path.join(tempDir, "concat_fallback.mp4");
-          await execFileAsync("ffmpeg", [
-            "-y", "-f", "concat", "-safe", "0", "-i", concatList,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "22",
-            "-pix_fmt", "yuv420p",
-            concatOut,
-          ], { timeout: 90000 });
-          current = concatOut;
-          break;
-        }
+        job.progress = 70 + Math.floor((i / (sceneFiles.length - 1)) * 18);
       }
+
       finalOutput = current;
     } else {
       finalOutput = sceneFiles[0];
     }
 
-    job.progress = 92;
+    job.progress = 90;
 
     if (input.musicPath) {
       try {
         await fs.access(input.musicPath);
         const withMusic = path.join(tempDir, "with_music.mp4");
-        await execFileAsync("ffmpeg", [
+        const vidDur = await probeDuration(finalOutput);
+        await ffrun([
           "-y", "-i", finalOutput, "-i", input.musicPath,
           "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
           "-map", "0:v:0", "-map", "1:a:0",
           "-shortest",
-          "-af", `afade=t=in:st=0:d=1,afade=t=out:st=${totalDuration - 1.5}:d=1.5`,
+          "-af", `afade=t=in:st=0:d=0.8,afade=t=out:st=${Math.max(0, vidDur - 1.5)}:d=1.5`,
           withMusic,
-        ], { timeout: 60000 });
+        ], 60000);
         finalOutput = withMusic;
       } catch (musicErr: any) {
         console.error("[Shorts] Music overlay failed:", musicErr.message);
       }
     }
+
+    job.progress = 95;
 
     await fs.copyFile(finalOutput, outputPath);
 
