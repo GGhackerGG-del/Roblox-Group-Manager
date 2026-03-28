@@ -143,6 +143,38 @@ export const AVATAR_FRAMES: Record<string, FrameDefinition> = {
     },
     className: "shadow-[0_0_16px_rgba(168,224,99,0.4)] animate-pulse",
   },
+  obsidian: {
+    id: "obsidian",
+    style: {
+      background: "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460, #1a1a2e)",
+      padding: "3px",
+    },
+    className: "shadow-[0_0_18px_rgba(15,52,96,0.5)]",
+  },
+  crystal: {
+    id: "crystal",
+    style: {
+      background: "linear-gradient(135deg, #a8edea, #fed6e3, #a8edea, #d4fc79)",
+      padding: "4px",
+    },
+    className: "shadow-[0_0_22px_rgba(168,237,234,0.6)] animate-pulse",
+  },
+  sunset_glow: {
+    id: "sunset_glow",
+    style: {
+      background: "linear-gradient(135deg, #fa709a, #fee140, #fa709a)",
+      padding: "3px",
+    },
+    className: "shadow-[0_0_14px_rgba(250,112,154,0.3)]",
+  },
+  toxic_green: {
+    id: "toxic_green",
+    style: {
+      background: "linear-gradient(135deg, #11998e, #38ef7d, #11998e)",
+      padding: "3px",
+    },
+    className: "shadow-[0_0_16px_rgba(56,239,125,0.4)]",
+  },
 };
 
 export const FRAME_NAMES: Record<string, Record<string, string>> = {
@@ -163,6 +195,10 @@ export const FRAME_NAMES: Record<string, Record<string, string>> = {
   sunset: { en: "Sunset Vibes", ru: "Закатные вибрации", es: "Vibras del atardecer" },
   diamond: { en: "Diamond Prestige", ru: "Алмазный престиж", es: "Prestigio diamante" },
   toxic: { en: "Toxic Glow", ru: "Токсичное сияние", es: "Brillo tóxico" },
+  obsidian: { en: "Obsidian Shadow", ru: "Обсидиановая тень", es: "Sombra de obsidiana" },
+  crystal: { en: "Crystal Aura", ru: "Кристальная аура", es: "Aura de cristal" },
+  sunset_glow: { en: "Sunset Glow", ru: "Закатное сияние", es: "Brillo del atardecer" },
+  toxic_green: { en: "Toxic Green", ru: "Токсичный зелёный", es: "Verde tóxico" },
 };
 
 export const FRAME_RARITIES: Record<string, string> = {
@@ -183,6 +219,10 @@ export const FRAME_RARITIES: Record<string, string> = {
   sunset: "rare",
   diamond: "legendary",
   toxic: "epic",
+  obsidian: "epic",
+  crystal: "legendary",
+  sunset_glow: "common",
+  toxic_green: "rare",
 };
 
 interface AvatarWithFrameProps {
