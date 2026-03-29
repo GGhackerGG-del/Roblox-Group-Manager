@@ -88,6 +88,8 @@ async function solveChefChallenge(
 }
 
 let remoteSessionCookie: string | null = null;
+let authInFlight: Promise<void> | null = null;
+let authResolve: (() => void) | null = null;
 
 function initCookieStore() {
   const saved = getStoreValue("remote_session_cookie");
@@ -100,6 +102,24 @@ function initCookieStore() {
 function persistCookie(cookie: string) {
   remoteSessionCookie = cookie;
   setStoreValue("remote_session_cookie", cookie);
+}
+
+function beginAuthLock(): void {
+  if (!authInFlight) {
+    authInFlight = new Promise<void>(resolve => { authResolve = resolve; });
+  }
+}
+
+function releaseAuthLock(): void {
+  if (authResolve) { authResolve(); }
+  authInFlight = null;
+  authResolve = null;
+}
+
+async function waitForAuth(): Promise<void> {
+  if (authInFlight) {
+    await Promise.race([authInFlight, new Promise<void>(r => setTimeout(r, 15000))]);
+  }
 }
 
 async function fetchRobloxCookieFromRemote(authHeaders: Record<string, string>): Promise<string | null> {
@@ -522,6 +542,31 @@ async function proxyToRemote(
       }
     }
 
+    if (
+      (response.status === 401 || response.status === 502) &&
+      remoteSessionCookie &&
+      headers["Cookie"] !== remoteSessionCookie &&
+      req.method === "GET"
+    ) {
+      console.log("[Proxy] Session mismatch detected, retrying with updated cookie:", remotePath);
+      headers["Cookie"] = remoteSessionCookie;
+      const retryResp = await fetchFn(url, {
+        method: req.method,
+        headers,
+        redirect: "manual",
+      });
+      const retryType = retryResp.headers.get("content-type") || "";
+      const retryStatus = retryResp.status;
+      if (retryType.includes("application/json")) {
+        const data = await retryResp.json();
+        res.status(retryStatus).json(data);
+      } else {
+        const text = await retryResp.text();
+        res.status(retryStatus).type(retryType.split(";")[0] || "text/plain").send(text);
+      }
+      return;
+    }
+
     const respContentType = response.headers.get("content-type") || "";
     const status = response.status;
 
@@ -606,9 +651,20 @@ export function createApp(): express.Express {
     handleDirectPayout(req, res);
   });
 
-  app.use("/api", (req, res) => {
+  app.use("/api", async (req, res) => {
     const remotePath = `/api${req.url}`;
-    proxyToRemote(remotePath, req, res);
+    const isAuthRequest = remotePath === "/api/roblox/auth" && req.method === "POST";
+    if (isAuthRequest) {
+      beginAuthLock();
+      try {
+        await proxyToRemote(remotePath, req, res);
+      } finally {
+        releaseAuthLock();
+      }
+    } else {
+      await waitForAuth();
+      await proxyToRemote(remotePath, req, res);
+    }
   });
 
   const uploadsPath = path.join(__dirname, "..", "uploads");
