@@ -212,7 +212,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
           <NavItem href="/gamification" icon={<Trophy className="w-4 h-4" />} label={t("nav.gamification")} isActive={location === "/gamification"} />
           <NavItem href="/integrations" icon={<Plug className="w-4 h-4" />} label={t("nav.integrations")} isActive={location === "/integrations"} />
           <NavItem href="/testing" icon={<FlaskConical className="w-4 h-4" />} label={t("nav.testing")} isActive={location === "/testing"} />
-          <NavItem href="/shorts" icon={<Film className="w-4 h-4" />} label="Shorts" isActive={location === "/shorts"} badge="NEW" />
+          <NavItem href="/shorts" icon={<Film className="w-4 h-4" />} label="Shorts" isActive={location === "/shorts"} />
         </div>
 
         <div className="space-y-1">
