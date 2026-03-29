@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 export type Lang = "ru" | "en" | "es";
 
@@ -4646,6 +4646,8 @@ const LanguageContext = createContext<LanguageContextValue>({
   t: (key) => key,
 });
 
+const _elApi = (window as any).electronAPI;
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => {
     const saved = localStorage.getItem("limitedink_lang");
@@ -4653,9 +4655,23 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     return "ru";
   });
 
+  useEffect(() => {
+    (async () => {
+      const local = localStorage.getItem("limitedink_lang");
+      if (!local && _elApi?.getSetting) {
+        const stored = await _elApi.getSetting("lang") as string | undefined;
+        if (stored === "en" || stored === "es" || stored === "ru") {
+          setLangState(stored);
+          localStorage.setItem("limitedink_lang", stored);
+        }
+      }
+    })();
+  }, []);
+
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
     localStorage.setItem("limitedink_lang", l);
+    _elApi?.storeSetting?.("lang", l);
   }, []);
 
   const t = useCallback((key: string) => {

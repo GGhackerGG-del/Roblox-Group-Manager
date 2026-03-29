@@ -264,6 +264,26 @@ ipcMain.handle("get-desktop-sources", async (event) => {
   }
 });
 
+ipcMain.on("store-setting", (event, data: { key: string; value: string }) => {
+  const senderUrl = event.senderFrame?.url || "";
+  if (!senderUrl.startsWith("http://localhost:") && !senderUrl.startsWith("http://127.0.0.1:")) return;
+  if (typeof data?.key !== "string" || typeof data?.value !== "string") return;
+  try {
+    const { setStoreValue } = require("./db/index.js");
+    setStoreValue(`setting_${data.key}`, data.value);
+  } catch {}
+});
+
+ipcMain.handle("get-setting", (event, key: string) => {
+  const senderUrl = event.senderFrame?.url || "";
+  if (!senderUrl.startsWith("http://localhost:") && !senderUrl.startsWith("http://127.0.0.1:")) return undefined;
+  if (typeof key !== "string") return undefined;
+  try {
+    const { getStoreValue } = require("./db/index.js");
+    return getStoreValue(`setting_${key}`);
+  } catch { return undefined; }
+});
+
 ipcMain.on("focus-window", (event) => {
   const senderUrl = event.senderFrame?.url || "";
   if (!senderUrl.startsWith("http://localhost:") && !senderUrl.startsWith("http://127.0.0.1:")) return;

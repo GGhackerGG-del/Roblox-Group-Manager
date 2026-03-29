@@ -49,6 +49,8 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 type Theme = "light" | "dark" | "system";
 
+const _eApi = (window as any).electronAPI;
+
 function useTheme() {
   const [theme, setThemeState] = useState<Theme>(() => {
     return (localStorage.getItem("limitedink_theme") as Theme) || "system";
@@ -66,11 +68,24 @@ function useTheme() {
   const setTheme = (t: Theme) => {
     setThemeState(t);
     localStorage.setItem("limitedink_theme", t);
+    _eApi?.storeSetting?.("theme", t);
     applyTheme(t);
   };
 
   useEffect(() => {
-    applyTheme(theme);
+    (async () => {
+      const local = localStorage.getItem("limitedink_theme") as Theme | null;
+      if (!local && _eApi?.getSetting) {
+        const stored = await _eApi.getSetting("theme") as Theme | undefined;
+        if (stored) {
+          setThemeState(stored);
+          localStorage.setItem("limitedink_theme", stored);
+          applyTheme(stored);
+          return;
+        }
+      }
+      applyTheme(theme);
+    })();
   }, []);
 
   return { theme, setTheme };
@@ -87,6 +102,38 @@ export default function Settings() {
   const [notifSound, setNotifSound] = useState(() => localStorage.getItem("limitedink_notif_sound") !== "false");
   const [compactMode, setCompactMode] = useState(() => localStorage.getItem("limitedink_compact") === "true");
   const [autoRefreshSales, setAutoRefreshSales] = useState(() => localStorage.getItem("limitedink_auto_refresh") === "true");
+
+  useEffect(() => {
+    (async () => {
+      if (!_eApi?.getSetting) return;
+      const keys = ["notif_sound", "compact", "auto_refresh", "mic_id", "speaker_id"] as const;
+      const map: Record<string, string | undefined> = {};
+      for (const k of keys) {
+        const v = await _eApi.getSetting(k) as string | undefined;
+        if (v !== undefined) map[k] = v;
+      }
+      if (!localStorage.getItem("limitedink_notif_sound") && map.notif_sound !== undefined) {
+        localStorage.setItem("limitedink_notif_sound", map.notif_sound);
+        setNotifSound(map.notif_sound !== "false");
+      }
+      if (!localStorage.getItem("limitedink_compact") && map.compact !== undefined) {
+        localStorage.setItem("limitedink_compact", map.compact);
+        setCompactMode(map.compact === "true");
+      }
+      if (!localStorage.getItem("limitedink_auto_refresh") && map.auto_refresh !== undefined) {
+        localStorage.setItem("limitedink_auto_refresh", map.auto_refresh);
+        setAutoRefreshSales(map.auto_refresh === "true");
+      }
+      if (!localStorage.getItem("limitedink_mic_id") && map.mic_id) {
+        localStorage.setItem("limitedink_mic_id", map.mic_id);
+        setSelectedMic(map.mic_id);
+      }
+      if (!localStorage.getItem("limitedink_speaker_id") && map.speaker_id) {
+        localStorage.setItem("limitedink_speaker_id", map.speaker_id);
+        setSelectedSpeaker(map.speaker_id);
+      }
+    })();
+  }, []);
 
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedMic, setSelectedMic] = useState(() => localStorage.getItem("limitedink_mic_id") || "");
@@ -151,12 +198,14 @@ export default function Settings() {
   const saveMicSelection = (deviceId: string) => {
     setSelectedMic(deviceId);
     localStorage.setItem("limitedink_mic_id", deviceId);
+    _eApi?.storeSetting?.("mic_id", deviceId);
     toast({ title: t("settings.audio.saved") });
   };
 
   const saveSpeakerSelection = (deviceId: string) => {
     setSelectedSpeaker(deviceId);
     localStorage.setItem("limitedink_speaker_id", deviceId);
+    _eApi?.storeSetting?.("speaker_id", deviceId);
     toast({ title: t("settings.audio.saved") });
   };
 
@@ -481,6 +530,7 @@ export default function Settings() {
                         onCheckedChange={v => {
                           setCompactMode(v);
                           localStorage.setItem("limitedink_compact", String(v));
+                          _eApi?.storeSetting?.("compact", String(v));
                         }}
                       />
                     </div>
@@ -494,6 +544,7 @@ export default function Settings() {
                         onCheckedChange={v => {
                           setAutoRefreshSales(v);
                           localStorage.setItem("limitedink_auto_refresh", String(v));
+                          _eApi?.storeSetting?.("auto_refresh", String(v));
                         }}
                       />
                     </div>
@@ -552,6 +603,7 @@ export default function Settings() {
                         onCheckedChange={v => {
                           setNotifSound(v);
                           localStorage.setItem("limitedink_notif_sound", String(v));
+                          _eApi?.storeSetting?.("notif_sound", String(v));
                           if (v) playNotifSound();
                         }}
                       />

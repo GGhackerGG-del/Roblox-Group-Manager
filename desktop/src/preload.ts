@@ -18,4 +18,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   isWindowFocused: () => {
     return ipcRenderer.invoke("is-window-focused");
   },
+  storeSetting: (key: string, value: string) => {
+    ipcRenderer.send("store-setting", { key, value });
+  },
+  getSetting: (key: string): Promise<string | undefined> => {
+    return ipcRenderer.invoke("get-setting", key);
+  },
 });

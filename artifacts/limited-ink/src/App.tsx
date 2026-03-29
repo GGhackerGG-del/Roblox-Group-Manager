@@ -33,6 +33,24 @@ import Testing from "@/pages/Testing";
 import ShortsGenerator from "@/pages/ShortsGenerator";
 
 
+(function initTheme() {
+  const t = localStorage.getItem("limitedink_theme");
+  const dark = t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  if (dark) document.documentElement.classList.add("dark");
+  else document.documentElement.classList.remove("dark");
+  const eApi = (window as any).electronAPI;
+  if (!t && eApi?.getSetting) {
+    eApi.getSetting("theme").then((stored: string | undefined) => {
+      if (stored) {
+        localStorage.setItem("limitedink_theme", stored);
+        const isDark = stored === "dark" || (stored === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (isDark) document.documentElement.classList.add("dark");
+        else document.documentElement.classList.remove("dark");
+      }
+    });
+  }
+})();
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
