@@ -96,6 +96,7 @@ function AutoPostTab({ groups }: { groups: any[] }) {
   const check = async () => {
     setChecking(true);
     try {
+      await apiFetch("/api/social-media/auto-post/config", { method: "POST", body: JSON.stringify(config) });
       const { posted, newItemsFound, message } = await apiFetch<any>("/api/social-media/auto-post/check", { method: "POST" });
       if (posted > 0) {
         toast({ title: `${t("sm.published")} ${posted} ${t("sm.publishedItems")}` });
