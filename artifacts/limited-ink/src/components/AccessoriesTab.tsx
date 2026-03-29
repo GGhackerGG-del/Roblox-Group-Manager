@@ -253,7 +253,7 @@ export default function AccessoriesTab() {
   const loadQuests = useCallback(async () => {
     setQuestsLoading(true);
     try {
-      await apiFetch("/api/accessories/quests/refresh", { method: "POST" });
+      await apiFetch("/api/accessories/quests/refresh", { method: "POST" }).catch(() => {});
       const data = await apiFetch<{ quests: any[] }>("/api/accessories/quests");
       setQuestsList(data.quests || []);
     } catch { }

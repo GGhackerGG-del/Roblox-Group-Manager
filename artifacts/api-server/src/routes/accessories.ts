@@ -1194,7 +1194,7 @@ router.post("/accessories/quests/refresh", async (req, res): Promise<void> => {
       const quest = await db.select().from(quests).where(eq(quests.id, uq.questId)).limit(1);
       if (quest.length === 0) continue;
 
-      const currentProgress = await computeQuestProgress(user[0].id, quest[0].type);
+      const currentProgress = await computeQuestProgress(user.id, quest[0].type);
       const capped = Math.min(currentProgress, quest[0].target);
 
       if (capped !== uq.progress) {
