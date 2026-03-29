@@ -531,6 +531,8 @@ export default function Settings() {
                           setCompactMode(v);
                           localStorage.setItem("limitedink_compact", String(v));
                           _eApi?.storeSetting?.("compact", String(v));
+                          if (v) document.documentElement.classList.add("compact");
+                          else document.documentElement.classList.remove("compact");
                         }}
                       />
                     </div>

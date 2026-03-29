@@ -51,6 +51,20 @@ import ShortsGenerator from "@/pages/ShortsGenerator";
   }
 })();
 
+(function initCompact() {
+  const c = localStorage.getItem("limitedink_compact");
+  if (c === "true") document.documentElement.classList.add("compact");
+  const eApi = (window as any).electronAPI;
+  if (!c && eApi?.getSetting) {
+    eApi.getSetting("compact").then((stored: string | undefined) => {
+      if (stored === "true") {
+        localStorage.setItem("limitedink_compact", "true");
+        document.documentElement.classList.add("compact");
+      }
+    });
+  }
+})();
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
