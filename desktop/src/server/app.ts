@@ -9,10 +9,11 @@ import { getStoreValue, setStoreValue } from "../db/index.js";
 const REMOTE_API = process.env.REMOTE_API_URL || "https://Limited-ink.replit.app";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-function solveChefPoWDirect(sessionId: string, difficulty: number): string {
+async function solveChefPoWDirect(sessionId: string, difficulty: number): Promise<string> {
   const targetZeroBytes = difficulty;
   const target = Buffer.alloc(targetZeroBytes, 0);
   const MAX = 100_000_000;
+  const BATCH = 10000;
   const start = Date.now();
   for (let nonce = 0; nonce < MAX; nonce++) {
     const candidate = `${sessionId}.${nonce}`;
@@ -20,6 +21,9 @@ function solveChefPoWDirect(sessionId: string, difficulty: number): string {
     if (hash.subarray(0, targetZeroBytes).equals(target)) {
       console.log(`[ChefPoW] Solved in ${Date.now() - start}ms, nonce=${nonce} (${targetZeroBytes} zero bytes)`);
       return String(nonce);
+    }
+    if (nonce % BATCH === 0 && nonce > 0) {
+      await new Promise<void>(r => setImmediate(r));
     }
   }
   throw new Error("PoW nonce search exhausted");
@@ -47,7 +51,7 @@ async function solveChefChallenge(
       console.log(`[ChefPoW] Round ${round + 1}: sessionId=${sessionId}, difficulty=${difficulty}, challengeId=${challengeId}`);
       console.log(`[ChefPoW] Full metadata: ${JSON.stringify(metadata)}`);
 
-      const nonce = solveChefPoWDirect(sessionId, Number(difficulty));
+      const nonce = await solveChefPoWDirect(sessionId, Number(difficulty));
 
       const formats = [
         { sessionId, nonce },
@@ -59,6 +63,8 @@ async function solveChefChallenge(
         const payload = JSON.stringify(fmt);
         const b64 = Buffer.from(payload).toString("base64");
 
+        const chefCtrl = new AbortController();
+        const chefT = setTimeout(() => chefCtrl.abort(), 15000);
         const continueResp = await fetchFn("https://apis.roblox.com/challenge/v1/continue", {
           method: "POST",
           headers: chefHeaders,
@@ -67,7 +73,9 @@ async function solveChefChallenge(
             challengeType: "chef",
             challengeMetadata: payload,
           }),
+          signal: chefCtrl.signal,
         });
+        clearTimeout(chefT);
         const continueText = await continueResp.text();
         console.log(`[ChefPoW] continue (fmt=${JSON.stringify(fmt).slice(0, 80)}): status=${continueResp.status} body=${continueText.slice(0, 300)}`);
 
@@ -129,8 +137,17 @@ async function fetchRobloxCookieFromRemote(authHeaders: Record<string, string>):
     if (remoteSessionCookie) {
       headers["Cookie"] = remoteSessionCookie;
     }
-    const resp = await fetchFn(`${REMOTE_API}/api/roblox/session-cookie`, { headers });
-    if (!resp.ok) return null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const resp = await fetchFn(`${REMOTE_API}/api/roblox/session-cookie`, {
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!resp.ok) {
+      console.error(`[DirectPayout] session-cookie returned ${resp.status}`);
+      return null;
+    }
     const data = await resp.json() as { cookie?: string };
     return data.cookie || null;
   } catch (err: any) {
@@ -156,7 +173,10 @@ async function getDirectCsrf(robloxCookie: string): Promise<string> {
   for (let attempt = 0; attempt < 3; attempt++) {
     for (const ep of endpoints) {
       try {
-        const r = await fetchFn(ep.url, { method: ep.method, headers: hdrs, body: ep.body });
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 10000);
+        const r = await fetchFn(ep.url, { method: ep.method, headers: hdrs, body: ep.body, signal: ctrl.signal });
+        clearTimeout(t);
         const token = r.headers.get("x-csrf-token");
         if (token) {
           console.log(`[DirectPayout] CSRF obtained from ${ep.url}`);
@@ -205,9 +225,13 @@ async function handleDirectPayout(
 
     console.log(`[DirectPayout] Got Roblox cookie (len=${cookieValue.length}), making direct payout for group ${groupId}`);
 
+    const verifyCtrl = new AbortController();
+    const verifyTimeout = setTimeout(() => verifyCtrl.abort(), 15000);
     const verifyResp = await fetchFn("https://users.roblox.com/v1/users/authenticated", {
       headers: { "Cookie": `.ROBLOSECURITY=${cookieValue}`, "User-Agent": UA },
+      signal: verifyCtrl.signal,
     });
+    clearTimeout(verifyTimeout);
     console.log(`[DirectPayout] Cookie verify: status=${verifyResp.status}`);
     if (!verifyResp.ok) {
       if (verifyResp.status === 401) {
@@ -256,7 +280,10 @@ async function handleDirectPayout(
     let respBody = "";
 
     for (let attempt = 0; attempt < 5; attempt++) {
-      resp = await fetchFn(payoutUrl, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body) });
+      const payCtrl = new AbortController();
+      const payTimeout = setTimeout(() => payCtrl.abort(), 30000);
+      resp = await fetchFn(payoutUrl, { method: "POST", headers: payoutHeaders, body: JSON.stringify(body), signal: payCtrl.signal });
+      clearTimeout(payTimeout);
       respBody = await resp.text();
       const allHeaders = Object.fromEntries(resp.headers.entries());
       console.log(`[DirectPayout] Attempt ${attempt + 1}: status=${resp.status}`);
@@ -389,9 +416,13 @@ async function handleDirectVerify2fa(
       ? robloxCookie.slice(".ROBLOSECURITY=".length)
       : robloxCookie;
 
+    const meCtrl = new AbortController();
+    const meTimeout = setTimeout(() => meCtrl.abort(), 15000);
     const meResp = await fetchFn("https://users.roblox.com/v1/users/authenticated", {
       headers: { Cookie: `.ROBLOSECURITY=${cookieValue}`, "User-Agent": UA },
+      signal: meCtrl.signal,
     });
+    clearTimeout(meTimeout);
     if (!meResp.ok) {
       res.status(401).json({ error: "Could not resolve Roblox user." });
       return;
@@ -403,6 +434,8 @@ async function handleDirectVerify2fa(
 
     const csrf = await getDirectCsrf(cookieValue);
 
+    const vfCtrl = new AbortController();
+    const vfTimeout = setTimeout(() => vfCtrl.abort(), 15000);
     const verifyResp = await fetchFn(verifyUrl, {
       method: "POST",
       headers: {
@@ -416,7 +449,9 @@ async function handleDirectVerify2fa(
         actionType: "Generic",
         code,
       }),
+      signal: vfCtrl.signal,
     });
+    clearTimeout(vfTimeout);
 
     if (!verifyResp.ok) {
       const errData = await verifyResp.json().catch(() => ({})) as any;
@@ -432,6 +467,8 @@ async function handleDirectVerify2fa(
     }
 
     const ct = challengeType || "twostepverification";
+    const contCtrl = new AbortController();
+    const contTimeout = setTimeout(() => contCtrl.abort(), 15000);
     const continueResp = await fetchFn("https://apis.roblox.com/challenge/v1/continue", {
       method: "POST",
       headers: {
@@ -450,7 +487,9 @@ async function handleDirectVerify2fa(
           challengeId,
         }),
       }),
+      signal: contCtrl.signal,
     });
+    clearTimeout(contTimeout);
     console.log(`[DirectPayout] Challenge continue: status=${continueResp.status}`);
 
     res.json({
@@ -517,12 +556,16 @@ async function proxyToRemote(
       console.log(`[Proxy] ${req.method} ${url} (json)`);
     }
 
+    const proxyCtrl = new AbortController();
+    const proxyTimeout = setTimeout(() => proxyCtrl.abort(), 60000);
     const response = await fetchFn(url, {
       method: req.method,
       headers,
       body,
       redirect: "manual",
+      signal: proxyCtrl.signal,
     });
+    clearTimeout(proxyTimeout);
 
     const setCookieHeaders = response.headers.getSetCookie
       ? response.headers.getSetCookie()

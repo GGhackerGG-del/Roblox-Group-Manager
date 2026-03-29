@@ -365,8 +365,8 @@ export default function Automation() {
       }
       const resp = await fetch(`${BASE}/api/automation/payout/${groupId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         credentials: "include",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(reqBody),
       });
       const data = await resp.json();
@@ -394,8 +394,8 @@ export default function Automation() {
     try {
       const resp = await fetch(`${BASE}/api/automation/payout/${groupId}/verify-2fa`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         credentials: "include",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ challengeId: twoFA.challengeId, code: twoFA.code, mediaType: twoFA.mediaType, challengeType: twoFA.challengeType }),
       });
       const data = await resp.json();
