@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Smile } from "lucide-react";
 
 const EMOJI_CATEGORIES: { name: string; icon: string; emojis: string[] }[] = [
@@ -102,11 +102,26 @@ interface EmojiPickerProps {
   disabled?: boolean;
 }
 
+const PICKER_W = 320;
+const PICKER_H = 310;
+
 export default function EmojiPicker({ onSelect, disabled }: EmojiPickerProps) {
   const [open, setOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(0);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const pickerStyle = useMemo<React.CSSProperties>(() => {
+    if (!open || !btnRef.current) return {};
+    const rect = btnRef.current.getBoundingClientRect();
+    let top = rect.top - PICKER_H - 8;
+    let left = rect.right - PICKER_W;
+    if (top < 8) top = rect.bottom + 8;
+    if (left < 8) left = 8;
+    if (left + PICKER_W > window.innerWidth - 8) left = window.innerWidth - PICKER_W - 8;
+    return { top, left };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -137,6 +152,7 @@ export default function EmojiPicker({ onSelect, disabled }: EmojiPickerProps) {
   return (
     <div className="relative" ref={containerRef}>
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen(o => !o)}
         disabled={disabled}
@@ -147,7 +163,7 @@ export default function EmojiPicker({ onSelect, disabled }: EmojiPickerProps) {
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-2 right-0 z-[100] w-[320px] bg-[#1e1f22] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+        <div className="fixed z-[200] w-[320px] bg-[#1e1f22] rounded-xl border border-white/10 shadow-2xl overflow-hidden" style={pickerStyle}>
           <div className="p-2 border-b border-white/5">
             <input
               type="text"
