@@ -522,8 +522,9 @@ async function proxyToRemote(
       headers["X-Device-Fingerprint"] = req.headers["x-device-fingerprint"] as string;
     }
 
-    if (remoteSessionCookie) {
-      headers["Cookie"] = remoteSessionCookie;
+    const cookieSnapshot = remoteSessionCookie;
+    if (cookieSnapshot) {
+      headers["Cookie"] = cookieSnapshot;
     }
 
     const hasBody = req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE";
@@ -577,6 +578,8 @@ async function proxyToRemote(
         if (match && match[1] !== remoteSessionCookie) {
           if (remoteSessionCookie && response.status >= 400) {
             console.log("[Proxy] Ignoring new session cookie from error response", remotePath);
+          } else if (cookieSnapshot !== remoteSessionCookie) {
+            console.log("[Proxy] Ignoring stale cookie update (concurrent race) from", remotePath);
           } else {
             persistCookie(match[1]);
             console.log("[Proxy] Session cookie updated from", remotePath);
@@ -588,7 +591,7 @@ async function proxyToRemote(
     if (
       (response.status === 401 || response.status === 502) &&
       remoteSessionCookie &&
-      headers["Cookie"] !== remoteSessionCookie &&
+      cookieSnapshot !== remoteSessionCookie &&
       req.method === "GET"
     ) {
       console.log("[Proxy] Session mismatch detected, retrying with updated cookie:", remotePath);
@@ -613,9 +616,11 @@ async function proxyToRemote(
     const respContentType = response.headers.get("content-type") || "";
     const status = response.status;
 
+    if (res.writableEnded || res.destroyed) return;
+
     if (respContentType.includes("application/json")) {
       const data = await response.json();
-      res.status(status).json(data);
+      if (!res.writableEnded) res.status(status).json(data);
     } else if (
       respContentType.includes("application/octet-stream") ||
       respContentType.includes("video/") ||
@@ -626,12 +631,13 @@ async function proxyToRemote(
       const cd = response.headers.get("content-disposition");
       if (cd) res.setHeader("content-disposition", cd);
       const arrayBuf = await response.arrayBuffer();
-      res.send(Buffer.from(arrayBuf));
+      if (!res.writableEnded) res.send(Buffer.from(arrayBuf));
     } else {
       const text = await response.text();
-      res.status(status).type(respContentType.split(";")[0] || "text/plain").send(text);
+      if (!res.writableEnded) res.status(status).type(respContentType.split(";")[0] || "text/plain").send(text);
     }
   } catch (err: any) {
+    if (res.writableEnded || res.destroyed) return;
     console.error("[Proxy] Error:", err.message);
     res.status(502).json({ error: "Cannot connect to license server. Check internet connection." });
   }
