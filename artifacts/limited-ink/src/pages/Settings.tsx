@@ -864,7 +864,7 @@ export default function Settings() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-3 bg-secondary/50 rounded-xl">
                         <p className="text-xs text-muted-foreground font-semibold">{t("about.version")}</p>
-                        <p className="font-bold text-sm mt-0.5">1.0.0</p>
+                        <p className="font-bold text-sm mt-0.5">1.1.0</p>
                       </div>
                       <div className="p-3 bg-secondary/50 rounded-xl">
                         <p className="text-xs text-muted-foreground font-semibold">{t("about.env")}</p>
