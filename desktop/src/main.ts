@@ -17,10 +17,27 @@ function setAutoLaunchEnabled(enabled: boolean): void {
     const { setStoreValue } = require("./db/index.js");
     setStoreValue("auto_launch_enabled", enabled ? "true" : "false");
   } catch {}
-  app.setLoginItemSettings({
-    openAtLogin: enabled,
-    path: app.isPackaged ? process.execPath : undefined,
-  });
+
+  if (process.platform === "win32") {
+    try {
+      const { execSync } = require("child_process");
+      const exePath = app.isPackaged ? process.execPath : `"${process.execPath}"`;
+      const regKey = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+      if (enabled) {
+        execSync(`reg add "${regKey}" /v "LimitedInk" /t REG_SZ /d "${exePath}" /f`, { stdio: "ignore" });
+      } else {
+        execSync(`reg delete "${regKey}" /v "LimitedInk" /f`, { stdio: "ignore" });
+      }
+      console.log(`[AutoLaunch] Registry ${enabled ? "added" : "removed"} successfully`);
+    } catch (err: any) {
+      console.error("[AutoLaunch] Registry update failed:", err.message);
+    }
+  } else {
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      path: app.isPackaged ? process.execPath : undefined,
+    });
+  }
 }
 
 function getTrayIconPath(): string {
@@ -147,10 +164,9 @@ app.whenReady().then(async () => {
     console.log(`[Limited.Ink] Server running on http://localhost:${port}`);
 
     const savedAutoLaunch = getAutoLaunchEnabled();
-    app.setLoginItemSettings({
-      openAtLogin: savedAutoLaunch,
-      path: app.isPackaged ? process.execPath : undefined,
-    });
+    if (savedAutoLaunch) {
+      setAutoLaunchEnabled(true);
+    }
 
     createTray();
     createWindow(port);
