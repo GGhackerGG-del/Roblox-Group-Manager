@@ -1386,10 +1386,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
               const last = incoming[incoming.length - 1];
               const preview = typeof last.content === "string" ? last.content : "";
               playMessage();
-              const focused = await (window as any).electronAPI?.isWindowFocused?.();
-              if (!focused) {
-                notifyNewMessage(cur.user.displayName || cur.user.robloxUsername || "User", preview);
-              }
+              notifyNewMessage(cur.user.displayName || cur.user.robloxUsername || "User", preview);
             }
           }
           if (d.messages.length !== lastMsgCountRef.current) {
@@ -1406,10 +1403,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
               const preview = typeof last.content === "string" ? last.content : "";
               const senderName = last.senderName || last.sender?.displayName || "User";
               playMessage();
-              const focused = await (window as any).electronAPI?.isWindowFocused?.();
-              if (!focused) {
-                notifyGroupMessage(cur.chat.name || "Group", senderName, preview);
-              }
+              notifyGroupMessage(cur.chat.name || "Group", senderName, preview);
             }
           }
           if (d.messages.length !== lastMsgCountRef.current) {
@@ -1576,12 +1570,12 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
         const d = await apiFetch<{ message: DmMessage }>(`/api/social/messages/${active.user.id}`, {
           method: "POST", body: JSON.stringify({ content }),
         });
-        setMessages(prev => [...prev, d.message]);
+        setMessages(prev => { const next = [...prev, d.message]; lastMsgCountRef.current = next.length; return next; });
       } else {
         const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${active.chat.id}/messages`, {
           method: "POST", body: JSON.stringify({ content }),
         });
-        setMessages(prev => [...prev, message]);
+        setMessages(prev => { const next = [...prev, message]; lastMsgCountRef.current = next.length; return next; });
       }
       setVoiceBlob(null);
       setRecordingTime(0);
@@ -1620,10 +1614,14 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
       const d = await apiFetch<{ message: DmMessage }>(`/api/social/messages/${active.user.id}`, {
         method: "POST", body: JSON.stringify({ content: text.trim(), ...(imageUrl ? { imageUrl } : {}) }),
       });
-      setMessages(prev => [...prev, d.message]);
+      setMessages(prev => {
+        const next = [...prev, d.message];
+        lastMsgCountRef.current = next.length;
+        return next;
+      });
       setText("");
       setChatAttachments([]);
-      fetchAll();
+      fetchAll(true);
     } catch {
       toast({ variant: "destructive", title: t("com.error"), description: t("com.sendFailed") });
     } finally { setSending(false); }
@@ -1641,7 +1639,11 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
       const { message } = await apiFetch<{ message: any }>(`/api/community/group-chats/${active.chat.id}/messages`, {
         method: "POST", body: JSON.stringify({ content: text.trim(), ...(imageUrl ? { imageUrl } : {}) }),
       });
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => {
+        const next = [...prev, message];
+        lastMsgCountRef.current = next.length;
+        return next;
+      });
       setText("");
       setChatAttachments([]);
     } catch {} finally { setSending(false); }
