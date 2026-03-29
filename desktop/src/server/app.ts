@@ -3,7 +3,7 @@ import cors from "cors";
 import session from "express-session";
 import path from "path";
 import crypto from "crypto";
-import { MemorySessionStore } from "../db/session-store.js";
+import { FileSessionStore } from "../db/session-store.js";
 import { getStoreValue, setStoreValue } from "../db/index.js";
 
 const REMOTE_API = process.env.REMOTE_API_URL || "https://Limited-ink.replit.app";
@@ -569,18 +569,25 @@ export function createApp(): express.Express {
     express.urlencoded({ extended: true, limit: "50mb" })(req, _res, next);
   });
 
-  const sessionStore = new MemorySessionStore();
+  let dataDir: string;
+  try {
+    const { app: electronApp } = require("electron");
+    dataDir = electronApp.getPath("userData");
+  } catch {
+    dataDir = process.cwd();
+  }
+  const sessionStore = new FileSessionStore(dataDir);
 
   app.use(session({
     store: sessionStore,
     secret: process.env.SESSION_SECRET || "limited-ink-desktop-secret",
-    resave: false,
+    resave: true,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
       secure: false,
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     },
   }));
 

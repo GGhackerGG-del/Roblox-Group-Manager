@@ -1,25 +1,41 @@
 import type { Server } from "http";
 import net from "net";
 import http from "http";
-import { getStoreValue } from "../db/index.js";
+import crypto from "crypto";
+import { getStoreValue, setStoreValue } from "../db/index.js";
 
 let server: Server | null = null;
 
 const REMOTE_API = process.env.REMOTE_API_URL || "https://Limited-ink.replit.app";
+const PREFERRED_PORT = 17483;
 
-async function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
+function getOrCreateSecret(key: string): string {
+  const existing = getStoreValue(key);
+  if (existing) return existing;
+  const secret = crypto.randomBytes(32).toString("hex");
+  setStoreValue(key, secret);
+  return secret;
+}
+
+async function findFreePort(preferred: number): Promise<number> {
+  return new Promise((resolve) => {
     const srv = net.createServer();
-    srv.listen(0, () => {
-      const addr = srv.address();
-      if (addr && typeof addr === "object") {
-        const port = addr.port;
-        srv.close(() => resolve(port));
-      } else {
-        reject(new Error("Could not get port"));
-      }
+    srv.listen(preferred, "127.0.0.1", () => {
+      srv.close(() => resolve(preferred));
     });
-    srv.on("error", reject);
+    srv.on("error", () => {
+      const fallback = net.createServer();
+      fallback.listen(0, () => {
+        const addr = fallback.address();
+        if (addr && typeof addr === "object") {
+          const port = addr.port;
+          fallback.close(() => resolve(port));
+        } else {
+          resolve(preferred + 1);
+        }
+      });
+      fallback.on("error", () => resolve(preferred + 1));
+    });
   });
 }
 
@@ -119,12 +135,12 @@ function setupWebSocketProxy(httpServer: Server): void {
 }
 
 export async function startServer(): Promise<number> {
-  const port = await findFreePort();
+  const port = await findFreePort(PREFERRED_PORT);
 
   process.env.PORT = String(port);
-  process.env.SESSION_SECRET = process.env.SESSION_SECRET || "limited-ink-desktop-" + Math.random().toString(36).slice(2);
-  process.env.JWT_SECRET = process.env.JWT_SECRET || "limited-ink-jwt-" + Math.random().toString(36).slice(2);
-  process.env.ADMIN_SECRET = process.env.ADMIN_SECRET || "limited-ink-admin-" + Math.random().toString(36).slice(2);
+  process.env.SESSION_SECRET = process.env.SESSION_SECRET || getOrCreateSecret("desktop_session_secret");
+  process.env.JWT_SECRET = process.env.JWT_SECRET || getOrCreateSecret("desktop_jwt_secret");
+  process.env.ADMIN_SECRET = process.env.ADMIN_SECRET || getOrCreateSecret("desktop_admin_secret");
   process.env.NODE_ENV = "production";
   process.env.DESKTOP_MODE = "true";
 
