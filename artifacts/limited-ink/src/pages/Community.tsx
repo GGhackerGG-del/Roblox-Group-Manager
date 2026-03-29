@@ -32,6 +32,7 @@ import { Sparkles, Gamepad2, Palette } from "lucide-react";
 import { usePresenceContext } from "@/contexts/PresenceContext";
 import EmojiPicker from "@/components/EmojiPicker";
 import { isDesktop, notifyNewMessage, notifyGroupMessage, notifyGroupCall, notifyAction } from "@/lib/desktopNotify";
+import { playMessage } from "@/hooks/useSounds";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -1293,6 +1294,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
             if (prev && cur && cur > prev && conv.lastMessage.senderId !== myUser?.id) {
               const activeDm = activeRef.current;
               if (!(activeDm?.kind === "dm" && activeDm.user.id === key)) {
+                playMessage();
                 notifyNewMessage(
                   conv.otherUser?.displayName || "Unknown",
                   conv.lastMessage.content || "📎 Вложение"
@@ -1323,6 +1325,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
             if (prev && cur && cur > prev && gc.lastMessage.senderId !== myUser?.id) {
               const activeGc = activeRef.current;
               if (!(activeGc?.kind === "group" && activeGc.chat.id === gc.id)) {
+                playMessage();
                 notifyGroupMessage(
                   gc.name || "Group",
                   gc.lastMessage.senderName || "Someone",
@@ -1376,12 +1379,39 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
       try {
         if (cur.kind === "dm") {
           const d = await apiFetch<{ messages: DmMessage[] }>(`/api/social/messages/${cur.user.id}`);
+          if (d.messages.length > lastMsgCountRef.current && lastMsgCountRef.current > 0) {
+            const newMsgs = d.messages.slice(lastMsgCountRef.current);
+            const incoming = newMsgs.filter((m: any) => m.senderId !== myUser?.id && m.senderId !== myUser?.robloxUserId);
+            if (incoming.length > 0) {
+              const last = incoming[incoming.length - 1];
+              const preview = typeof last.content === "string" ? last.content : "";
+              playMessage();
+              const focused = await (window as any).electronAPI?.isWindowFocused?.();
+              if (!focused) {
+                notifyNewMessage(cur.user.displayName || cur.user.robloxUsername || "User", preview);
+              }
+            }
+          }
           if (d.messages.length !== lastMsgCountRef.current) {
             setMessages(d.messages);
             lastMsgCountRef.current = d.messages.length;
           }
         } else {
           const d = await apiFetch<{ messages: any[] }>(`/api/community/group-chats/${cur.chat.id}/messages`);
+          if (d.messages.length > lastMsgCountRef.current && lastMsgCountRef.current > 0) {
+            const newMsgs = d.messages.slice(lastMsgCountRef.current);
+            const incoming = newMsgs.filter((m: any) => m.senderId !== myUser?.id && m.senderId !== myUser?.robloxUserId);
+            if (incoming.length > 0) {
+              const last = incoming[incoming.length - 1];
+              const preview = typeof last.content === "string" ? last.content : "";
+              const senderName = last.senderName || last.sender?.displayName || "User";
+              playMessage();
+              const focused = await (window as any).electronAPI?.isWindowFocused?.();
+              if (!focused) {
+                notifyGroupMessage(cur.chat.name || "Group", senderName, preview);
+              }
+            }
+          }
           if (d.messages.length !== lastMsgCountRef.current) {
             setMessages(d.messages);
             lastMsgCountRef.current = d.messages.length;
@@ -1390,15 +1420,17 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
       } catch {} finally { inFlight = false; }
     }, 3000);
     return () => clearInterval(iv);
-  }, []);
+  }, [myUser]);
 
   const openDm = useCallback(async (user: PlatformUser) => {
     setActive({ kind: "dm", user });
     setLoadingMsgs(true);
     setShowAddMember(false);
+    lastMsgCountRef.current = 0;
     try {
       const d = await apiFetch<{ messages: DmMessage[] }>(`/api/social/messages/${user.id}`);
       setMessages(d.messages);
+      lastMsgCountRef.current = d.messages.length;
     } catch {} finally { setLoadingMsgs(false); }
   }, []);
 
@@ -1406,12 +1438,14 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
     setActive({ kind: "group", chat });
     setLoadingMsgs(true);
     setShowAddMember(false);
+    lastMsgCountRef.current = 0;
     try {
       const [msgsData, membersData] = await Promise.all([
         apiFetch<{ messages: any[] }>(`/api/community/group-chats/${chat.id}/messages`),
         apiFetch<{ members: any[] }>(`/api/community/group-chats/${chat.id}/members`),
       ]);
       setMessages(msgsData.messages);
+      lastMsgCountRef.current = msgsData.messages.length;
       setChatMembers(membersData.members);
     } catch {} finally { setLoadingMsgs(false); }
   }, []);

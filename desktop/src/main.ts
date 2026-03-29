@@ -237,7 +237,7 @@ ipcMain.on("show-notification", (event, data: { title: string; body: string; typ
     icon: app.isPackaged
       ? path.join(process.resourcesPath, "icon.png")
       : path.join(__dirname, "..", "resources", "icon.png"),
-    silent: data.type === "action",
+    silent: false,
   });
 
   notification.on("click", () => {
@@ -250,10 +250,9 @@ ipcMain.on("show-notification", (event, data: { title: string; body: string; typ
 
   notification.show();
 
-  if (!mainWindow.isVisible()) {
-    mainWindow.show();
+  if (mainWindow.isVisible()) {
+    mainWindow.flashFrame(true);
   }
-  mainWindow.flashFrame(true);
 });
 
 ipcMain.handle("is-window-focused", (event) => {

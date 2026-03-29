@@ -104,6 +104,29 @@ export function playError() {
   } catch {}
 }
 
+export function playMessage() {
+  if (!isEnabled()) return;
+  const ctx = getCtx();
+  if (!ctx) return;
+  try {
+    const t = ctx.currentTime;
+    [880, 1175, 1397].forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      const start = t + i * 0.09;
+      osc.frequency.setValueAtTime(f, start);
+      g.gain.setValueAtTime(0.001, start);
+      g.gain.linearRampToValueAtTime(0.07, start + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.18);
+    });
+  } catch {}
+}
+
 export function playTabSwitch() {
   if (!isEnabled()) return;
   const ctx = getCtx();
