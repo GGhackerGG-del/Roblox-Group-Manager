@@ -557,8 +557,9 @@ async function proxyToRemote(
       console.log(`[Proxy] ${req.method} ${url} (json)`);
     }
 
+    const isLongRunning = remotePath.includes("/clothing/upload") || remotePath.includes("/automation/payout");
     const proxyCtrl = new AbortController();
-    const proxyTimeout = setTimeout(() => proxyCtrl.abort(), 60000);
+    const proxyTimeout = setTimeout(() => proxyCtrl.abort(), isLongRunning ? 180000 : 60000);
     const response = await fetchFn(url, {
       method: req.method,
       headers,
@@ -572,17 +573,25 @@ async function proxyToRemote(
       ? response.headers.getSetCookie()
       : (response.headers.raw?.()?.["set-cookie"] || []);
 
+    const COOKIE_ACCEPT_ROUTES = [
+      "/api/roblox/auth",
+      "/api/license/activate",
+      "/api/license/verify",
+    ];
+    const isCookieAcceptRoute = COOKIE_ACCEPT_ROUTES.some(r => remotePath.startsWith(r));
+
     if (setCookieHeaders && setCookieHeaders.length > 0 && response.status < 500) {
       for (const sc of setCookieHeaders) {
         const match = sc.match(/^(connect\.sid=[^;]+)/);
         if (match && match[1] !== remoteSessionCookie) {
-          if (remoteSessionCookie && response.status >= 400) {
-            console.log("[Proxy] Ignoring new session cookie from error response", remotePath);
-          } else if (cookieSnapshot !== remoteSessionCookie) {
-            console.log("[Proxy] Ignoring stale cookie update (concurrent race) from", remotePath);
-          } else {
+          if (!remoteSessionCookie) {
             persistCookie(match[1]);
-            console.log("[Proxy] Session cookie updated from", remotePath);
+            console.log("[Proxy] Initial session cookie set from", remotePath);
+          } else if (isCookieAcceptRoute && response.status < 400) {
+            persistCookie(match[1]);
+            console.log("[Proxy] Session cookie updated from auth route", remotePath);
+          } else {
+            console.log("[Proxy] Ignoring session cookie change from", remotePath, `(status=${response.status}, accept=${isCookieAcceptRoute})`);
           }
         }
       }
