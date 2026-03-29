@@ -497,15 +497,15 @@ function LinkHubTab() {
 
   const COMMON_ICONS = ["🔗", "💬", "🎵", "📸", "▶️", "✈️", "🌐", "🎮", "🛒", "📢", "💙", "⭐", "🔔", "📞", "💎"];
 
-  const LinkCard = ({ link, preview }: { link: any; preview?: boolean }) => (
-    <div className={`flex items-center gap-3 rounded-xl border p-3.5 transition-colors ${preview ? "border-border/30 bg-white" : "border-border/50"}`}
+  const LinkCard = ({ link, preview: isPreview }: { link: any; preview?: boolean }) => (
+    <div className={`flex items-center gap-3 rounded-xl border p-3.5 transition-colors ${isPreview ? "border-border/30 bg-white" : "border-border/50"}`}
       style={{ borderLeftColor: link.color || "#000", borderLeftWidth: "3px" }}>
       <span className="text-xl shrink-0">{link.icon || "🔗"}</span>
       <div className="flex-1 min-w-0">
-        <p className={`font-semibold text-sm ${preview ? "text-gray-900" : ""}`}>{link.title}</p>
-        {link.description && <p className={`text-xs mt-0.5 truncate ${preview ? "text-gray-500" : "text-muted-foreground"}`}>{link.description}</p>}
+        <p className={`font-semibold text-sm ${isPreview ? "text-gray-900" : ""}`}>{link.title}</p>
+        {link.description && <p className={`text-xs mt-0.5 truncate ${isPreview ? "text-gray-500" : "text-muted-foreground"}`}>{link.description}</p>}
       </div>
-      {preview ? (
+      {isPreview ? (
         <ExternalLink className="w-4 h-4 text-gray-400 shrink-0" />
       ) : (
         <div className="flex items-center gap-1 shrink-0">
@@ -518,7 +518,7 @@ function LinkHubTab() {
     </div>
   );
 
-  const FormSection = () => (
+  const formSection = (
     <Card className="rounded-2xl border-black/20 bg-secondary/20">
       <CardContent className="pt-4 space-y-3">
         <p className="text-sm font-semibold">{editId ? t("sm.editLink") : t("sm.addLink")}</p>
@@ -580,7 +580,7 @@ function LinkHubTab() {
       <AnimatePresence>
         {(showAdd && !editId) && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-            <FormSection />
+            {formSection}
           </motion.div>
         )}
       </AnimatePresence>
@@ -622,7 +622,7 @@ function LinkHubTab() {
                 <AnimatePresence>
                   {editId === link.id ? (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                      <FormSection />
+                      {formSection}
                     </motion.div>
                   ) : (
                     <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
