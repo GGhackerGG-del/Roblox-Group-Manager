@@ -16,6 +16,17 @@ import {
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+const TEXT_ICON_TO_EMOJI: Record<string, string> = {
+  sakura: "🌸", rose: "🌹", lightning: "⚡", crosshair: "🎯",
+  dragon: "🐉", pixel: "👾", butterfly: "🦋", skull: "💀",
+  rainbow: "🌈", stars: "✨", emerald: "💚", obsidian: "🖤",
+  crystal: "💎", sunset_glow: "🌅", toxic_green: "☢️",
+};
+
+function resolveIcon(icon: string): string {
+  return TEXT_ICON_TO_EMOJI[icon] || icon;
+}
+
 function getAuthHeaders(): Record<string, string> {
   const { token, fingerprint } = getAuthCredentials();
   const headers: Record<string, string> = {};
@@ -140,7 +151,7 @@ export function UserEquippedAccessories({ userId, accessories }: { userId?: numb
     <div className="flex gap-1 flex-wrap mt-1">
       {items.map(a => (
         <span key={a.id} title={a.name} className={`text-sm px-1 py-0.5 rounded border ${RARITY_COLORS[a.rarity]} cursor-default`}>
-          {a.icon}
+          {resolveIcon(a.icon)}
         </span>
       ))}
     </div>
@@ -281,7 +292,7 @@ export default function AccessoriesTab() {
     try {
       const res = await apiFetch<{ success: boolean; reward: any }>(`/api/accessories/quests/${questId}/claim`, { method: "POST" });
       if (res.reward) {
-        toast({ title: language === "ru" ? "Награда получена!" : language === "es" ? "Recompensa obtenida!" : "Reward claimed!", description: `${res.reward.icon} ${res.reward.name}` });
+        toast({ title: language === "ru" ? "Награда получена!" : language === "es" ? "Recompensa obtenida!" : "Reward claimed!", description: `${resolveIcon(res.reward.icon)} ${res.reward.name}` });
       }
       await loadQuests();
       await loadAll();
@@ -675,7 +686,7 @@ export default function AccessoriesTab() {
               {duelResult.reward && (
                 <div className="px-6 py-3 border-t border-border/50">
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                    <span className="text-2xl">{duelResult.reward.icon}</span>
+                    <span className="text-2xl">{resolveIcon(duelResult.reward.icon)}</span>
                     <div>
                       <p className="text-sm font-bold">{language === "ru" && duelResult.reward.nameRu ? duelResult.reward.nameRu : duelResult.reward.name}</p>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-md border ${RARITY_COLORS[duelResult.reward.rarity]}`}>
@@ -739,7 +750,7 @@ export default function AccessoriesTab() {
                   {acc.equipped && (
                     <div className="absolute top-2 right-2"><Check className="w-4 h-4 text-primary" /></div>
                   )}
-                  <div className="text-2xl mb-2">{acc.icon}</div>
+                  <div className="text-2xl mb-2">{resolveIcon(acc.icon)}</div>
                   <p className="text-sm font-semibold truncate">{getName(acc)}</p>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-md border ${RARITY_COLORS[acc.rarity]}`}>
@@ -781,7 +792,7 @@ export default function AccessoriesTab() {
                 } ${RARITY_GLOW[acc.rarity]}`}
               >
                 <div className="flex items-start justify-between">
-                  <div className="text-2xl">{acc.icon}</div>
+                  <div className="text-2xl">{resolveIcon(acc.icon)}</div>
                   {owned && <Check className="w-4 h-4 text-green-500" />}
                   {acc.obtainMethod === "event" && <Gift className="w-4 h-4 text-amber-500" />}
                 </div>
@@ -868,7 +879,7 @@ export default function AccessoriesTab() {
                     className={`rounded-xl border p-3 transition-all ${rarityColor} ${quest.claimed ? "opacity-60" : ""}`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="text-2xl flex-shrink-0">{quest.icon}</div>
+                      <div className="text-2xl flex-shrink-0">{resolveIcon(quest.icon)}</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="text-sm font-bold truncate">{questName}</span>
@@ -881,7 +892,7 @@ export default function AccessoriesTab() {
                         {quest.reward && (
                           <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg bg-secondary/50 w-fit">
                             <Gift className="w-3 h-3 text-amber-500" />
-                            <span className="text-[10px] font-medium">{quest.reward.icon} {quest.reward.name}</span>
+                            <span className="text-[10px] font-medium">{resolveIcon(quest.reward.icon)} {quest.reward.name}</span>
                           </div>
                         )}
 
