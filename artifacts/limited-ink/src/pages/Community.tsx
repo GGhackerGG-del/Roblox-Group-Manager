@@ -171,6 +171,17 @@ const parseCallMsg = (content: string) => {
   const [type, ...rest] = inner.split(":");
   return { type: type as "outgoing" | "missed" | "declined", duration: rest.join(":") };
 };
+const isProductMsg = (content: string) => content.startsWith("[product:");
+const parseProductMsg = (content: string): { product: { id: number; title: string; category: string; previewUrl?: string }; text: string } | null => {
+  try {
+    const endIdx = content.indexOf("]");
+    if (endIdx === -1) return null;
+    const json = content.slice(9, endIdx);
+    const product = JSON.parse(json);
+    const text = content.slice(endIdx + 1).replace(/^\n/, "").trim();
+    return { product, text };
+  } catch { return null; }
+};
 
 // ── User Profile Modal ────────────────────────────────────────────────────────
 
@@ -1177,10 +1188,20 @@ function formatLastSeen(isoStr: string | null, t: (k: string) => string): string
   return new Date(isoStr).toLocaleDateString();
 }
 
-function ChatTab({ myUser, initialChatUser, onClearInitial }: {
+interface MarketplaceContext {
+  id: number;
+  title: string;
+  category: string;
+  previewUrl?: string;
+  sellerName: string;
+}
+
+function ChatTab({ myUser, initialChatUser, onClearInitial, marketplaceContext, onClearMarketplace }: {
   myUser: PlatformUser | null;
   initialChatUser: PlatformUser | null;
   onClearInitial: () => void;
+  marketplaceContext: MarketplaceContext | null;
+  onClearMarketplace: () => void;
 }) {
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -1216,6 +1237,14 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   const [editChatName, setEditChatName] = useState("");
   const [editAvatarColor, setEditAvatarColor] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+  const [productCtx, setProductCtx] = useState<MarketplaceContext | null>(null);
+
+  useEffect(() => {
+    if (marketplaceContext && initialChatUser) {
+      setProductCtx(marketplaceContext);
+      onClearMarketplace();
+    }
+  }, [marketplaceContext, initialChatUser, onClearMarketplace]);
 
   const voiceCall = useVoiceCallContext();
 
@@ -1603,7 +1632,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
   };
 
   const handleSendDm = async () => {
-    if (!text.trim() && chatAttachments.length === 0) return;
+    if (!text.trim() && chatAttachments.length === 0 && !productCtx) return;
     if (!active || active.kind !== "dm") return;
     setSending(true);
     try {
@@ -1611,8 +1640,14 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
       if (chatAttachments.length > 0) {
         imageUrl = `[attachments:${JSON.stringify(chatAttachments)}]`;
       }
+      let content = text.trim();
+      if (productCtx) {
+        const tag = `[product:${JSON.stringify({ id: productCtx.id, title: productCtx.title, category: productCtx.category, previewUrl: productCtx.previewUrl })}]`;
+        content = tag + (content ? "\n" + content : "");
+        setProductCtx(null);
+      }
       const d = await apiFetch<{ message: DmMessage }>(`/api/social/messages/${active.user.id}`, {
-        method: "POST", body: JSON.stringify({ content: text.trim(), ...(imageUrl ? { imageUrl } : {}) }),
+        method: "POST", body: JSON.stringify({ content, ...(imageUrl ? { imageUrl } : {}) }),
       });
       setMessages(prev => {
         const next = [...prev, d.message];
@@ -1897,7 +1932,7 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                               <span className="text-[9px] text-muted-foreground/60 shrink-0">{formatLastSeen(userLastSeen, t)}</span>
                             ) : null}
                           </div>
-                          {lastMessage && <p className="text-[10px] text-muted-foreground truncate">{lastMessage.content && isCallMsg(lastMessage.content) ? <span className="inline-flex items-center gap-1">{parseCallMsg(lastMessage.content).type === "missed" ? <><PhoneOff className="w-3 h-3 text-red-400 inline" /> {t("com.callMissed")}</> : <><Phone className="w-3 h-3 text-green-400 inline" /> {t("com.callOutgoing")}</>}</span> : lastMessage.content && isVoiceMsg(lastMessage.content) ? <span className="inline-flex items-center gap-1"><Mic className="w-3 h-3 inline" /> {t("com.voiceMessage")}</span> : lastMessage.content}</p>}
+                          {lastMessage && <p className="text-[10px] text-muted-foreground truncate">{lastMessage.content && isCallMsg(lastMessage.content) ? <span className="inline-flex items-center gap-1">{parseCallMsg(lastMessage.content).type === "missed" ? <><PhoneOff className="w-3 h-3 text-red-400 inline" /> {t("com.callMissed")}</> : <><Phone className="w-3 h-3 text-green-400 inline" /> {t("com.callOutgoing")}</>}</span> : lastMessage.content && isVoiceMsg(lastMessage.content) ? <span className="inline-flex items-center gap-1"><Mic className="w-3 h-3 inline" /> {t("com.voiceMessage")}</span> : lastMessage.content && isProductMsg(lastMessage.content) ? <span className="inline-flex items-center gap-1"><Package className="w-3 h-3 inline text-indigo-500" /> {parseProductMsg(lastMessage.content)?.product.title || t("com.aboutProduct")}</span> : lastMessage.content}</p>}
                         </div>
                         {lastMessage && <span className="text-[9px] text-muted-foreground shrink-0">{timeAgoShort(lastMessage.createdAt)}</span>}
                       </div>
@@ -2061,7 +2096,30 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                               ))}
                             </div>
                           )}
-                          {isVoiceMsg(msg.content) ? <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isOwn} /> : msg.content ? msg.content : null}
+                          {isVoiceMsg(msg.content) ? (
+                            <VoicePlayer src={getVoiceSrc(msg.content)} isOwn={!!isOwn} />
+                          ) : isProductMsg(msg.content) ? (() => {
+                            const p = parseProductMsg(msg.content);
+                            if (!p) return msg.content;
+                            return (
+                              <>
+                                <div className={`flex items-center gap-2 rounded-lg p-2 mb-1 ${isOwn ? "bg-white/10" : "bg-background/60 border border-border/50"}`}>
+                                  {p.product.previewUrl ? (
+                                    <img src={p.product.previewUrl} alt={p.product.title} className="w-9 h-9 rounded-md object-cover shrink-0" />
+                                  ) : (
+                                    <div className={`w-9 h-9 rounded-md flex items-center justify-center shrink-0 ${isOwn ? "bg-white/10" : "bg-indigo-500/10"}`}>
+                                      <Package className={`w-4 h-4 ${isOwn ? "text-white/60" : "text-indigo-500"}`} />
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold truncate">{p.product.title}</p>
+                                    <p className={`text-[10px] ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>Marketplace</p>
+                                  </div>
+                                </div>
+                                {p.text && <span>{p.text}</span>}
+                              </>
+                            );
+                          })() : msg.content ? msg.content : null}
                           <p className={`text-[10px] mt-1 ${isOwn ? "text-white/50" : "text-muted-foreground"}`}>{timeAgo(msg.createdAt, t)}</p>
                         </div>
                       </div>
@@ -2093,6 +2151,24 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                       </motion.div>
                     )}
                   </AnimatePresence>
+                  {productCtx && (
+                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-2 flex items-center gap-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/5 px-3 py-2">
+                      {productCtx.previewUrl ? (
+                        <img src={productCtx.previewUrl} alt={productCtx.title} className="w-10 h-10 rounded-lg object-cover shrink-0 border border-border/50" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                          <Package className="w-5 h-5 text-indigo-500" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate">{productCtx.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{t("com.aboutProduct")}</p>
+                      </div>
+                      <button onClick={() => setProductCtx(null)} className="shrink-0 w-5 h-5 rounded-full hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </motion.div>
+                  )}
                   {chatAttachments.length > 0 && (
                     <div className="flex gap-2 mb-2 flex-wrap">
                       {chatAttachments.map((a, i) => (
@@ -2118,8 +2194,8 @@ function ChatTab({ myUser, initialChatUser, onClearInitial }: {
                       <Paperclip className="w-4 h-4" />
                     </Button>
                     <EmojiPicker onSelect={emoji => setText(t => t + emoji)} disabled={isRecording || !!voiceBlob} />
-                    <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={`${t("com.messagePlaceholder")} ${active.user.displayName}`} className="rounded-xl flex-1" disabled={isRecording || !!voiceBlob} />
-                    <Button onClick={handleSend} disabled={sending || (!text.trim() && chatAttachments.length === 0) || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
+                    <Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()} placeholder={productCtx ? t("com.writeAboutProduct") : `${t("com.messagePlaceholder")} ${active.user.displayName}`} className="rounded-xl flex-1" disabled={isRecording || !!voiceBlob} />
+                    <Button onClick={handleSend} disabled={sending || (!text.trim() && chatAttachments.length === 0 && !productCtx) || isRecording || !!voiceBlob} size="sm" className="rounded-xl px-3 h-9 shrink-0">
                       {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </Button>
                   </div>
@@ -4176,7 +4252,7 @@ const CATEGORY_LABEL_KEYS: Record<string, string> = {
   avatar: "com.catAvatar", plugin: "com.catPlugin", asset: "com.catAsset", script: "com.catScript",
 };
 
-function MarketplaceTab({ myUser, onChatUser }: { myUser: PlatformUser | null; onChatUser: (user: PlatformUser) => void }) {
+function MarketplaceTab({ myUser, onChatUser }: { myUser: PlatformUser | null; onChatUser: (user: PlatformUser, item?: MarketplaceContext) => void }) {
   const { toast } = useToast();
   const { t } = useLanguage();
   const [listings, setListings] = useState<any[]>([]);
@@ -4352,7 +4428,13 @@ function MarketplaceTab({ myUser, onChatUser }: { myUser: PlatformUser | null; o
                       size="sm"
                       variant="outline"
                       className="rounded-xl text-xs gap-1.5 w-full"
-                      onClick={() => onChatUser(item.seller as PlatformUser)}
+                      onClick={() => onChatUser(item.seller as PlatformUser, {
+                        id: item.id,
+                        title: item.title,
+                        category: item.category,
+                        previewUrl: item.previewUrl || undefined,
+                        sellerName: item.seller?.displayName || "Seller",
+                      })}
                     >
                       <MessageSquare className="w-3.5 h-3.5" /> {t("com.writeToSeller")}
                     </Button>
@@ -4640,6 +4722,7 @@ export default function Community() {
   const [registering, setRegistering] = useState(true);
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem("limitedink_community_tab") || "feed");
   const [chatInitUser, setChatInitUser] = useState<PlatformUser | null>(null);
+  const [chatMarketplaceCtx, setChatMarketplaceCtx] = useState<MarketplaceContext | null>(null);
   const [profileModalUserId, setProfileModalUserId] = useState<number | null>(null);
   const [editingBio, setEditingBio] = useState(false);
   const [bioText, setBioText] = useState("");
@@ -4670,8 +4753,9 @@ export default function Community() {
     return () => clearInterval(iv);
   }, [myUser]);
 
-  const handleChatUser = (user: PlatformUser) => {
+  const handleChatUser = (user: PlatformUser, marketplaceItem?: MarketplaceContext) => {
     setChatInitUser(user);
+    setChatMarketplaceCtx(marketplaceItem || null);
     handleTabChange("chat");
   };
 
@@ -4766,7 +4850,7 @@ export default function Community() {
           {activeTab === "forum" && <ForumTab myUser={myUser} onUserClick={setProfileModalUserId} />}
           {activeTab === "discover" && <DiscoverTab myUser={myUser} onUserClick={setProfileModalUserId} onChat={handleChatUser} />}
           {activeTab === "friends" && <FriendsTab myUser={myUser} onChat={handleChatUser} onUserClick={setProfileModalUserId} />}
-          {activeTab === "chat" && <ChatTab myUser={myUser} initialChatUser={chatInitUser} onClearInitial={() => setChatInitUser(null)} />}
+          {activeTab === "chat" && <ChatTab myUser={myUser} initialChatUser={chatInitUser} onClearInitial={() => setChatInitUser(null)} marketplaceContext={chatMarketplaceCtx} onClearMarketplace={() => setChatMarketplaceCtx(null)} />}
           {activeTab === "marketplace" && <MarketplaceTab myUser={myUser} onChatUser={handleChatUser} />}
           {activeTab === "accessories" && <AccessoriesTab />}
         </div>
