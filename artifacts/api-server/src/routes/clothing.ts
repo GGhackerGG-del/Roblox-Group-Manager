@@ -54,7 +54,17 @@ async function validateRobloxCookie(cookie: string): Promise<{ status: "valid" |
   }
 }
 
-async function getRobloxCsrf(cookie: string): Promise<string> {
+function extractRotatedCookie(resp: Response): string | null {
+  const setCookie = resp.headers.get("set-cookie") || "";
+  const m = setCookie.match(/\.ROBLOSECURITY=([^;]+)/);
+  if (m && m[1] && m[1] !== "null" && m[1].length > 20) {
+    console.log(`[Clothing] Cookie rotated via Set-Cookie (len=${m[1].length})`);
+    return m[1];
+  }
+  return null;
+}
+
+async function getRobloxCsrf(cookie: string): Promise<{ csrf: string; cookie: string }> {
   const hdrs: Record<string, string> = {
     "Cookie": `.ROBLOSECURITY=${cookie}`,
     "Content-Type": "application/json",
@@ -63,20 +73,23 @@ async function getRobloxCsrf(cookie: string): Promise<string> {
     "Origin": "https://www.roblox.com",
   };
 
+  let activeCookie = cookie;
+
   const endpoints = [
-    { url: "https://auth.roblox.com/v2/metadata", method: "GET" },
-    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST", body: JSON.stringify({ items: [] }) },
     { url: "https://presence.roblox.com/v1/presence/users", method: "POST", body: JSON.stringify({ userIds: [] }) },
+    { url: "https://auth.roblox.com/v2/metadata", method: "POST", body: "" },
   ];
 
   for (let attempt = 0; attempt < 3; attempt++) {
     for (const ep of endpoints) {
       try {
-        const r = await fetch(ep.url, { method: ep.method, headers: hdrs, body: (ep as any).body });
+        const r = await fetch(ep.url, { method: ep.method, headers: { ...hdrs, "Cookie": `.ROBLOSECURITY=${activeCookie}` }, body: ep.body });
+        const rotated = extractRotatedCookie(r);
+        if (rotated) activeCookie = rotated;
         const token = r.headers.get("x-csrf-token");
         if (token) {
           console.log(`[Clothing] CSRF obtained from ${ep.url} (attempt ${attempt + 1})`);
-          return token;
+          return { csrf: token, cookie: activeCookie };
         }
       } catch (e) {
         console.error(`[Clothing] CSRF fetch error (${ep.url}):`, e);
@@ -88,7 +101,7 @@ async function getRobloxCsrf(cookie: string): Promise<string> {
     }
   }
   console.error("[Clothing] Failed to get CSRF after all attempts");
-  return "";
+  return { csrf: "", cookie: activeCookie };
 }
 
 function robloxHeaders(cookie: string, extra: Record<string, string> = {}): Record<string, string> {
@@ -108,7 +121,8 @@ async function fetchItemDetails(ids: number[], cookie: string): Promise<Map<numb
   const map = new Map<number, DetailItem>();
   if (!ids.length) return map;
 
-  const csrf = await getRobloxCsrf(cookie);
+  const csrfResult = await getRobloxCsrf(cookie);
+  const csrf = csrfResult.csrf;
 
   for (let i = 0; i < ids.length; i += 120) {
     const batch = ids.slice(i, i + 120);
@@ -883,7 +897,17 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
   const isPants = clothingType === "Pants" || clothingType === "pants";
   const assetTypeName = isPants ? "Pants" : "Shirt";
 
-  let csrf = await getRobloxCsrf(cookie);
+  const csrfResult = await getRobloxCsrf(cookie);
+  let csrf = csrfResult.csrf;
+  if (csrfResult.cookie !== cookie) {
+    cookie = csrfResult.cookie;
+    if (altIndex !== undefined && altIndex !== null) {
+      if (req.session.altAccounts?.[altIndex]) req.session.altAccounts[altIndex].cookie = cookie;
+    } else {
+      req.session.robloxCookie = cookie;
+    }
+    console.log(`[Clothing] Persisted rotated cookie from CSRF acquisition to session`);
+  }
   if (!csrf) { res.status(400).json({ error: "Failed to get CSRF. Session may have expired." }); return; }
 
   const imgBuf = Buffer.from(imageBase64, "base64");
@@ -898,51 +922,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     let assetId: number | null = null;
     let uploadMethod = "";
 
-    const classicUrl = `https://data.roblox.com/Data/Upload.ashx?assetTypeId=${assetTypeId}&name=${encodeURIComponent(trimmedName)}&description=${encodeURIComponent(trimmedDesc)}&groupId=${groupId}&ispublic=true&allowComments=true`;
-    console.log(`[Clothing] Trying classic upload for ${assetTypeName} "${trimmedName}" to group ${groupId}...`);
-
-    let classicResp: Response | null = null;
-    let classicText = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
-      classicResp = await fetch(classicUrl, {
-        method: "POST",
-        headers: {
-          "Cookie": `.ROBLOSECURITY=${cookie}`,
-          "X-CSRF-TOKEN": csrf,
-          "Content-Type": "application/octet-stream",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Referer": "https://www.roblox.com/",
-          "Origin": "https://www.roblox.com",
-        },
-        body: imgBuf,
-      });
-
-      classicText = await classicResp.text();
-      console.log(`[Clothing] Classic upload attempt=${attempt + 1} status=${classicResp.status} body=${classicText.slice(0, 300)}`);
-
-      if (classicResp.status === 403) {
-        const newCsrf = classicResp.headers.get("x-csrf-token");
-        if (newCsrf && attempt < 2) {
-          console.log(`[Clothing] Classic upload: got new CSRF from 403, retrying...`);
-          csrf = newCsrf;
-          continue;
-        }
-      }
-      break;
-    }
-
-    if (classicResp && classicResp.ok) {
-      const parsed = parseInt(classicText.trim(), 10);
-      if (!isNaN(parsed) && parsed > 0) {
-        assetId = parsed;
-        uploadMethod = "classic";
-        console.log(`[Clothing] Classic upload success, assetId=${assetId}`);
-      }
-    }
-
-    if (!assetId) {
-      console.log(`[Clothing] Classic upload failed, trying Open Cloud API...`);
-
+    {
       const requestJson = JSON.stringify({
         displayName: trimmedName,
         description: trimmedDesc,
@@ -969,6 +949,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
       let uploadResp: Response | null = null;
       let text = "";
       for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
+        console.log(`[Clothing] OpenCloud attempt=${uploadAttempt + 1} cookie-len=${cookie.length} csrf-len=${csrf.length}`);
         uploadResp = await fetch(UPLOAD_API, {
           method: "POST",
           headers: {
@@ -982,6 +963,17 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
           body: fullBody,
         });
 
+        const rotated = extractRotatedCookie(uploadResp);
+        if (rotated) {
+          console.log(`[Clothing] Cookie rotated during upload attempt ${uploadAttempt + 1}`);
+          cookie = rotated;
+          if (altIndex !== undefined && altIndex !== null) {
+            if (req.session.altAccounts?.[altIndex]) req.session.altAccounts[altIndex].cookie = cookie;
+          } else {
+            req.session.robloxCookie = cookie;
+          }
+        }
+
         text = await uploadResp.text();
         console.log(`[Clothing] OpenCloud upload attempt=${uploadAttempt + 1} status=${uploadResp.status} body=${text.slice(0, 500)}`);
 
@@ -989,6 +981,8 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
           const newCsrf = uploadResp.headers.get("x-csrf-token");
           if (newCsrf && uploadAttempt < 2) {
             csrf = newCsrf;
+            console.log(`[Clothing] Got new CSRF from 403, retrying...`);
+            await new Promise(r => setTimeout(r, 500));
             continue;
           }
           res.status(401).json({ error: "Authentication failed. Check your Roblox cookie." });
@@ -1005,7 +999,7 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
       if (uploadResp.status === 401) {
         const recheck = await validateRobloxCookie(cookie);
         if (recheck.status === "invalid") {
-          console.log(`[Clothing] Roblox cookie expired (alt=${altIndex ?? "main"})`);
+          console.log(`[Clothing] Roblox cookie expired after upload (alt=${altIndex ?? "main"})`);
           if (altIndex === undefined || altIndex === null) {
             req.session.robloxCookie = undefined;
             req.session.robloxProfile = undefined;
@@ -1108,7 +1102,8 @@ async function getRobloxUserId(cookie: string): Promise<number | null> {
   return null;
 }
 
-async function setPrice(assetId: number, salePrice: number, cookie: string, csrf: string, groupId: number, itemName?: string, itemDesc?: string): Promise<boolean> {
+async function setPrice(assetId: number, salePrice: number, cookie_: string, csrf: string, groupId: number, itemName?: string, itemDesc?: string): Promise<boolean> {
+  let cookie = cookie_;
   const userId = await getRobloxUserId(cookie);
   if (!userId) {
     console.log(`[Clothing] Could not get Roblox userId for publishing`);
@@ -1116,7 +1111,15 @@ async function setPrice(assetId: number, salePrice: number, cookie: string, csrf
 
   for (let attempt = 0; attempt < 5; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, 3000 * attempt));
-    const currentCsrf = attempt === 0 ? csrf : await getRobloxCsrf(cookie);
+    let currentCsrf = csrf;
+    if (attempt > 0) {
+      const refreshed = await getRobloxCsrf(cookie);
+      currentCsrf = refreshed.csrf;
+      if (refreshed.cookie !== cookie) {
+        cookie = refreshed.cookie;
+        console.log(`[Clothing] setPrice: cookie rotated during CSRF refresh`);
+      }
+    }
 
     const hdrs: Record<string, string> = {
       "Cookie": `.ROBLOSECURITY=${cookie}`,

@@ -104,10 +104,9 @@ async function getSafeCsrf(cookie: string, preferDomain?: string): Promise<strin
   };
 
   const endpoints = [
-    { url: "https://groups.roblox.com/v1/groups/configuration/metadata", method: "GET" },
-    { url: "https://auth.roblox.com/v2/metadata", method: "GET" },
-    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST", body: JSON.stringify({ items: [] }) },
     { url: "https://presence.roblox.com/v1/presence/users", method: "POST", body: JSON.stringify({ userIds: [] }) },
+    { url: "https://auth.roblox.com/v2/metadata", method: "POST", body: "" },
+    { url: "https://groups.roblox.com/v1/groups/configuration/metadata", method: "GET", body: undefined as string | undefined },
   ];
 
   if (preferDomain) {
