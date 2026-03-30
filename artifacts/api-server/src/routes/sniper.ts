@@ -140,8 +140,8 @@ async function getRobloxCsrf(cookie: string): Promise<string> {
   };
 
   const endpoints = [
+    { url: "https://catalog.roblox.com/v1/catalog/items/details", method: "POST" as const, body: JSON.stringify({ items: [] }) },
     { url: "https://presence.roblox.com/v1/presence/users", method: "POST" as const, body: JSON.stringify({ userIds: [] }) },
-    { url: "https://auth.roblox.com/v2/metadata", method: "POST" as const, body: "" },
   ];
 
   for (let attempt = 0; attempt < 3; attempt++) {
