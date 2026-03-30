@@ -30,6 +30,30 @@ async function itemConfigFetch(url: string, init?: RequestInit): Promise<Respons
   return globalRobloxFetch(url, init, "low");
 }
 
+async function validateRobloxCookie(cookie: string): Promise<{ status: "valid" | "invalid" | "unknown"; userId?: number; name?: string }> {
+  try {
+    const resp = await fetch("https://users.roblox.com/v1/users/authenticated", {
+      headers: {
+        "Cookie": `.ROBLOSECURITY=${cookie}`,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+    if (resp.ok) {
+      const data = await resp.json() as { id: number; name: string };
+      return { status: "valid", userId: data.id, name: data.name };
+    }
+    if (resp.status === 401) {
+      console.log("[Clothing] Cookie validation: 401 — cookie is expired/invalid");
+      return { status: "invalid" };
+    }
+    console.log(`[Clothing] Cookie validation: transient error status=${resp.status}`);
+    return { status: "unknown" };
+  } catch (e) {
+    console.error("[Clothing] Cookie validation network error:", e);
+    return { status: "unknown" };
+  }
+}
+
 async function getRobloxCsrf(cookie: string): Promise<string> {
   const hdrs: Record<string, string> = {
     "Cookie": `.ROBLOSECURITY=${cookie}`,
@@ -838,6 +862,24 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
   if (imageBase64.length > MAX_IMAGE_SIZE * 1.37) { res.status(400).json({ error: "Image too large (max 10MB)." }); return; }
 
+  const cookieCheck = await validateRobloxCookie(cookie);
+  if (cookieCheck.status === "invalid") {
+    console.log(`[Clothing] Roblox cookie expired before upload (alt=${altIndex ?? "main"})`);
+    if (altIndex !== undefined && altIndex !== null) {
+      res.status(401).json({ error: "Alt account cookie expired. Please re-add the alt account." });
+    } else {
+      req.session.robloxCookie = undefined;
+      req.session.robloxProfile = undefined;
+      res.status(401).json({ error: "Roblox cookie expired. Please log in again with a fresh cookie." });
+    }
+    return;
+  }
+  if (cookieCheck.status === "valid") {
+    console.log(`[Clothing] Cookie validated for user ${cookieCheck.name} (${cookieCheck.userId})`);
+  } else {
+    console.log(`[Clothing] Cookie validation inconclusive, proceeding with upload anyway`);
+  }
+
   const isPants = clothingType === "Pants" || clothingType === "pants";
   const assetTypeName = isPants ? "Pants" : "Shirt";
 
@@ -914,7 +956,21 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
     }
 
     if (uploadResp.status === 401) {
-      res.status(401).json({ error: "Authentication failed. Check your Roblox cookie." });
+      const recheck = await validateRobloxCookie(cookie);
+      if (recheck.status === "invalid") {
+        console.log(`[Clothing] Roblox cookie invalidated during upload (alt=${altIndex ?? "main"})`);
+        if (altIndex === undefined || altIndex === null) {
+          req.session.robloxCookie = undefined;
+          req.session.robloxProfile = undefined;
+        }
+        res.status(401).json({ error: "Roblox cookie expired during upload. Please log in again with a fresh cookie." });
+      } else if (recheck.status === "valid") {
+        console.log(`[Clothing] Upload 401 but cookie still valid — likely a permissions issue for group ${groupId}`);
+        res.status(401).json({ error: "Upload rejected by Roblox. Make sure this account has permission to upload clothing to this group." });
+      } else {
+        console.log(`[Clothing] Upload 401 and cookie status unknown — Roblox may be having issues`);
+        res.status(502).json({ error: "Roblox is temporarily unavailable. Please try again in a moment." });
+      }
       return;
     }
 

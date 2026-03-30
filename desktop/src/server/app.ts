@@ -559,7 +559,7 @@ async function proxyToRemote(
 
     const isLongRunning = remotePath.includes("/clothing/upload") || remotePath.includes("/automation/payout");
     const proxyCtrl = new AbortController();
-    const proxyTimeout = setTimeout(() => proxyCtrl.abort(), isLongRunning ? 180000 : 60000);
+    const proxyTimeout = setTimeout(() => proxyCtrl.abort(), isLongRunning ? 300000 : 60000);
     const response = await fetchFn(url, {
       method: req.method,
       headers,
@@ -573,12 +573,7 @@ async function proxyToRemote(
       ? response.headers.getSetCookie()
       : (response.headers.raw?.()?.["set-cookie"] || []);
 
-    const COOKIE_ACCEPT_ROUTES = [
-      "/api/roblox/auth",
-      "/api/license/activate",
-      "/api/license/verify",
-    ];
-    const isCookieAcceptRoute = COOKIE_ACCEPT_ROUTES.some(r => remotePath.startsWith(r));
+    const isCookieAcceptRoute = remotePath === "/api/roblox/auth" || (!remoteSessionCookie && (remotePath.startsWith("/api/license/activate") || remotePath.startsWith("/api/license/verify")));
 
     if (setCookieHeaders && setCookieHeaders.length > 0 && response.status < 500) {
       for (const sc of setCookieHeaders) {
