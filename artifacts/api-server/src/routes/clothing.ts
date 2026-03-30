@@ -891,159 +891,199 @@ router.post("/clothing/upload", async (req, res): Promise<void> => {
   console.log(`[Clothing] Uploading ${assetTypeName} "${name}" to group ${groupId} via Open Cloud API...`);
 
   try {
-    const requestJson = JSON.stringify({
-      displayName: name.trim(),
-      description: (description || "Uploaded via Limited.Ink").trim(),
-      assetType: assetTypeName,
-      creationContext: {
-        expectedPrice: 10,
-        creator: {
-          groupId: groupId,
-        },
-      },
-    });
+    const assetTypeId = isPants ? 12 : 11;
+    const trimmedName = name.trim();
+    const trimmedDesc = (description || "Uploaded via Limited.Ink").trim();
 
-    const boundary = "----LimitedInk" + Date.now();
-    const parts: Buffer[] = [];
+    let assetId: number | null = null;
+    let uploadMethod = "";
 
-    parts.push(Buffer.from(
-      `--${boundary}\r\nContent-Disposition: form-data; name="fileContent"; filename="clothing.png"\r\nContent-Type: image/png\r\n\r\n`
-    ));
-    parts.push(imgBuf);
-    parts.push(Buffer.from(`\r\n`));
+    const classicUrl = `https://data.roblox.com/Data/Upload.ashx?assetTypeId=${assetTypeId}&name=${encodeURIComponent(trimmedName)}&description=${encodeURIComponent(trimmedDesc)}&groupId=${groupId}&ispublic=true&allowComments=true`;
+    console.log(`[Clothing] Trying classic upload for ${assetTypeName} "${trimmedName}" to group ${groupId}...`);
 
-    parts.push(Buffer.from(
-      `--${boundary}\r\nContent-Disposition: form-data; name="request"\r\nContent-Type: application/json\r\n\r\n${requestJson}\r\n`
-    ));
-    parts.push(Buffer.from(`--${boundary}--\r\n`));
-    const fullBody = Buffer.concat(parts);
-
-    let uploadResp: Response | null = null;
-    let text = "";
-    for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
-      uploadResp = await fetch(UPLOAD_API, {
+    let classicResp: Response | null = null;
+    let classicText = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      classicResp = await fetch(classicUrl, {
         method: "POST",
         headers: {
           "Cookie": `.ROBLOSECURITY=${cookie}`,
           "X-CSRF-TOKEN": csrf,
-          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "Content-Type": "application/octet-stream",
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Origin": "https://create.roblox.com",
-          "Referer": "https://create.roblox.com/",
+          "Referer": "https://www.roblox.com/",
+          "Origin": "https://www.roblox.com",
         },
-        body: fullBody,
+        body: imgBuf,
       });
 
-      text = await uploadResp.text();
-      console.log(`[Clothing] Upload response attempt=${uploadAttempt + 1} status=${uploadResp.status} body=${text.slice(0, 500)}`);
+      classicText = await classicResp.text();
+      console.log(`[Clothing] Classic upload attempt=${attempt + 1} status=${classicResp.status} body=${classicText.slice(0, 300)}`);
 
-      if (uploadResp.status === 403) {
-        const newCsrf = uploadResp.headers.get("x-csrf-token");
-        if (newCsrf && uploadAttempt < 2) {
-          console.log(`[Clothing] Got new CSRF from 403 response, retrying...`);
+      if (classicResp.status === 403) {
+        const newCsrf = classicResp.headers.get("x-csrf-token");
+        if (newCsrf && attempt < 2) {
+          console.log(`[Clothing] Classic upload: got new CSRF from 403, retrying...`);
           csrf = newCsrf;
           continue;
         }
-        res.status(401).json({ error: "Authentication failed. Check your Roblox cookie." });
-        return;
       }
       break;
     }
 
-    if (!uploadResp) {
-      res.status(500).json({ error: "Upload failed" });
-      return;
-    }
-
-    if (uploadResp.status === 401) {
-      const recheck = await validateRobloxCookie(cookie);
-      if (recheck.status === "invalid") {
-        console.log(`[Clothing] Roblox cookie invalidated during upload (alt=${altIndex ?? "main"})`);
-        if (altIndex === undefined || altIndex === null) {
-          req.session.robloxCookie = undefined;
-          req.session.robloxProfile = undefined;
-        }
-        res.status(401).json({ error: "Roblox cookie expired during upload. Please log in again with a fresh cookie." });
-      } else if (recheck.status === "valid") {
-        console.log(`[Clothing] Upload 401 but cookie still valid — likely a permissions issue for group ${groupId}`);
-        res.status(401).json({ error: "Upload rejected by Roblox. Make sure this account has permission to upload clothing to this group." });
-      } else {
-        console.log(`[Clothing] Upload 401 and cookie status unknown — Roblox may be having issues`);
-        res.status(502).json({ error: "Roblox is temporarily unavailable. Please try again in a moment." });
+    if (classicResp && classicResp.ok) {
+      const parsed = parseInt(classicText.trim(), 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        assetId = parsed;
+        uploadMethod = "classic";
+        console.log(`[Clothing] Classic upload success, assetId=${assetId}`);
       }
-      return;
     }
 
-    if (uploadResp.status === 429) {
-      res.status(429).json({ error: "Rate limited by Roblox. Wait a moment and try again." });
-      return;
-    }
+    if (!assetId) {
+      console.log(`[Clothing] Classic upload failed, trying Open Cloud API...`);
 
-    if (!uploadResp.ok) {
-      let errMsg = `Upload failed (${uploadResp.status})`;
-      try {
-        const e = JSON.parse(text) as { message?: string; errors?: Array<{ message: string; code: number }> };
-        if (e.message) errMsg = e.message;
-        if (e.errors?.[0]?.message) errMsg = e.errors[0].message;
-      } catch {}
-      res.status(400).json({ error: errMsg });
-      return;
-    }
-
-    let parsed: { operationId?: string; path?: string; done?: boolean; response?: { assetId?: number | string } };
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      res.status(502).json({ error: "Invalid response from Roblox upload API." });
-      return;
-    }
-
-    if (parsed.done && parsed.response?.assetId) {
-      const assetId = typeof parsed.response.assetId === "string" ? parseInt(parsed.response.assetId, 10) : parsed.response.assetId;
-      console.log(`[Clothing] Instant upload success, assetId=${assetId}`);
-      const salePrice = Math.max(price || 5, 5);
-      const releaseOk = await setPrice(assetId, salePrice, cookie, csrf, groupId, name?.trim(), (description || "Uploaded via Limited.Ink").trim());
-      res.json({
-        assetId,
-        released: releaseOk,
-        price: releaseOk ? salePrice : null,
-        message: releaseOk
-          ? `Uploaded and listed at ${salePrice} R$`
-          : `Uploaded (ID: ${assetId}) but failed to set price. You can set it manually on Roblox.`,
+      const requestJson = JSON.stringify({
+        displayName: trimmedName,
+        description: trimmedDesc,
+        assetType: assetTypeName,
+        creationContext: {
+          expectedPrice: 10,
+          creator: { groupId },
+        },
       });
+
+      const boundary = "----LimitedInk" + Date.now();
+      const parts: Buffer[] = [];
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="fileContent"; filename="clothing.png"\r\nContent-Type: image/png\r\n\r\n`
+      ));
+      parts.push(imgBuf);
+      parts.push(Buffer.from(`\r\n`));
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="request"\r\nContent-Type: application/json\r\n\r\n${requestJson}\r\n`
+      ));
+      parts.push(Buffer.from(`--${boundary}--\r\n`));
+      const fullBody = Buffer.concat(parts);
+
+      let uploadResp: Response | null = null;
+      let text = "";
+      for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
+        uploadResp = await fetch(UPLOAD_API, {
+          method: "POST",
+          headers: {
+            "Cookie": `.ROBLOSECURITY=${cookie}`,
+            "X-CSRF-TOKEN": csrf,
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Origin": "https://create.roblox.com",
+            "Referer": "https://create.roblox.com/",
+          },
+          body: fullBody,
+        });
+
+        text = await uploadResp.text();
+        console.log(`[Clothing] OpenCloud upload attempt=${uploadAttempt + 1} status=${uploadResp.status} body=${text.slice(0, 500)}`);
+
+        if (uploadResp.status === 403) {
+          const newCsrf = uploadResp.headers.get("x-csrf-token");
+          if (newCsrf && uploadAttempt < 2) {
+            csrf = newCsrf;
+            continue;
+          }
+          res.status(401).json({ error: "Authentication failed. Check your Roblox cookie." });
+          return;
+        }
+        break;
+      }
+
+      if (!uploadResp) {
+        res.status(500).json({ error: "Upload failed" });
+        return;
+      }
+
+      if (uploadResp.status === 401) {
+        const recheck = await validateRobloxCookie(cookie);
+        if (recheck.status === "invalid") {
+          console.log(`[Clothing] Roblox cookie expired (alt=${altIndex ?? "main"})`);
+          if (altIndex === undefined || altIndex === null) {
+            req.session.robloxCookie = undefined;
+            req.session.robloxProfile = undefined;
+          }
+          res.status(401).json({ error: "Roblox cookie expired. Please log in again with a fresh cookie." });
+        } else if (recheck.status === "valid") {
+          res.status(401).json({ error: "Upload rejected by Roblox. Make sure this account has permission to upload to this group." });
+        } else {
+          res.status(502).json({ error: "Roblox is temporarily unavailable. Please try again." });
+        }
+        return;
+      }
+
+      if (uploadResp.status === 429) {
+        res.status(429).json({ error: "Rate limited by Roblox. Wait a moment and try again." });
+        return;
+      }
+
+      if (!uploadResp.ok) {
+        let errMsg = `Upload failed (${uploadResp.status})`;
+        try {
+          const e = JSON.parse(text) as { message?: string; errors?: Array<{ message: string; code: number }> };
+          if (e.message) errMsg = e.message;
+          if (e.errors?.[0]?.message) errMsg = e.errors[0].message;
+        } catch {}
+        res.status(400).json({ error: errMsg });
+        return;
+      }
+
+      let parsed: { operationId?: string; path?: string; done?: boolean; response?: { assetId?: number | string } };
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        res.status(502).json({ error: "Invalid response from Roblox upload API." });
+        return;
+      }
+
+      if (parsed.done && parsed.response?.assetId) {
+        assetId = typeof parsed.response.assetId === "string" ? parseInt(parsed.response.assetId, 10) : parsed.response.assetId;
+        uploadMethod = "opencloud-instant";
+      } else {
+        const opId = parsed.operationId || parsed.path?.split("/").pop();
+        if (!opId) {
+          res.status(502).json({ error: "No operation ID returned from upload." });
+          return;
+        }
+
+        console.log(`[Clothing] Got operationId=${opId}, polling...`);
+        const result = await pollOperation(opId, cookie, csrf);
+
+        if (!result.done) {
+          res.status(504).json({ error: result.error || "Upload timed out." });
+          return;
+        }
+        if (result.error) {
+          res.status(400).json({ error: result.error });
+          return;
+        }
+        assetId = result.assetId!;
+        uploadMethod = "opencloud-poll";
+      }
+    }
+
+    if (!assetId) {
+      res.status(500).json({ error: "Upload failed — no asset ID returned." });
       return;
     }
 
-    const opId = parsed.operationId || parsed.path?.split("/").pop();
-    if (!opId) {
-      res.status(502).json({ error: "No operation ID returned from upload." });
-      return;
-    }
-
-    console.log(`[Clothing] Got operationId=${opId}, polling...`);
-    const result = await pollOperation(opId, cookie, csrf);
-
-    if (!result.done) {
-      res.status(504).json({ error: result.error || "Upload timed out." });
-      return;
-    }
-
-    if (result.error) {
-      res.status(400).json({ error: result.error });
-      return;
-    }
-
-    const assetId = result.assetId!;
-    console.log(`[Clothing] Upload complete, assetId=${assetId}, setting price...`);
-
-    const releaseOk = await setPrice(assetId, Math.max(price || 5, 5), cookie, csrf, groupId, name?.trim(), (description || "Uploaded via Limited.Ink").trim());
+    console.log(`[Clothing] Upload complete via ${uploadMethod}, assetId=${assetId}, setting price...`);
+    const salePrice = Math.max(price || 5, 5);
+    const releaseOk = await setPrice(assetId, salePrice, cookie, csrf, groupId, trimmedName, trimmedDesc);
 
     res.json({
       assetId,
       released: releaseOk,
-      price: releaseOk ? Math.max(price || 5, 5) : null,
+      price: releaseOk ? salePrice : null,
       message: releaseOk
-        ? `Uploaded and listed at ${Math.max(price || 5, 5)} R$`
+        ? `Uploaded and listed at ${salePrice} R$`
         : `Uploaded (ID: ${assetId}) but failed to set price. You can set it manually on Roblox.`,
     });
   } catch (err) {
