@@ -16,6 +16,7 @@ function setAutoLaunchEnabled(enabled: boolean): void {
   try {
     const { setStoreValue } = require("./db/index.js");
     setStoreValue("auto_launch_enabled", enabled ? "true" : "false");
+    setStoreValue("auto_launch_initialized", "true");
   } catch {}
 
   if (process.platform === "win32") {
@@ -163,9 +164,15 @@ app.whenReady().then(async () => {
     const port = await startServer();
     console.log(`[Limited.Ink] Server running on http://localhost:${port}`);
 
-    const savedAutoLaunch = getAutoLaunchEnabled();
-    if (savedAutoLaunch) {
+    const { getStoreValue } = require("./db/index.js");
+    const autoLaunchInitialized = getStoreValue("auto_launch_initialized");
+    if (!autoLaunchInitialized) {
       setAutoLaunchEnabled(true);
+    } else {
+      const savedAutoLaunch = getAutoLaunchEnabled();
+      if (savedAutoLaunch) {
+        setAutoLaunchEnabled(true);
+      }
     }
 
     createTray();
