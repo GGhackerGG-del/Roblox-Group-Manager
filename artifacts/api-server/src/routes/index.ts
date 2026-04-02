@@ -28,6 +28,7 @@ import qualityRouter from "./quality";
 import accessoriesRouter from "./accessories";
 import shortsRouter from "./shorts";
 import presenceRouter from "./presence";
+import pnlReportsRouter, { stopAllTimersForSession } from "./pnlReports";
 
 const router: IRouter = Router();
 
@@ -37,6 +38,7 @@ router.use(featuredGroupsRouter);
 router.use(qualityRouter);
 
 router.delete("/roblox/session", (req, res): void => {
+  stopAllTimersForSession(req.sessionID);
   delete req.session.robloxCookie;
   delete req.session.robloxUserId;
   delete req.session.robloxProfile;
@@ -74,6 +76,7 @@ router.use("/team", requireLicense);
 router.use("/accessories", requireLicense);
 router.use("/shorts", requireLicense);
 router.use("/presence", requireLicense);
+router.use("/pnl-reports", requireLicense);
 router.use(robloxRouter);
 router.use(clothingRouter);
 router.use(socialRouter);
@@ -98,5 +101,6 @@ router.use(teamRouter);
 router.use(accessoriesRouter);
 router.use(shortsRouter);
 router.use(presenceRouter);
+router.use(pnlReportsRouter);
 
 export default router;

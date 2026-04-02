@@ -159,6 +159,17 @@ declare module "express-session" {
     teamPerformance?: Array<{ id: string; staffId: string; date: number; tasksCompleted: number; rating: number; note: string; category: string }>;
     teamMessages?: Array<{ id: string; authorId: string; authorName: string; text: string; sentAt: number; edited: boolean; reactions: Record<string, number> }>;
     teamShifts?: Array<{ id: string; title: string; date: string; startTime: string; endTime: string; department: string; requiredStaff: number; assignedStaff: string[]; status: "scheduled" | "in-progress" | "completed" | "cancelled"; notes: string; clockIns: Array<{ staffId: string; clockedIn: number; clockedOut: number | null }> }>;
+    pnlReportSchedules?: Array<{
+      id: string;
+      groupId: number;
+      groupName: string;
+      intervalHours: number;
+      discordWebhookUrl: string;
+      telegramChatId: string;
+      enabled: boolean;
+      lastSentAt: number | null;
+      createdAt: number;
+    }>;
     integrationDiscord?: { notifyEvents: string[]; testChannelWebhookId: string };
     integrationTelegram?: { notifyEvents: string[]; chatIds: string[]; messageLog: Array<{ chatId: string; text: string; sentAt: number; ok: boolean }> };
     integrationEmail?: { smtpHost: string; smtpPort: number; smtpUser: string; smtpPass: string; fromEmail: string; toEmail: string; notifyEvents: string[]; enabled: boolean };

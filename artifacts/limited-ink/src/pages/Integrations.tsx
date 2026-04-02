@@ -758,6 +758,187 @@ function EmailTab() {
   );
 }
 
+// ── P&L Reports Tab ──────────────────────────────────────────────────────────
+function PnlReportsTab() {
+  const { toast } = useToast();
+  const { t } = useLanguage();
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [tgConfigured, setTgConfigured] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState<string | null>(null);
+
+  const [groupId, setGroupId] = useState("");
+  const [groupName, setGroupName] = useState("");
+  const [intervalHours, setIntervalHours] = useState("1");
+  const [discordUrl, setDiscordUrl] = useState("");
+  const [telegramChatId, setTelegramChatId] = useState("");
+
+  const load = useCallback(() => {
+    apiFetch("/api/pnl-reports").then(d => {
+      setSchedules(d.schedules || []);
+      setTgConfigured(d.telegramConfigured);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const addSchedule = async () => {
+    const gid = parseInt(groupId, 10);
+    if (!gid || !groupName.trim()) { toast({ variant: "destructive", title: t("common.error"), description: "Group ID and name required" }); return; }
+    if (!discordUrl && !telegramChatId) { toast({ variant: "destructive", title: t("common.error"), description: "Add Discord webhook URL or Telegram chat ID" }); return; }
+    setSaving(true);
+    try {
+      await apiFetch("/api/pnl-reports", {
+        method: "POST",
+        body: JSON.stringify({ groupId: gid, groupName: groupName.trim(), intervalHours: parseInt(intervalHours, 10) || 1, discordWebhookUrl: discordUrl.trim(), telegramChatId: telegramChatId.trim() }),
+      });
+      toast({ title: "P&L report schedule created" });
+      setGroupId(""); setGroupName(""); setDiscordUrl(""); setTelegramChatId("");
+      load();
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
+    finally { setSaving(false); }
+  };
+
+  const sendNow = async (id: string) => {
+    setSending(id);
+    try {
+      const r = await apiFetch<any>(`/api/pnl-reports/${id}/send-now`, { method: "POST" });
+      if (r.ok) toast({ title: `Report sent${r.discord ? " to Discord" : ""}${r.telegram ? " to Telegram" : ""}` });
+      else toast({ variant: "destructive", title: "Send failed" });
+      load();
+    } catch (e) { toast({ variant: "destructive", title: t("common.error"), description: e instanceof Error ? e.message : "" }); }
+    finally { setSending(null); }
+  };
+
+  const toggleEnabled = async (id: string, enabled: boolean) => {
+    try {
+      await apiFetch(`/api/pnl-reports/${id}`, { method: "PATCH", body: JSON.stringify({ enabled }) });
+      load();
+    } catch {}
+  };
+
+  const deleteSchedule = async (id: string) => {
+    try {
+      await apiFetch(`/api/pnl-reports/${id}`, { method: "DELETE" });
+      toast({ title: "Schedule removed" });
+      load();
+    } catch {}
+  };
+
+  if (loading) return <Skeleton className="h-64 rounded-2xl" />;
+
+  return (
+    <div className="space-y-5">
+      <Card className="rounded-2xl border-border/50">
+        <CardContent className="pt-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-2xl">📊</div>
+            <div>
+              <p className="font-bold">P&L Auto-Reports</p>
+              <p className="text-xs text-muted-foreground">Periodic P&L reports to Discord & Telegram</p>
+            </div>
+            {schedules.length > 0 && <Badge className="ml-auto text-[10px] bg-green-500/15 text-green-700 border-green-500/30">{schedules.filter(s => s.enabled).length} active</Badge>}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Group ID</Label>
+              <Input value={groupId} onChange={e => setGroupId(e.target.value)} placeholder="e.g. 100188833" className="rounded-xl h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Group Name</Label>
+              <Input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="e.g. XCLUTCH Studio" className="rounded-xl h-9" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Interval</Label>
+            <Select value={intervalHours} onValueChange={setIntervalHours}>
+              <SelectTrigger className="rounded-xl h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Every 1 hour</SelectItem>
+                <SelectItem value="2">Every 2 hours</SelectItem>
+                <SelectItem value="4">Every 4 hours</SelectItem>
+                <SelectItem value="6">Every 6 hours</SelectItem>
+                <SelectItem value="12">Every 12 hours</SelectItem>
+                <SelectItem value="24">Every 24 hours</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Discord Webhook URL</Label>
+            <Input value={discordUrl} onChange={e => setDiscordUrl(e.target.value)} placeholder="https://discord.com/api/webhooks/..." className="rounded-xl h-9" type="url" />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+              Telegram Chat ID
+              {!tgConfigured && <span className="text-amber-600 text-[10px]">(bot not configured)</span>}
+            </Label>
+            <Input value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} placeholder="e.g. -1001234567890" className="rounded-xl h-9" disabled={!tgConfigured} />
+          </div>
+
+          <Button className="rounded-xl gap-1.5 w-full" onClick={addSchedule} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Add Report Schedule
+          </Button>
+        </CardContent>
+      </Card>
+
+      {schedules.length > 0 && (
+        <Card className="rounded-2xl border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold flex items-center gap-2"><Bell className="w-4 h-4" /> Active Schedules</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {schedules.map(s => (
+              <motion.div key={s.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className={`rounded-xl border p-3 space-y-2 transition-colors ${s.enabled ? "border-green-500/20 bg-green-500/5" : "border-border/40 opacity-60"}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold">{s.groupName}</p>
+                    <p className="text-[10px] text-muted-foreground">ID: {s.groupId} • Every {s.intervalHours}h</p>
+                  </div>
+                  <Switch checked={s.enabled} onCheckedChange={v => toggleEnabled(s.id, v)} />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {s.discordWebhookUrl && <Badge variant="outline" className="text-[10px] rounded-lg">💬 Discord</Badge>}
+                  {s.telegramChatId && <Badge variant="outline" className="text-[10px] rounded-lg">✈️ Telegram</Badge>}
+                  {s.lastSentAt && <Badge variant="outline" className="text-[10px] rounded-lg text-muted-foreground">Last: {new Date(s.lastSentAt).toLocaleString()}</Badge>}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 gap-1" onClick={() => sendNow(s.id)} disabled={sending === s.id}>
+                    {sending === s.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                    Send Now
+                  </Button>
+                  <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 gap-1 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => deleteSchedule(s.id)}>
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </Button>
+                </div>
+              </motion.div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="rounded-2xl border-border/30 bg-secondary/20">
+        <CardContent className="pt-4">
+          <p className="text-xs font-bold text-muted-foreground mb-2">💡 How it works</p>
+          <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Reports are sent automatically at the chosen interval</li>
+            <li>Each report includes balance, revenue, sales count, and top items</li>
+            <li>Discord receives a rich embed, Telegram receives a formatted message</li>
+            <li>You can send a report immediately using "Send Now"</li>
+            <li>Reports continue running while the server is active</li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Integrations() {
   const { t } = useLanguage();
@@ -784,6 +965,7 @@ export default function Integrations() {
           <TabsTrigger value="webhooks" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Webhook className="w-3.5 h-3.5" /> {t("int.webhooks")}</TabsTrigger>
           <TabsTrigger value="sheets" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5">📊 Google Sheets</TabsTrigger>
           <TabsTrigger value="email" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> Email</TabsTrigger>
+          <TabsTrigger value="pnl-reports" className="rounded-lg text-xs font-semibold data-[state=active]:bg-black data-[state=active]:text-white px-3 py-2 flex items-center gap-1.5">📊 P&L Reports</TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -792,6 +974,7 @@ export default function Integrations() {
           <TabsContent value="webhooks" className="mt-0"><CustomWebhooksTab /></TabsContent>
           <TabsContent value="sheets" className="mt-0"><SheetsTab /></TabsContent>
           <TabsContent value="email" className="mt-0"><EmailTab /></TabsContent>
+          <TabsContent value="pnl-reports" className="mt-0"><PnlReportsTab /></TabsContent>
         </div>
       </Tabs>
     </div>
