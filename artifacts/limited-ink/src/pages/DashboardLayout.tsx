@@ -152,7 +152,8 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, [location]);
 
-  const tiltRef = useTilt<HTMLDivElement>({ maxTilt: 1.5, perspective: 2000, scale: 1.0 });
+  const tiltRef = useTilt<HTMLDivElement>({ maxTilt: 1.5, perspective: 2000 });
+  const sidebarTiltRef = useTilt<HTMLDivElement>({ maxTilt: 2.5, perspective: 1400 });
   const { data: groupsData, isLoading: isLoadingGroups } = useGetRobloxGroups();
 
   useEffect(() => {
@@ -182,8 +183,10 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   }, [groupsData?.groups?.length]);
 
   return (
-    <div className="flex h-screen w-full bg-secondary/30 overflow-hidden">
-      <div className="w-72 bg-card border-r border-border/60 flex flex-col shadow-2xl shadow-black/5 z-20">
+    <div className="flex h-screen w-full bg-secondary/30 overflow-hidden relative">
+      <RobuxParticles />
+      <div className="p-3 z-20 flex-shrink-0">
+      <div ref={sidebarTiltRef} className="w-[268px] h-full bg-card/95 backdrop-blur-xl border border-border/40 flex flex-col shadow-2xl shadow-black/15 dark:shadow-black/40 rounded-2xl tilt-card">
         <div className="p-5 border-b border-border/50">
           <Link href="/" className="flex items-center gap-3 group">
             <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Limited.Ink" className="w-9 h-9 rounded-xl shadow-md shadow-black/10 group-hover:scale-105 transition-transform duration-300 object-contain" />
@@ -304,9 +307,9 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>
+      </div>
 
-      <main className="flex-1 relative overflow-hidden bg-background">
-        <RobuxParticles />
+      <main className="flex-1 relative overflow-hidden">
         <div ref={tiltRef} className="relative z-10 w-full h-full overflow-y-auto custom-scrollbar tilt-card">
           {children}
         </div>

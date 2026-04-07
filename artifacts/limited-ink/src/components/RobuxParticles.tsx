@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-const PARTICLE_COUNT = 35;
+const PARTICLE_COUNT = 65;
 const CONNECTION_DISTANCE = 180;
 const MOUSE_REPEL_DISTANCE = 150;
 const MOUSE_REPEL_FORCE = 8;
