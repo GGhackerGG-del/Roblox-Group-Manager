@@ -8,6 +8,7 @@ import { getDeviceFingerprint } from "@/lib/fingerprint";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Loader2, Bot, ArrowRight, Sparkles, Copy } from "lucide-react";
+import RobuxParticles from "@/components/RobuxParticles";
 
 export default function Activation() {
   const [code, setCode] = useState("");
@@ -41,7 +42,8 @@ export default function Activation() {
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-background">
+    <div className="min-h-screen w-full flex bg-background relative">
+      <div className="absolute inset-0 z-0"><RobuxParticles /></div>
       {/* ── Left decorative panel ── */}
       <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden flex-col">
         <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-800" />

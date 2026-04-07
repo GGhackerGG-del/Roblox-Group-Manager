@@ -10,23 +10,23 @@ function getCtx(): AudioContext {
   return audioCtx;
 }
 
-function playTone(freq: number, duration: number, type: OscillatorType = "sine", volume = 0.15, delay = 0) {
+function playTone(freq: number, duration: number, type: OscillatorType = "sine", volume = 0.1, delay = 0) {
   const ctx = getCtx();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = type;
   osc.frequency.value = freq;
   gain.gain.setValueAtTime(0, ctx.currentTime + delay);
-  gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + delay + 0.02);
-  gain.gain.setValueAtTime(volume, ctx.currentTime + delay + duration - 0.05);
-  gain.gain.linearRampToValueAtTime(0, ctx.currentTime + delay + duration);
+  gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + delay + 0.03);
+  gain.gain.setValueAtTime(volume, ctx.currentTime + delay + duration - 0.06);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
   osc.connect(gain);
   gain.connect(ctx.destination);
   osc.start(ctx.currentTime + delay);
   osc.stop(ctx.currentTime + delay + duration);
 }
 
-function playChord(freqs: number[], duration: number, type: OscillatorType = "sine", volume = 0.08, delay = 0) {
+function playChord(freqs: number[], duration: number, type: OscillatorType = "sine", volume = 0.06, delay = 0) {
   freqs.forEach(f => playTone(f, duration, type, volume, delay));
 }
 
@@ -34,25 +34,25 @@ let outgoingInterval: ReturnType<typeof setInterval> | null = null;
 let incomingInterval: ReturnType<typeof setInterval> | null = null;
 
 function playOutgoingRingOnce() {
-  playTone(440, 0.15, "sine", 0.12, 0);
-  playTone(520, 0.15, "sine", 0.12, 0.18);
-  playTone(440, 0.15, "sine", 0.12, 0.36);
-  playTone(520, 0.15, "sine", 0.12, 0.54);
+  playTone(523, 0.18, "sine", 0.08, 0);
+  playTone(659, 0.18, "sine", 0.08, 0.22);
+  playTone(784, 0.18, "sine", 0.08, 0.44);
+  playTone(659, 0.18, "sine", 0.08, 0.66);
 }
 
 function playIncomingRingOnce() {
-  playChord([523.25, 659.25], 0.12, "sine", 0.1, 0);
-  playChord([587.33, 739.99], 0.12, "sine", 0.1, 0.15);
-  playChord([659.25, 830.61], 0.14, "sine", 0.1, 0.3);
-  playChord([523.25, 659.25], 0.12, "sine", 0.1, 0.55);
-  playChord([587.33, 739.99], 0.12, "sine", 0.1, 0.7);
-  playChord([659.25, 830.61], 0.14, "sine", 0.1, 0.85);
+  playChord([392, 523], 0.14, "sine", 0.07, 0);
+  playChord([440, 554], 0.14, "sine", 0.07, 0.18);
+  playChord([494, 659], 0.16, "sine", 0.07, 0.36);
+  playChord([392, 523], 0.14, "sine", 0.07, 0.6);
+  playChord([440, 554], 0.14, "sine", 0.07, 0.78);
+  playChord([494, 659], 0.16, "sine", 0.07, 0.96);
 }
 
 export function startOutgoingRing() {
   stopOutgoingRing();
   playOutgoingRingOnce();
-  outgoingInterval = setInterval(playOutgoingRingOnce, 2500);
+  outgoingInterval = setInterval(playOutgoingRingOnce, 2800);
 }
 
 export function stopOutgoingRing() {
@@ -65,7 +65,7 @@ export function stopOutgoingRing() {
 export function startIncomingRing() {
   stopIncomingRing();
   playIncomingRingOnce();
-  incomingInterval = setInterval(playIncomingRingOnce, 2000);
+  incomingInterval = setInterval(playIncomingRingOnce, 2200);
 }
 
 export function stopIncomingRing() {
@@ -76,35 +76,35 @@ export function stopIncomingRing() {
 }
 
 export function playCallConnected() {
-  playTone(440, 0.08, "sine", 0.12, 0);
-  playTone(554.37, 0.08, "sine", 0.12, 0.08);
-  playTone(659.25, 0.12, "sine", 0.14, 0.16);
+  playTone(392, 0.1, "sine", 0.09, 0);
+  playTone(494, 0.1, "sine", 0.09, 0.1);
+  playTone(659, 0.14, "sine", 0.1, 0.2);
 }
 
 export function playCallEnded() {
-  playTone(523.25, 0.08, "sine", 0.12, 0);
-  playTone(415.3, 0.08, "sine", 0.12, 0.08);
-  playTone(329.63, 0.15, "sine", 0.1, 0.16);
+  playTone(659, 0.1, "sine", 0.09, 0);
+  playTone(494, 0.1, "sine", 0.09, 0.1);
+  playTone(392, 0.16, "sine", 0.07, 0.2);
 }
 
 export function playMute() {
-  playTone(350, 0.06, "square", 0.06, 0);
-  playTone(280, 0.08, "square", 0.05, 0.06);
+  playTone(500, 0.06, "triangle", 0.05, 0);
+  playTone(380, 0.08, "triangle", 0.04, 0.06);
 }
 
 export function playUnmute() {
-  playTone(280, 0.06, "square", 0.06, 0);
-  playTone(400, 0.08, "square", 0.05, 0.06);
+  playTone(380, 0.06, "triangle", 0.05, 0);
+  playTone(540, 0.08, "triangle", 0.04, 0.06);
 }
 
 export function playDeafen() {
-  playTone(300, 0.05, "sawtooth", 0.04, 0);
-  playTone(200, 0.1, "sawtooth", 0.03, 0.05);
+  playTone(400, 0.05, "triangle", 0.04, 0);
+  playTone(280, 0.1, "triangle", 0.03, 0.05);
 }
 
 export function playUndeafen() {
-  playTone(200, 0.05, "sawtooth", 0.04, 0);
-  playTone(350, 0.1, "sawtooth", 0.03, 0.05);
+  playTone(280, 0.05, "triangle", 0.04, 0);
+  playTone(450, 0.1, "triangle", 0.03, 0.05);
 }
 
 export function stopAllSounds() {

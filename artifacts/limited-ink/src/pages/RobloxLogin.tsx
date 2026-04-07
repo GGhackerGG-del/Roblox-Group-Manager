@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Loader2, ShieldCheck, Eye, EyeOff, ArrowRight, Lock, Monitor, FolderOpen, Cookie } from "lucide-react";
+import RobuxParticles from "@/components/RobuxParticles";
 
 export default function RobloxLogin() {
   const [cookie, setCookie] = useState("");
@@ -31,7 +32,8 @@ export default function RobloxLogin() {
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-background">
+    <div className="min-h-screen w-full flex bg-background relative">
+      <div className="absolute inset-0 z-0"><RobuxParticles /></div>
       {/* ── Left form panel ── */}
       <div className="flex-1 flex items-center justify-center p-8 lg:p-14 relative">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-blue-50/40 via-transparent to-transparent dark:from-blue-950/15 pointer-events-none" />

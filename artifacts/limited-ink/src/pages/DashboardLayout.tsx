@@ -13,6 +13,8 @@ import { playHover, playClick } from "@/hooks/useSounds";
 import { usePageCache } from "@/contexts/PageCacheContext";
 import { PresenceProvider } from "@/contexts/PresenceContext";
 import { VoiceCallProvider } from "@/contexts/VoiceCallContext";
+import RobuxParticles from "@/components/RobuxParticles";
+import { useTilt } from "@/hooks/useTilt";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -150,6 +152,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, [location]);
 
+  const tiltRef = useTilt<HTMLDivElement>({ maxTilt: 1.5, perspective: 2000, scale: 1.0 });
   const { data: groupsData, isLoading: isLoadingGroups } = useGetRobloxGroups();
 
   useEffect(() => {
@@ -303,7 +306,8 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
       </div>
 
       <main className="flex-1 relative overflow-hidden bg-background">
-        <div className="w-full h-full overflow-y-auto custom-scrollbar">
+        <RobuxParticles />
+        <div ref={tiltRef} className="relative z-10 w-full h-full overflow-y-auto custom-scrollbar tilt-card">
           {children}
         </div>
       </main>
