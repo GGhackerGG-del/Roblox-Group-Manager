@@ -73,15 +73,32 @@ docker compose exec app node -e "const { execSync } = require('child_process'); 
 
 echo.
 echo =========================================
-echo   Готово! Приложение запущено.
+echo   Готово! Открываем приложение...
 echo =========================================
 echo.
-echo   Откройте в браузере: http://localhost:3000
+
+:: Ждём пока сервер поднимется (до 60 секунд)
+echo Ожидаем запуска сервера...
+set /a tries=0
+:waitloop
+timeout /t 3 /nobreak > nul
+curl -s -o nul -w "%%{http_code}" http://localhost:3000/api/healthz 2>nul | findstr "200" > nul
+if %errorlevel% equ 0 goto ready
+set /a tries+=1
+if %tries% lss 20 goto waitloop
+
+:ready
+echo Открываем http://localhost:3000 в браузере...
+start http://localhost:3000
+
 echo.
-echo   Полезные команды:
-echo     docker compose logs -f app     — логи приложения
+echo   Приложение работает на http://localhost:3000
+echo   Это окно можно закрыть — приложение продолжит работать в фоне.
+echo.
+echo   Полезные команды (запускать из папки deploy\):
+echo     docker compose logs -f app     — логи
 echo     docker compose restart app     — перезапустить
 echo     docker compose down            — остановить
-echo     docker compose up -d --build   — обновить и перезапустить
+echo     docker compose up -d --build   — обновить после изменений
 echo.
 pause
