@@ -6,16 +6,15 @@ import { eq } from "drizzle-orm";
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const ADMIN_ID = 7506471937;
 
-const isProduction = process.env.NODE_ENV === "production";
-const isDesktop = process.env.DESKTOP_MODE === "true";
-
 if (!TOKEN) {
   console.warn("[TelegramBot] TELEGRAM_BOT_TOKEN not set — bot disabled.");
-} else if (!isProduction && !isDesktop) {
-  console.warn("[TelegramBot] Skipping in development (only runs in production/desktop).");
 }
 
-const shouldRun = TOKEN && (isProduction || isDesktop);
+// Runs whenever a token is configured (dev, production, or desktop). Note: if you
+// also deploy this app, both the deployment and this dev instance would poll
+// Telegram at the same time, which can cause "409 Conflict" polling errors —
+// harmless, but only one instance actually receives updates.
+const shouldRun = Boolean(TOKEN);
 const bot = shouldRun ? new TelegramBot(TOKEN, { polling: true }) : null;
 
 function addDays(days: number): Date {
