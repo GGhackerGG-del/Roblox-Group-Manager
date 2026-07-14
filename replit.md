@@ -205,14 +205,17 @@ CREATE TABLE gamification_profiles (
 - Health check: `/api/healthz`
 - Telegram bot polling conflicts resolved: bot disabled in development mode
 
-### Self-hosted Deployment (VPS)
-- `deploy/` folder contains Docker-based self-hosting setup
-- `deploy/Dockerfile` — Node.js 20 + ffmpeg, builds frontend & backend
+### Self-hosted / Local Deployment (без Replit)
+- `deploy/` folder contains Docker-based self-hosting setup (works on any PC with Docker Desktop)
+- `deploy/Dockerfile` — Node.js 20 + ffmpeg, builds frontend & backend; uses pnpm@10
 - `deploy/docker-compose.yml` — app + PostgreSQL 16
-- `deploy/setup.sh` — one-command installer (Docker, secrets, build & run)
-- `deploy/DEPLOY.md` — full Russian-language deployment guide
-- `deploy/.env.example` — template for environment variables
-- Requires: VPS with 1GB RAM, Ubuntu 22.04+, SSH access
+- `deploy/start.bat` — Windows one-click launcher (creates .env, asks for bot token, builds & starts)
+- `deploy/start.sh` — Mac/Linux launcher
+- `deploy/КАК_ЗАПУСТИТЬ.md` — Russian-language local setup guide
+- `deploy/DEPLOY.md` — VPS deployment guide (Ubuntu)
+- `deploy/.env.example` — template for environment variables; `deploy/.env` is gitignored
+- TELEGRAM_BOT_TOKEN in .env enables bot; runs automatically on container start
+- Bot disabled in Replit dev mode by default to avoid 409 polling conflict with production
 
 ## Known Limitations / Pending Work
 - Roblox clothing upload uses `apis.roblox.com/assets/user-auth/v1/assets` (Open Cloud API) with multipart form. Price set + release via `itemconfiguration.roblox.com/v1/collectibles` with correct payload (targetId, creatorGroupId, publisherUserId, priceInRobux, agreedPublishingFee:10, publishingType:2, resaleRestriction:2, saleLocationConfiguration).
