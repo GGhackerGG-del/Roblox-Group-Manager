@@ -15,6 +15,10 @@ description: Windows batch launcher and Drizzle/Telegram-bot gotchas when a Repl
 - **Fix:** drop the non-Drizzle-managed table (e.g. `DROP TABLE IF EXISTS user_sessions;`) before running `drizzle-kit push` on a fresh DB — it gets recreated automatically by the app's own bootstrap (`CREATE TABLE IF NOT EXISTS`), no data loss.
 - Never silently swallow errors/exit codes (`2> nul`, `|| true`) around a first-time migration step in a setup script — if it fails, the app looks like it works but every DB-backed feature 500s until someone happens to run the migration manually.
 
+## Telegram API unreachable from a self-hosted Docker container (ISP blocking)
+- `[TelegramBot] Polling error: EFATAL: Error: connect ECONNREFUSED <ip>:443` from inside a self-hosted Docker container (while the bot works fine on Replit) is often ISP-level blocking of Telegram at the user's location (common in Russia), not a code or Docker networking bug.
+- **Fix:** the user enabling a system-wide VPN on the Docker host resolved it immediately — Docker Desktop on Windows routes container traffic through the host's active network stack, so a host VPN also covers the container.
+
 ## Telegram bot: don't run the same bot token in two places
 - If a Telegram bot (long-polling) is enabled both on the Replit dev workflow AND in a user's self-hosted Docker deployment with the *same* `TELEGRAM_BOT_TOKEN`, both instances race to receive each Telegram update. Whichever wins writes to its own database — so license codes generated via the bot may land in the wrong database, causing "invalid code" errors that look like an unrelated auth bug.
 - **How to apply:** when helping a user move a Repl-hosted bot to fully self-hosted/local operation, gate the Replit-side bot off (e.g. `!process.env.REPL_ID`) so only one instance ever polls a given bot token at a time.
