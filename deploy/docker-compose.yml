@@ -36,6 +36,7 @@ services:
       AI_INTEGRATIONS_OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       NODE_ENV: production
       PORT: "3000"
+      SELF_HOSTED: "true"
 
 volumes:
   pgdata:

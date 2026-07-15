@@ -53,6 +53,13 @@ app.use((req, _res, next) => {
   express.urlencoded({ extended: true, limit: "50mb" })(req, _res, next);
 });
 
+// Self-hosted deployments (deploy/docker-compose.yml sets SELF_HOSTED=true) serve
+// plain HTTP on localhost — a `secure` cookie is silently dropped by the browser
+// over HTTP, which breaks session persistence entirely (login, saved Roblox
+// cookie, etc. never stick). Replit itself is always served over HTTPS, so it
+// keeps the stricter secure/cross-site cookie settings.
+const isSelfHosted = process.env.SELF_HOSTED === "true";
+
 app.use(session({
   store: new PgStore({
     pool,
@@ -64,8 +71,8 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: true,
-    sameSite: "none" as const,
+    secure: !isSelfHosted,
+    sameSite: isSelfHosted ? ("lax" as const) : ("none" as const),
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
