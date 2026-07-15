@@ -1,0 +1,1 @@
+- [Self-hosted Docker deploy pitfalls](self-hosted-docker-deploy.md) — batch script CRLF/if-block gotchas, drizzle-kit push interactive rename prompts, dual-bot-instance token conflicts.

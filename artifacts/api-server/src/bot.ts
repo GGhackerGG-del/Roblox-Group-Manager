@@ -10,11 +10,12 @@ if (!TOKEN) {
   console.warn("[TelegramBot] TELEGRAM_BOT_TOKEN not set — bot disabled.");
 }
 
-// Runs whenever a token is configured (dev, production, or desktop). Note: if you
-// also deploy this app, both the deployment and this dev instance would poll
-// Telegram at the same time, which can cause "409 Conflict" polling errors —
-// harmless, but only one instance actually receives updates.
-const shouldRun = Boolean(TOKEN);
+// Disabled on Replit itself (detected via REPL_ID) once the user runs their own
+// self-hosted copy (e.g. via deploy/start.bat|start.sh) with the same bot token —
+// otherwise both instances long-poll Telegram simultaneously and whichever one
+// wins a given update writes licenses to its own database, causing "Invalid
+// activation code" errors when checked against the other database.
+const shouldRun = Boolean(TOKEN) && !process.env.REPL_ID;
 const bot = shouldRun ? new TelegramBot(TOKEN, { polling: true }) : null;
 
 function addDays(days: number): Date {
