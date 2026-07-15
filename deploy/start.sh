@@ -52,12 +52,44 @@ docker compose --env-file .env up -d --build
 echo ""
 echo "Инициализируем базу данных..."
 sleep 5
-docker compose exec -T app sh -c "npx drizzle-kit push --config lib/db/drizzle.config.ts" || true
+if ! docker compose exec -T app pnpm --filter @workspace/db run push-force; then
+    echo "[ОШИБКА] Не удалось инициализировать базу, повторяем попытку..."
+    sleep 5
+    if ! docker compose exec -T app pnpm --filter @workspace/db run push-force; then
+        echo ""
+        echo "[ОШИБКА] Не удалось создать таблицы в базе данных автоматически."
+        echo "Выполните вручную из этой папки:"
+        echo "  docker compose exec app pnpm --filter @workspace/db run push-force"
+        echo ""
+    fi
+fi
 
 echo ""
 echo "========================================="
-echo "  Готово! Откройте: http://localhost:3000"
+echo "  Готово! Открываем приложение..."
 echo "========================================="
+echo ""
+
+echo "Ожидаем запуска сервера..."
+tries=0
+until curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/healthz 2>/dev/null | grep -q "200"; do
+    sleep 3
+    tries=$((tries+1))
+    if [ "$tries" -ge 20 ]; then
+        break
+    fi
+done
+
+echo "Открываем http://localhost:3000 в браузере..."
+if command -v xdg-open &> /dev/null; then
+    xdg-open http://localhost:3000 &> /dev/null &
+elif command -v open &> /dev/null; then
+    open http://localhost:3000
+fi
+
+echo ""
+echo "  Приложение работает на http://localhost:3000"
+echo "  Это окно можно закрыть — приложение продолжит работать в фоне."
 echo ""
 echo "Полезные команды:"
 echo "  docker compose logs -f app     — логи"

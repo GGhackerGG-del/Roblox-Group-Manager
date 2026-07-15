@@ -74,8 +74,27 @@ exit /b 1
 echo.
 echo Initsializiruem bazu dannykh...
 timeout /t 5 /nobreak > nul
-docker compose exec -T app sh -c "npx drizzle-kit push --config lib/db/drizzle.config.ts" 2> nul
+docker compose exec -T app pnpm --filter @workspace/db run push-force
+if errorlevel 1 goto dbretry
+goto dbdone
 
+:dbretry
+echo.
+echo [OSHIBKA] Ne udalos initsializirovat bazu dannykh, povtoriaem popytku...
+timeout /t 5 /nobreak > nul
+docker compose exec -T app pnpm --filter @workspace/db run push-force
+if errorlevel 1 goto dberror
+goto dbdone
+
+:dberror
+echo.
+echo [OSHIBKA] Ne udalos sozdat tablitsy v baze dannykh avtomaticheski.
+echo Kogda prilozhenie zapustitsia, vypolnite vruchnuiu v etoi papke:
+echo   docker compose exec app pnpm --filter @workspace/db run push-force
+echo.
+pause
+
+:dbdone
 echo.
 echo =========================================
 echo   Gotovo! Otkryvaem prilozhenie...
